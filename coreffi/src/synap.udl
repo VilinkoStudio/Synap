@@ -1,0 +1,37 @@
+namespace synap_coreffi {
+    [Throws=FfiError] SynapService open(string path);
+    [Throws=FfiError] SynapService open_memory();
+};
+
+enum FfiError {
+    "Database",
+    "NotFound",
+    "InvalidId",
+    "Io",
+    "Other",
+};
+
+dictionary NoteDTO {
+    string id;
+    string content;
+    sequence<string> tags;
+    i64 created_at;
+};
+
+interface SynapService {
+    [Throws=FfiError] NoteDTO get_note(string id_or_short_id);
+    [Throws=FfiError] sequence<NoteDTO> get_replies(string parent_id, string? cursor, u32 limit);
+    [Throws=FfiError] sequence<NoteDTO> get_recent_note(string? cursor, u32? limit);
+    [Throws=FfiError] sequence<NoteDTO> get_origins(string child_id, u32 depth);
+    [Throws=FfiError] sequence<NoteDTO> get_previous_versions(string note_id);
+    [Throws=FfiError] sequence<NoteDTO> get_next_versions(string note_id);
+    [Throws=FfiError] sequence<NoteDTO> get_other_versions(string note_id);
+    [Throws=FfiError] sequence<NoteDTO> get_deleted_notes(string? cursor, u32? limit);
+    [Throws=FfiError] sequence<NoteDTO> search(string query, u32 limit);
+    [Throws=FfiError] sequence<string> search_tags(string query, u32 limit);
+    [Throws=FfiError] NoteDTO create_note(string content, sequence<string> tags);
+    [Throws=FfiError] NoteDTO reply_note(string parent_id, string content, sequence<string> tags);
+    [Throws=FfiError] NoteDTO edit_note(string target_id, string new_content, sequence<string> tags);
+    [Throws=FfiError] void delete_note(string target_id);
+    [Throws=FfiError] void restore_note(string target_id);
+};

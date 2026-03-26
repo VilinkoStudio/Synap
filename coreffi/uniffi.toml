@@ -1,0 +1,10 @@
+[bindings]
+generate_kotlin = true
+generate_swift = false
+generate_python = false
+
+[bindings.kotlin]
+cdylib_name = "uniffi_synap_coreffi"
+package_name = "com.fuwaki.synap.bindings.uniffi.synap_coreffi"
+android = true
+android_cleaner = true
