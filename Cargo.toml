@@ -1,8 +1,9 @@
 [workspace]
 members = [
     "core",
+    "coreffi",
     "cli",
-    "server",
-    "desktop"
+    "desktop",
+    "xtask"
 ]
 resolver = "2"
