@@ -4,6 +4,7 @@
 *.sqlite3
 *.db-shm
 *.db-wal
+*.redb
 /tmp/*.md
 inbox.md
 
@@ -24,12 +25,19 @@ pnpm-debug.log*
 
 # Android & Kotlin
 android/.gradle/
+android/.kotlin/
 android/build/
 android/app/build/
+android/app/src/main/jniLibs/
+android/app/src/main/java/com/fuwaki/synap/bindings/uniffi/
 android/local.properties
 android/*.iml
 android/.cxx/
 android/.idea/
+
+# CoreFFI 历史产物
+coreffi/android/app/src/main/jniLibs/
+coreffi/android/app/src/main/java/com/fuwaki/synap/bindings/uniffi/
 
 # Vim / Neovim 临时文件
 *.swp

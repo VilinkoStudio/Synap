@@ -18,7 +18,6 @@
 
 * `core/`：Rust 逻辑内核。负责纯 Rust KV 数据落盘、不可变 DAG 状态机维护、读时过滤渲染算法以及后台 GC 机制。
 * `cli/`：Rust 命令行前端。提供纯终端环境下极速的捕获与回溯体验。
-* `server/`：Rust 网络中转层。基于 Axum 提供无状态的 JSON-RPC 接口，支撑多端互联互通。
 * `desktop/`：Rust 桌面端 UI。
 * `android/`：Kotlin 原生应用。通过底层绑定（FFI）直接调用 `core` 编译的动态链接库。
 * `web/`：Vue 3 前端应用。作为网络节点的轻量级可视化视图。
@@ -32,3 +31,30 @@
 ```bash
 cargo build --release -p cli
 ./target/release/cli --help
+```
+
+## Git 工作约定
+
+这个仓库是单仓多端，`core`、`coreffi`、`android`、`desktop`、`web` 经常会围绕同一个功能一起变化。为了避免一个功能做很久后工作区失控，约定如下：
+
+* 不直接在 `master` 上做长期开发。新功能、新重构、新实验统一从 `feat/*`、`refactor/*`、`spike/*` 分支开始，`master` 只保留可运行、可回退的提交。
+* 一个跨端功能按“层”拆提交，而不是按“今天改了什么”拆提交。推荐顺序是 `core/` -> `coreffi/` -> `android|desktop|web|cli/` -> `docs|build`。
+* 允许本地存在 WIP 提交，但每个提交都只解决一个明确问题，并尽量保证至少能编译，或者能清楚说明为什么暂时不能编译。
+* 构建产物、本地数据库、生成绑定代码不进入版本管理；它们应该由构建流程重新生成。
+* 长周期并行开发优先使用 `git worktree`，不要把所有事情都堆在一个工作区里，也尽量少依赖长期 `stash`。
+
+一个典型的跨端功能建议这样推进：
+
+```bash
+git switch -c feat/note-tag-flow
+git add core coreffi
+git commit -m "feat(core): add note tag service flow"
+git add android/app/src/main/java android/app/src/main/AndroidManifest.xml android/app/build.gradle.kts
+git commit -m "feat(android): wire note tag flow into app"
+```
+
+如果某个功能会做很多天，额外开一个工作树会更稳：
+
+```bash
+git worktree add ../synap-note-tag feat/note-tag-flow
+```
