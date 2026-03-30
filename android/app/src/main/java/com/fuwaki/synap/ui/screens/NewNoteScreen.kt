@@ -30,16 +30,20 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect // 新增
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester // 新增
+import androidx.compose.ui.focus.focusRequester // 新增
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.fuwaki.synap.ui.viewmodel.EditorMode
 import com.fuwaki.synap.ui.viewmodel.EditorUiState
+import kotlinx.coroutines.delay // 新增
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -55,6 +59,17 @@ fun NewNoteScreen(
     var showTagDialog by remember { mutableStateOf(false) }
     var editingTagIndex by remember { mutableIntStateOf(-1) }
     var tagInputText by remember { mutableStateOf("") }
+
+    // --- 新增：创建一个 FocusRequester 用于请求键盘焦点 ---
+    val focusRequester = remember { FocusRequester() }
+
+    // --- 新增：页面进入时，延迟一小会儿后自动请求焦点，弹出键盘 ---
+    LaunchedEffect(Unit) {
+        // 延迟 300 毫秒，等待 Navigation 的滑入过渡动画结束
+        // 这样可以避免动画执行时键盘同时弹出导致的页面卡顿掉帧
+        delay(300)
+        focusRequester.requestFocus()
+    }
 
     if (showTagDialog) {
         AlertDialog(
@@ -214,7 +229,9 @@ fun NewNoteScreen(
                 TextField(
                     value = uiState.content,
                     onValueChange = onContentChange,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .focusRequester(focusRequester), // --- 新增：将焦点请求器绑定到输入框 ---
                     placeholder = { Text("开始输入正文...") },
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,

@@ -1,11 +1,6 @@
 package com.fuwaki.synap.ui.screens
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +15,6 @@ import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
@@ -31,7 +25,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SearchBar
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,11 +33,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -65,21 +55,18 @@ fun HomeScreen(
     onReplyToNote: (String, String) -> Unit,
     onToggleDeleted: (Note) -> Unit,
     onToggleDeletedFeed: () -> Unit,
-    onSearchQueryChange: (String) -> Unit,
-    onSubmitSearch: () -> Unit,
-    onClearSearch: () -> Unit,
+    onOpenSearch: () -> Unit, // 现在只需要这个参数来跳转到搜索页
     onLoadMore: () -> Unit,
     onRefresh: () -> Unit,
 ) {
     val gridState = rememberLazyStaggeredGridState()
-    var searchActive by rememberSaveable { mutableStateOf(false) }
     val shouldLoadMore by remember(uiState.notes, uiState.hasMore, uiState.isLoading) {
         derivedStateOf {
             val lastVisible = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
             uiState.hasMore &&
-                !uiState.isLoading &&
-                uiState.notes.isNotEmpty() &&
-                lastVisible >= uiState.notes.lastIndex - 4
+                    !uiState.isLoading &&
+                    uiState.notes.isNotEmpty() &&
+                    lastVisible >= uiState.notes.lastIndex - 4
         }
     }
 
@@ -96,71 +83,29 @@ fun HomeScreen(
 
     Scaffold(
         topBar = {
-            Column {
-                TopAppBar(
-                    title = {
-                        Surface(
-                            color = MaterialTheme.colorScheme.tertiaryContainer,
-                            shape = MaterialTheme.shapes.small,
-                        ) {
-                            Text(
-                                text = "Synap",
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                style = MaterialTheme.typography.titleMedium,
-                            )
-                        }
-                    },
-                    actions = {
-                        if (searchActive) {
-                            TextButton(
-                                onClick = {
-                                    searchActive = false
-                                    if (uiState.query.isBlank()) {
-                                        onClearSearch()
-                                    }
-                                },
-                            ) {
-                                Text("完成")
-                            }
-                        } else {
-                            IconButton(onClick = { searchActive = true }) {
-                                Icon(Icons.Filled.Search, contentDescription = "搜索")
-                            }
-                            IconButton(onClick = onOpenSettings) {
-                                Icon(Icons.Filled.Settings, contentDescription = "设置")
-                            }
-                        }
-                    },
-                )
-
-                AnimatedVisibility(
-                    visible = searchActive,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically(),
-                ) {
-                    SearchBar(
-                        query = uiState.query,
-                        onQueryChange = onSearchQueryChange,
-                        onSearch = { onSubmitSearch() },
-                        active = false,
-                        onActiveChange = {},
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
-                        placeholder = { Text("搜索笔记、标签、片段") },
-                        leadingIcon = {
-                            Icon(Icons.Filled.Search, contentDescription = null)
-                        },
-                        trailingIcon = {
-                            if (uiState.query.isNotBlank()) {
-                                IconButton(onClick = onClearSearch) {
-                                    Icon(Icons.Filled.Clear, contentDescription = "清除")
-                                }
-                            }
-                        },
-                    ) {}
-                }
-            }
+            TopAppBar(
+                title = {
+                    Surface(
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                        shape = MaterialTheme.shapes.small,
+                    ) {
+                        Text(
+                            text = "Synap",
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    }
+                },
+                actions = {
+                    // 点击搜索图标，直接触发回调跳转到独立搜索页
+                    IconButton(onClick = onOpenSearch) {
+                        Icon(Icons.Filled.Search, contentDescription = "搜索")
+                    }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Filled.Settings, contentDescription = "设置")
+                    }
+                },
+            )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onComposeNote) {
@@ -202,8 +147,6 @@ fun HomeScreen(
                 )
                 AnimatedContent(
                     targetState = when {
-                        uiState.isSearchMode -> "搜索结果"
-                        searchActive -> "输入关键词后搜索"
                         uiState.showDeleted -> "查看已删除节点"
                         else -> "按时间浏览最新节点"
                     },
@@ -257,7 +200,6 @@ fun HomeScreen(
                     ) {
                         Text(
                             text = when {
-                                uiState.isSearchMode -> "没有匹配的笔记"
                                 uiState.showDeleted -> "删除流为空"
                                 else -> "还没有笔记"
                             },
