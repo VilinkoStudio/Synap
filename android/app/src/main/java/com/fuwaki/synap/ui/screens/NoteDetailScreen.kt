@@ -1,5 +1,8 @@
 package com.fuwaki.synap.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,11 +16,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowUpward // --- 新增：向上箭头图标 ---
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Reply
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton // --- 新增：使用扩展 FAB组件 ---
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,6 +33,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope // --- 新增：引入协程作用域 ---
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -35,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import com.fuwaki.synap.ui.model.Note
 import com.fuwaki.synap.ui.util.formatNoteTime
 import com.fuwaki.synap.ui.viewmodel.DetailUiState
+import kotlinx.coroutines.launch // --- 新增：启动协程 ---
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,6 +58,17 @@ fun NoteDetailScreen(
     onLoadMoreReplies: () -> Unit,
     onRefresh: () -> Unit,
 ) {
+    // --- 新增：提取并记住页面的滚动状态和协程作用域 ---
+    val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
+
+    // --- 新增：判断页面是否向下滑动了一定距离（例如 300 像素） ---
+    val isScrolledDown by remember {
+        derivedStateOf {
+            scrollState.value > 300
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -64,6 +85,28 @@ fun NoteDetailScreen(
                 },
             )
         },
+        // --- 修改：详情页的右下角悬浮按钮，改为带标题的标准大小Extended FAB ---
+        floatingActionButton = {
+            AnimatedVisibility(
+                visible = isScrolledDown,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                // 👈 完美解决了图标+文字的需求
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        scope.launch {
+                            // 平滑滚动回顶部 (0像素位置)
+                            scrollState.animateScrollTo(0)
+                        }
+                    },
+                    icon = { Icon(Icons.Filled.ArrowUpward, contentDescription = null) },
+                    text = { Text(text = "回到顶部") }, // 👈 加上了标题
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+        }
     ) { innerPadding ->
         if (uiState.isLoading && uiState.note == null) {
             Column(
@@ -107,7 +150,8 @@ fun NoteDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
+                // --- 修改：将独立提取的 scrollState 传给这个组件 ---
+                .verticalScroll(scrollState)
                 .padding(16.dp),
         ) {
             Row(

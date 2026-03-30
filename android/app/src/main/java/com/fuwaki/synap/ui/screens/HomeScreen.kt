@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
@@ -23,17 +22,19 @@ import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.FilterList // 新增筛选图标
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton // --- 新增：使用扩展 FAB ---
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet // 新增底部弹窗
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -45,6 +46,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -58,6 +60,7 @@ import com.fuwaki.synap.ui.viewmodel.HomeUiState
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,10 +76,17 @@ fun HomeScreen(
     onRefresh: () -> Unit,
 ) {
     val gridState = rememberLazyStaggeredGridState()
+    val scope = rememberCoroutineScope()
 
-    // --- 新增：控制筛选菜单状态和当前选中的过滤条件 ---
     var showFilterSheet by remember { mutableStateOf(false) }
-    var currentFilter by rememberSaveable { mutableStateOf("全部") } // 记住用户的选择
+    var currentFilter by rememberSaveable { mutableStateOf("全部") }
+
+    // --- 优化：只要稍微往下滑动一点（第一项不在顶部），就立刻显示按钮 ---
+    val isScrolledDown by remember {
+        derivedStateOf {
+            gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 100
+        }
+    }
 
     val isAtTop by remember {
         derivedStateOf {
@@ -94,13 +104,12 @@ fun HomeScreen(
         }
     }
 
-    // --- 修改：在这里根据 currentFilter 状态进一步过滤笔记 ---
     val displayNotes = remember(uiState.notes, currentFilter) {
-        val sorted = uiState.notes.sortedBy { it.isDeleted } // 依旧保持正常在前的排序
+        val sorted = uiState.notes.sortedBy { it.isDeleted }
         when (currentFilter) {
             "正常" -> sorted.filter { !it.isDeleted }
             "已删除" -> sorted.filter { it.isDeleted }
-            else -> sorted // "全部"
+            else -> sorted
         }
     }
 
@@ -142,7 +151,6 @@ fun HomeScreen(
                             }
                         }
 
-                        // --- 新增：筛选图标（在搜索和设置之间）---
                         IconButton(onClick = { showFilterSheet = true }) {
                             Icon(Icons.Filled.FilterList, contentDescription = "筛选")
                         }
@@ -193,8 +201,33 @@ fun HomeScreen(
             }
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onComposeNote) {
-                Icon(Icons.Filled.Add, contentDescription = "创建笔记")
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // --- 修改：同步使用带有“回到顶部”文字的 Extended FAB ---
+                AnimatedVisibility(
+                    visible = isScrolledDown,
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    ExtendedFloatingActionButton(
+                        onClick = {
+                            scope.launch {
+                                gridState.animateScrollToItem(0)
+                            }
+                        },
+                        icon = { Icon(Icons.Filled.ArrowUpward, contentDescription = null) },
+                        text = { Text(text = "回到顶部") },
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+
+                // 新建笔记按钮（大 FAB）
+                FloatingActionButton(onClick = onComposeNote) {
+                    Icon(Icons.Filled.Add, contentDescription = "创建笔记")
+                }
             }
         },
     ) { innerPadding ->
@@ -236,7 +269,7 @@ fun HomeScreen(
                     }
                 }
 
-                displayNotes.isEmpty() -> { // 修改：这里根据过滤后的列表判断是否为空
+                displayNotes.isEmpty() -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
@@ -272,7 +305,6 @@ fun HomeScreen(
         }
     }
 
-    // --- 新增：底部筛选弹窗 ModalBottomSheet ---
     if (showFilterSheet) {
         ModalBottomSheet(
             onDismissRequest = { showFilterSheet = false }
@@ -281,7 +313,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
-                    .padding(bottom = 48.dp) // 给底部留一点安全距离
+                    .padding(bottom = 48.dp)
             ) {
                 Text(
                     text = "筛选",
@@ -296,7 +328,7 @@ fun HomeScreen(
                         selected = currentFilter == "全部",
                         onClick = {
                             currentFilter = "全部"
-                            showFilterSheet = false // 点击后自动收起弹窗，体验更顺畅
+                            showFilterSheet = false
                         },
                         label = { Text("全部") }
                     )
