@@ -176,7 +176,6 @@ private fun SynapNavGraph(
                     navController.navigate(editorRoute(parentId = noteId, parentSummary = summary))
                 },
                 onToggleDeleted = viewModel::toggleDeleted,
-                onToggleDeletedFeed = viewModel::toggleDeletedFeed,
                 onOpenSearch = { navController.navigate("search") },
                 onLoadMore = viewModel::loadMore,
                 onRefresh = viewModel::refresh,
