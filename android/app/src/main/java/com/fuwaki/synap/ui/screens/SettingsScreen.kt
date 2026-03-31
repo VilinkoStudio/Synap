@@ -229,7 +229,7 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "笔记正文文字大小 (${noteTextSize.toInt()}sp)",
+                            text = "笔记文字大小 (当前${noteTextSize.toInt()}sp)",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -265,27 +265,21 @@ fun SettingsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onExportNotes() }
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "导出所有笔记",
+                        text = "功能开发中，敬请期待……",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f)
-                    )
-                    Icon(
-                        Icons.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "数据库",
+                text = "备份与恢复",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
@@ -305,13 +299,13 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "导出数据库到文件",
+                            text = "导出为备份文件(.redb)",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "将当前 redb 数据库保存到你选择的位置",
+                            text = "将完整数据备份到指定位置",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -337,13 +331,13 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "分享数据库",
+                            text = "导出备份文件(.redb)并分享",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "通过系统分享栏发送数据库文件",
+                            text = "将完整数据备份并分享到其他软件或设备",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -369,13 +363,13 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "导入并替换数据库",
+                            text = "导入备份文件并覆盖",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "会替换当前本地数据库，导入后需要重启 App",
+                            text = "此操作会清空当前已有数据，请谨慎操作。导入后需要重启app生效",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -457,7 +451,7 @@ fun SettingsScreen(
                     Text("Synap", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "一款极简的用于快速思维捕获的软件。",
+                        text = "一款极简的用于快速思维捕获的笔记软件。",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         lineHeight = 20.sp,
