@@ -23,8 +23,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Reply
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.ExtendedFloatingActionButton // 确保引入了这个组件
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -53,7 +52,7 @@ import kotlinx.coroutines.launch
 fun NoteDetailScreen(
     uiState: DetailUiState,
     onNavigateBack: () -> Unit,
-    onNavigateHome: () -> Unit, // --- 新增回调 ---
+    onNavigateHome: () -> Unit,
     onDelete: () -> Unit,
     onReply: () -> Unit,
     onEdit: () -> Unit,
@@ -75,7 +74,6 @@ fun NoteDetailScreen(
             TopAppBar(
                 title = { Text("笔记详情") },
                 navigationIcon = {
-                    // --- 修改：用 Row 包裹两个按钮 ---
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onNavigateBack) {
                             Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
@@ -93,22 +91,50 @@ fun NoteDetailScreen(
             )
         },
         floatingActionButton = {
-            AnimatedVisibility(
-                visible = isScrolledDown,
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                ExtendedFloatingActionButton(
-                    onClick = {
-                        scope.launch {
-                            scrollState.animateScrollTo(0)
-                        }
-                    },
-                    icon = { Icon(Icons.Filled.ArrowUpward, contentDescription = null) },
-                    text = { Text(text = "回到顶部") },
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                )
+            // 确保只有在笔记加载成功后才显示右下角的悬浮按钮组
+            if (uiState.note != null) {
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    AnimatedVisibility(
+                        visible = isScrolledDown,
+                        enter = fadeIn(),
+                        exit = fadeOut()
+                    ) {
+                        ExtendedFloatingActionButton(
+                            onClick = {
+                                scope.launch {
+                                    scrollState.animateScrollTo(0)
+                                }
+                            },
+                            icon = { Icon(Icons.Filled.ArrowUpward, contentDescription = null) },
+                            text = { Text(text = "回到顶部") },
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+
+                    // --- 核心修改：将 FloatingActionButton 替换为 ExtendedFloatingActionButton 并添加文字标题 ---
+
+                    // 编辑按钮（使用次级颜色，作为次要操作）
+                    ExtendedFloatingActionButton(
+                        onClick = onEdit,
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        icon = { Icon(Icons.Filled.Edit, contentDescription = null) }, // 图标插槽，去掉 contentDescription
+                        text = { Text(text = "编辑") } // 文字插槽，添加标题“编辑”
+                    )
+
+                    // 回复按钮（使用主色，作为主要操作）
+                    ExtendedFloatingActionButton(
+                        onClick = onReply,
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        icon = { Icon(Icons.Filled.Reply, contentDescription = null) }, // 图标插槽，去掉 contentDescription
+                        text = { Text(text = "回复") } // 文字插槽，添加标题“回复”
+                    )
+                }
             }
         }
     ) { innerPadding ->
@@ -192,19 +218,6 @@ fun NoteDetailScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                FilledTonalButton(onClick = onReply) {
-                    Icon(Icons.Filled.Reply, contentDescription = null)
-                    Text(" 回复")
-                }
-                FilledTonalButton(onClick = onEdit) {
-                    Icon(Icons.Filled.Edit, contentDescription = null)
-                    Text(" 编辑")
-                }
-            }
-
             if (uiState.errorMessage != null) {
                 Text(
                     text = uiState.errorMessage,
@@ -243,7 +256,9 @@ fun NoteDetailScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(48.dp))
+            // 大幅增加底部的留白，从 48.dp 提升到 200.dp
+            // 确保滑到最底端时，内容完全高于三个叠加的 FAB 按钮
+            Spacer(modifier = Modifier.height(200.dp))
         }
     }
 }
