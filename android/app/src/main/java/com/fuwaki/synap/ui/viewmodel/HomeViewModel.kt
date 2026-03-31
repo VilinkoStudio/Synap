@@ -20,7 +20,7 @@ data class HomeUiState(
     val isLoading: Boolean = true,
     val hasMore: Boolean = false,
     val isSearchMode: Boolean = false,
-    val showDeleted: Boolean = false, // 保留字段以防报错，但不再用于切换逻辑
+    val showDeleted: Boolean = false,
     val errorMessage: String? = null,
 )
 
@@ -42,7 +42,6 @@ class HomeViewModel @Inject constructor(
     private val isSearchLoading = MutableStateFlow(false)
     private val searchError = MutableStateFlow<String?>(null)
 
-    // 移除了 showDeleted 的合并逻辑
     private val queryState = combine(
         query,
         searchResults,
@@ -64,21 +63,28 @@ class HomeViewModel @Inject constructor(
     ) { recent, deleted, currentState ->
         val searchMode = currentState.query.isNotBlank()
 
-        // --- 核心修改：同时获取正常笔记和已删除笔记，并合并到一个列表中 ---
         val recentNotes = recent.items.map { it.toUiNote(isDeleted = false) }
         val deletedNotes = deleted.items.map { it.toUiNote(isDeleted = true) }
-        val combinedNotes = recentNotes + deletedNotes
+
+        // --- 核心修复 1：使用 Map 进行硬核去重 ---
+        // 因为 recent 和 deleted 是异步查出来的，当笔记状态刚切换时，
+        // 极可能在瞬间短暂地同时存在于两边。用 Map 可以完美覆盖旧数据。
+        val allNotesMap = mutableMapOf<String, Note>()
+        // 正常笔记先进
+        recentNotes.forEach { allNotesMap[it.id] = it }
+        // 垃圾桶笔记后进。如果存在重叠（说明刚被删除），以后进的 isDeleted=true 为准
+        deletedNotes.forEach { allNotesMap[it.id] = it }
+
+        val combinedNotes = allNotesMap.values.toList()
 
         HomeUiState(
             query = currentState.query,
             notes = if (searchMode) currentState.searchResults else combinedNotes,
-            // 只要其中一个还在加载，就显示 Loading
             isLoading = if (searchMode) {
                 currentState.isSearchLoading
             } else {
                 recent.isLoading || deleted.isLoading
             },
-            // 只要其中一个还有更多数据，就允许继续下滑加载
             hasMore = if (searchMode) {
                 false
             } else {
@@ -135,7 +141,6 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    // --- 修改：触底时同时尝试加载两种笔记的下一页 ---
     fun loadMore() {
         if (query.value.isNotBlank()) {
             return

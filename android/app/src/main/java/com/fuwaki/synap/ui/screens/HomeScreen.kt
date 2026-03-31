@@ -105,6 +105,7 @@ fun HomeScreen(
     }
 
     val displayNotes = remember(uiState.notes, currentFilter) {
+        val uniqueNotes = uiState.notes.distinctBy { it.id }
         val sorted = uiState.notes.sortedBy { it.isDeleted }
         when (currentFilter) {
             "正常" -> sorted.filter { !it.isDeleted }
@@ -290,7 +291,7 @@ fun HomeScreen(
                         verticalItemSpacing = 16.dp,
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        itemsIndexed(displayNotes, key = { _, note -> note.id }) { index, note ->
+                        itemsIndexed(displayNotes, key = { _, note -> "${note.id}_${note.isDeleted}" }) { index, note ->
                             NoteCardItem(
                                 note = note,
                                 onClick = { onOpenNote(note.id) },
