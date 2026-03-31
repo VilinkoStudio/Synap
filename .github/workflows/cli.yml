@@ -1,0 +1,127 @@
+name: CLI
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - '*'
+    paths:
+      - 'cli/**'
+      - 'core/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/cli.yml'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'cli/**'
+      - 'core/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/cli.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cli-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-x64
+            exe_suffix: ''
+            archive_ext: tar.gz
+          - os: macos-14
+            platform: macos-arm64
+            exe_suffix: ''
+            archive_ext: tar.gz
+          - os: windows-latest
+            platform: windows-x64
+            exe_suffix: '.exe'
+            archive_ext: zip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build outputs
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+
+      - name: Build CLI
+        run: cargo build --locked --package synap-cli --bin synap ${{ startsWith(github.ref, 'refs/tags/') && '--release' || '' }}
+
+      - name: Package release asset (Unix)
+        if: startsWith(github.ref, 'refs/tags/') && runner.os != 'Windows'
+        run: |
+          set -euo pipefail
+          bundle_dir="dist/synap-cli-${GITHUB_REF_NAME}-${{ matrix.platform }}"
+          mkdir -p "$bundle_dir"
+          cp "target/release/synap${{ matrix.exe_suffix }}" "$bundle_dir/"
+          if [ -f readme.md ]; then
+            cp readme.md "$bundle_dir/"
+          fi
+          tar -czf "${bundle_dir}.tar.gz" -C dist "$(basename "$bundle_dir")"
+
+      - name: Package release asset (Windows)
+        if: startsWith(github.ref, 'refs/tags/') && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bundleDir = "dist/synap-cli-$env:GITHUB_REF_NAME-${{ matrix.platform }}"
+          New-Item -ItemType Directory -Force -Path $bundleDir | Out-Null
+          Copy-Item "target/release/synap${{ matrix.exe_suffix }}" $bundleDir
+          if (Test-Path "readme.md") {
+            Copy-Item "readme.md" $bundleDir
+          }
+          Compress-Archive -Path "$bundleDir/*" -DestinationPath "$bundleDir.zip" -Force
+
+      - name: Upload release artifact
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: synap-cli-${{ matrix.platform }}-release
+          path: dist/synap-cli-${{ github.ref_name }}-${{ matrix.platform }}.${{ matrix.archive_ext }}
+          if-no-files-found: error
+
+  release:
+    name: Publish Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: synap-cli-*-release
+          merge-multiple: true
+          path: release-assets
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true

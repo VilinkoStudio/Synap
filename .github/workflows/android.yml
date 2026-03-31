@@ -1,0 +1,167 @@
+name: Android
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - '*'
+    paths:
+      - 'android/**'
+      - 'core/**'
+      - 'coreffi/**'
+      - 'xtask/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/android.yml'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'android/**'
+      - 'core/**'
+      - 'coreffi/**'
+      - 'xtask/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  ANDROID_COMPILE_SDK: '36'
+  ANDROID_BUILD_TOOLS: '35.0.1'
+  ANDROID_NDK_VERSION: '28.0.13004108'
+
+jobs:
+  build:
+    name: Build Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK components
+        run: |
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-${ANDROID_COMPILE_SDK}" \
+            "build-tools;${ANDROID_BUILD_TOOLS}" \
+            "ndk;${ANDROID_NDK_VERSION}"
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Cache Rust build outputs
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+
+      - name: Prepare Android signing config
+        if: startsWith(github.ref, 'refs/tags/') && env.ANDROID_KEYSTORE_BASE64 != '' && env.ANDROID_KEYSTORE_PASSWORD != '' && env.ANDROID_KEY_ALIAS != '' && env.ANDROID_KEY_PASSWORD != ''
+        run: |
+          echo "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > android/upload-keystore.jks
+          cat > android/keystore.properties <<'EOF'
+          storeFile=upload-keystore.jks
+          storePassword=${ANDROID_KEYSTORE_PASSWORD}
+          keyAlias=${ANDROID_KEY_ALIAS}
+          keyPassword=${ANDROID_KEY_PASSWORD}
+          EOF
+
+      - name: Build Android app
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            ./gradlew --no-daemon assembleRelease
+          else
+            ./gradlew --no-daemon assembleDebug
+          fi
+
+      - name: Collect release assets
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          mkdir -p dist
+
+          apk_files=(android/app/build/outputs/apk/release/*.apk)
+          if [[ ${#apk_files[@]} -eq 0 ]]; then
+            echo "No release APK files were produced."
+            exit 1
+          fi
+
+          for apk in "${apk_files[@]}"; do
+            cp "$apk" "dist/synap-android-${GITHUB_REF_NAME}-$(basename "$apk")"
+          done
+
+          symbols="android/app/build/outputs/native-debug-symbols/release/native-debug-symbols.zip"
+          if [[ -f "$symbols" ]]; then
+            cp "$symbols" "dist/synap-android-${GITHUB_REF_NAME}-native-debug-symbols.zip"
+          fi
+
+          metadata="android/app/build/outputs/apk/release/output-metadata.json"
+          if [[ -f "$metadata" ]]; then
+            cp "$metadata" "dist/synap-android-${GITHUB_REF_NAME}-output-metadata.json"
+          fi
+
+      - name: Upload release artifact
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: synap-android-release
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Publish Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: synap-android-release
+          path: release-assets
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true
