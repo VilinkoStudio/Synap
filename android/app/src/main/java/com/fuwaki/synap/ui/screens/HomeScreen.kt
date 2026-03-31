@@ -28,7 +28,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton // --- 新增：使用扩展 FAB ---
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -53,6 +53,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fuwaki.synap.ui.components.NoteCardItem
 import com.fuwaki.synap.ui.model.Note
@@ -81,7 +82,6 @@ fun HomeScreen(
     var showFilterSheet by remember { mutableStateOf(false) }
     var currentFilter by rememberSaveable { mutableStateOf("全部") }
 
-    // --- 优化：只要稍微往下滑动一点（第一项不在顶部），就立刻显示按钮 ---
     val isScrolledDown by remember {
         derivedStateOf {
             gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 100
@@ -129,16 +129,12 @@ fun HomeScreen(
             Column {
                 TopAppBar(
                     title = {
-                        Surface(
-                            color = MaterialTheme.colorScheme.tertiaryContainer,
-                            shape = MaterialTheme.shapes.small,
-                        ) {
-                            Text(
-                                text = "Synap",
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                style = MaterialTheme.typography.titleMedium,
-                            )
-                        }
+                        Text(
+                            text = "Synap",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     },
                     actions = {
                         AnimatedVisibility(
@@ -205,7 +201,6 @@ fun HomeScreen(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // --- 修改：同步使用带有“回到顶部”文字的 Extended FAB ---
                 AnimatedVisibility(
                     visible = isScrolledDown,
                     enter = fadeIn(),
@@ -224,7 +219,6 @@ fun HomeScreen(
                     )
                 }
 
-                // 新建笔记按钮（大 FAB）
                 FloatingActionButton(onClick = onComposeNote) {
                     Icon(Icons.Filled.Add, contentDescription = "创建笔记")
                 }
@@ -286,7 +280,13 @@ fun HomeScreen(
                         columns = StaggeredGridCells.Adaptive(minSize = 240.dp),
                         state = gridState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
+                        // --- 修改：增加 96.dp 底部留白，完全避开小白条和 FAB 的遮挡 ---
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            top = 16.dp,
+                            end = 16.dp,
+                            bottom = 96.dp
+                        ),
                         verticalItemSpacing = 16.dp,
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                     ) {

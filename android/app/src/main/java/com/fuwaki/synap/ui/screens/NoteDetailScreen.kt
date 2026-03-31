@@ -16,13 +16,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowUpward // --- 新增：向上箭头图标 ---
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Reply
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton // --- 新增：使用扩展 FAB组件 ---
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,21 +37,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope // --- 新增：引入协程作用域 ---
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.fuwaki.synap.LocalNoteTextSize
 import com.fuwaki.synap.ui.model.Note
 import com.fuwaki.synap.ui.util.formatNoteTime
 import com.fuwaki.synap.ui.viewmodel.DetailUiState
-import kotlinx.coroutines.launch // --- 新增：启动协程 ---
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NoteDetailScreen(
     uiState: DetailUiState,
     onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit, // --- 新增回调 ---
     onDelete: () -> Unit,
     onReply: () -> Unit,
     onEdit: () -> Unit,
@@ -58,11 +61,9 @@ fun NoteDetailScreen(
     onLoadMoreReplies: () -> Unit,
     onRefresh: () -> Unit,
 ) {
-    // --- 新增：提取并记住页面的滚动状态和协程作用域 ---
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
 
-    // --- 新增：判断页面是否向下滑动了一定距离（例如 300 像素） ---
     val isScrolledDown by remember {
         derivedStateOf {
             scrollState.value > 300
@@ -74,8 +75,14 @@ fun NoteDetailScreen(
             TopAppBar(
                 title = { Text("笔记详情") },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
+                    // --- 修改：用 Row 包裹两个按钮 ---
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
+                        }
+                        IconButton(onClick = onNavigateHome) {
+                            Icon(Icons.Filled.Home, contentDescription = "主页")
+                        }
                     }
                 },
                 actions = {
@@ -85,23 +92,20 @@ fun NoteDetailScreen(
                 },
             )
         },
-        // --- 修改：详情页的右下角悬浮按钮，改为带标题的标准大小Extended FAB ---
         floatingActionButton = {
             AnimatedVisibility(
                 visible = isScrolledDown,
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
-                // 👈 完美解决了图标+文字的需求
                 ExtendedFloatingActionButton(
                     onClick = {
                         scope.launch {
-                            // 平滑滚动回顶部 (0像素位置)
                             scrollState.animateScrollTo(0)
                         }
                     },
                     icon = { Icon(Icons.Filled.ArrowUpward, contentDescription = null) },
-                    text = { Text(text = "回到顶部") }, // 👈 加上了标题
+                    text = { Text(text = "回到顶部") },
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                 )
@@ -150,7 +154,6 @@ fun NoteDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                // --- 修改：将独立提取的 scrollState 传给这个组件 ---
                 .verticalScroll(scrollState)
                 .padding(16.dp),
         ) {
@@ -182,8 +185,10 @@ fun NoteDetailScreen(
 
             Text(
                 text = note.content,
-                style = MaterialTheme.typography.bodyLarge,
-                lineHeight = 28.sp,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontSize = LocalNoteTextSize.current,
+                    lineHeight = LocalNoteTextSize.current * 1.5f
+                ),
                 modifier = Modifier.fillMaxWidth(),
             )
 
@@ -272,7 +277,10 @@ private fun RelationSection(
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text(
                         text = note.content,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = (LocalNoteTextSize.current.value - 2).coerceAtLeast(10f).sp,
+                            lineHeight = (LocalNoteTextSize.current.value - 2).coerceAtLeast(10f).sp * 1.5f
+                        ),
                     )
                     if (note.tags.isNotEmpty()) {
                         Text(

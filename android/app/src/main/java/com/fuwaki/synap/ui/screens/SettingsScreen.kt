@@ -2,6 +2,11 @@ package com.fuwaki.synap.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,27 +26,23 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -55,16 +56,17 @@ fun SettingsScreen(
     useMonet: Boolean,
     supportsMonet: Boolean,
     onUseMonetChange: (Boolean) -> Unit,
+    customThemeHue: Float,                                   // 👈 接收的是 0-360 的色相值
+    onCustomThemeHueChange: (Float) -> Unit,
     isSystemLanguage: Boolean,
     onSystemLanguageToggle: (Boolean) -> Unit,
+    noteTextSize: Float,
+    onNoteTextSizeChange: (Float) -> Unit,
+    onExportNotes: () -> Unit,
     onNavigateToLanguageSelection: () -> Unit,
     onNavigateBack: () -> Unit,
 ) {
     val context = LocalContext.current
-
-    var highContrast by remember { mutableStateOf(false) }
-    var textSizeOption by remember { mutableFloatStateOf(1f) }
-    var serverAddress by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -72,7 +74,7 @@ fun SettingsScreen(
                 title = { Text("设置") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = null)
                     }
                 },
             )
@@ -86,8 +88,8 @@ fun SettingsScreen(
                 .padding(horizontal = 16.dp),
         ) {
             Text(
-                text = "外观",
-                style = MaterialTheme.typography.titleMedium,
+                text = "深色模式",
+                style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
             )
@@ -98,7 +100,7 @@ fun SettingsScreen(
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             ) {
                 listOf(
-                    "跟随系统" to "根据设备显示设置自动切换",
+                    "跟随系统" to "根据设备的深色模式设置自动切换",
                     "浅色模式" to "保持亮色主题",
                     "深色模式" to "保持暗色主题",
                 ).forEachIndexed { index, option ->
@@ -110,7 +112,7 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(option.first, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                            Text(option.first, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(option.second, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -130,11 +132,21 @@ fun SettingsScreen(
                         )
                     }
                 }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
 
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
+            Text(
+                text = "外观",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -143,16 +155,16 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "同步安卓主题色（莫奈取色）",
-                            style = MaterialTheme.typography.titleMedium,
+                            "同步系统主题色（莫奈取色）",
+                            style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = when {
                                 !supportsMonet -> "当前设备不支持，需要 Android 12 及以上"
-                                useMonet -> "当前使用系统壁纸取色"
-                                else -> "当前使用 Synap 内建配色"
+                                useMonet -> "当前正在使用 Android 系统壁纸取色"
+                                else -> "当前已关闭，可自由调节主题色"
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -164,31 +176,40 @@ fun SettingsScreen(
                         enabled = supportsMonet,
                     )
                 }
-            }
-            Spacer(modifier = Modifier.height(24.dp))
 
-            Text(
-                text = "无障碍",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                // --- 核心修改：展开的主题色相滑块 ---
+                AnimatedVisibility(
+                    visible = !useMonet,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("高对比度主题", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                    Column {
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                        )
+                        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                            Text(
+                                text = "拖动调节主题色",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // 动态计算当前滑块的纯净颜色用于视觉反馈
+                            val currentPureColor = Color.hsv(customThemeHue, 1f, 1f)
+
+                            Slider(
+                                value = customThemeHue,
+                                onValueChange = onCustomThemeHueChange,
+                                valueRange = 0f..360f,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = currentPureColor,
+                                    activeTrackColor = currentPureColor,
+                                )
+                            )
+                        }
                     }
-                    Switch(checked = highContrast, onCheckedChange = { highContrast = it })
                 }
 
                 HorizontalDivider(
@@ -197,24 +218,36 @@ fun SettingsScreen(
                 )
 
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                    Text("笔记整体文字大小", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Slider(value = textSizeOption, onValueChange = { textSizeOption = it }, valueRange = 0f..2f, steps = 1)
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("小", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("正常", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("大", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            text = "笔记正文文字大小 (${noteTextSize.toInt()}sp)",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        if (noteTextSize != 16f) {
+                            TextButton(onClick = { onNoteTextSizeChange(16f) }) {
+                                Text("恢复默认")
+                            }
+                        }
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Slider(
+                        value = noteTextSize,
+                        onValueChange = onNoteTextSizeChange,
+                        valueRange = 10f..30f,
+                        steps = 9
+                    )
                 }
             }
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "同步功能",
-                style = MaterialTheme.typography.titleMedium,
+                text = "同步",
+                style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
             )
@@ -227,27 +260,28 @@ fun SettingsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clickable { onExportNotes() }
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    OutlinedTextField(
-                        value = serverAddress,
-                        onValueChange = { serverAddress = it },
-                        placeholder = { Text("输入服务器地址") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
+                    Text(
+                        text = "导出所有笔记",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
                     )
-                    Button(onClick = { }) {
-                        Text("同步")
-                    }
+                    Icon(
+                        Icons.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
                 text = "语言 (Language)",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
             )
@@ -264,7 +298,7 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("跟随系统", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                        Text("跟随系统语言设置", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                     }
                     Switch(checked = isSystemLanguage, onCheckedChange = onSystemLanguageToggle)
                 }
@@ -283,13 +317,13 @@ fun SettingsScreen(
                     ) {
                         Text(
                             text = "选择语言",
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.weight(1f),
                         )
                         Icon(
                             Icons.Filled.KeyboardArrowRight,
-                            contentDescription = "选择语言箭头",
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -299,7 +333,7 @@ fun SettingsScreen(
 
             Text(
                 text = "关于",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
             )
@@ -311,15 +345,9 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Synap", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "版本 V0.2.3.Beta - 2026/03/17",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "一个基于有向无环图（DAG）的极简思维捕获与路由中枢。\n本项目旨在消除传统笔记软件中由于“强制分类”和“树形目录”带来的心智负担。它不要求你在记录前进行结构化思考，而是忠实地记录意识的流转、发散与收束。",
+                        text = "一款极简的用于快速思维捕获的软件。",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         lineHeight = 20.sp,
@@ -340,8 +368,8 @@ fun SettingsScreen(
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("查看项目主页", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                    Icon(Icons.Filled.Link, contentDescription = "链接", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("查看项目主页", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                    Icon(Icons.Filled.Link, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
                 HorizontalDivider(
@@ -358,8 +386,8 @@ fun SettingsScreen(
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("点击下载最新版", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                    Icon(Icons.Filled.Link, contentDescription = "链接", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("点击下载最新版", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                    Icon(Icons.Filled.Link, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
