@@ -34,6 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope // --- 新增引入 ---
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +47,7 @@ import com.fuwaki.synap.LocalNoteTextSize
 import com.fuwaki.synap.ui.model.Note
 import com.fuwaki.synap.ui.util.formatNoteTime
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch // --- 新增引入 ---
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,6 +58,8 @@ fun NoteCardItem(
     onReply: () -> Unit,
     animationDelayMillis: Int = 0,
 ) {
+    val scope = rememberCoroutineScope() // --- 新增协程作用域 ---
+
     var entered by remember(note.id) { mutableStateOf(false) }
     LaunchedEffect(note.id) {
         if (animationDelayMillis > 0) {
@@ -83,12 +87,19 @@ fun NoteCardItem(
         confirmValueChange = { dismissValue ->
             when (dismissValue) {
                 SwipeToDismissBoxValue.StartToEnd -> {
-                    onToggleDeleted()
+                    // --- 核心修复：延迟 150ms 触发数据更改，防止由于列表元素瞬间被移除导致的 Compose 闪退 ---
+                    scope.launch {
+                        delay(150)
+                        onToggleDeleted()
+                    }
                     false
                 }
                 SwipeToDismissBoxValue.EndToStart -> {
                     if (!note.isDeleted) {
-                        onReply()
+                        scope.launch {
+                            delay(150)
+                            onReply()
+                        }
                     }
                     false
                 }
@@ -153,7 +164,11 @@ fun NoteCardItem(
                     scaleX = cardScale
                     scaleY = cardScale
                 }
-                .clickable(onClick = onClick),
+
+                .clickable(
+                    enabled = !note.isDeleted,
+                    onClick = onClick
+                ),
             colors = CardDefaults.cardColors(
                 containerColor = if (note.isDeleted) {
                     MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
