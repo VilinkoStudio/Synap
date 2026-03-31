@@ -12,6 +12,9 @@ import com.fuwaki.synap.data.model.toNoteRecord
 import com.fuwaki.synap.data.model.toNoteRecords
 import com.fuwaki.synap.di.IoDispatcher
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
@@ -36,7 +39,7 @@ class CoreffiRuntime @Inject constructor(
         withContext(ioDispatcher) {
             runCatching {
                 serviceInstance?.close()
-                val dbFile = context.getDatabasePath("synap.redb")
+                val dbFile = databaseFile()
                 dbFile.parentFile?.mkdirs()
                 serviceInstance = open(dbFile.absolutePath)
             }.fold(
@@ -69,6 +72,85 @@ class CoreffiRuntime @Inject constructor(
             }.fold(
                 onSuccess = { Result.success(Unit) },
                 onFailure = { throwable -> Result.failure(throwable.toSynapError()) },
+            )
+        }
+    }
+
+    override suspend fun exportDatabase(outputStream: OutputStream): Result<Unit> = mutex.withLock {
+        withContext(ioDispatcher) {
+            runCatching {
+                val dbFile = databaseFile()
+                if (!dbFile.exists()) {
+                    throw SynapError.Database(message = "Database file does not exist.")
+                }
+
+                val shouldReopen = serviceInstance != null
+                if (shouldReopen) {
+                    serviceInstance?.close()
+                    serviceInstance = null
+                }
+
+                try {
+                    dbFile.inputStream().buffered().use { input ->
+                        outputStream.buffered().use { output ->
+                            input.copyTo(output)
+                            output.flush()
+                        }
+                    }
+                } finally {
+                    if (shouldReopen) {
+                        serviceInstance = open(dbFile.absolutePath)
+                    }
+                }
+            }.fold(
+                onSuccess = { Result.success(Unit) },
+                onFailure = { throwable ->
+                    Log.e(TAG, "Failed to export database", throwable)
+                    Result.failure(throwable.toSynapError())
+                },
+            )
+        }
+    }
+
+    override suspend fun replaceDatabase(inputStream: InputStream): Result<Unit> = mutex.withLock {
+        withContext(ioDispatcher) {
+            runCatching {
+                val dbFile = databaseFile()
+                dbFile.parentFile?.mkdirs()
+
+                val tempFile = File(dbFile.parentFile, "${dbFile.name}.importing")
+                tempFile.delete()
+
+                val shouldRestoreOnFailure = serviceInstance != null
+                serviceInstance?.close()
+                serviceInstance = null
+
+                try {
+                    tempFile.outputStream().buffered().use { output ->
+                        inputStream.buffered().use { input ->
+                            input.copyTo(output)
+                            output.flush()
+                        }
+                    }
+                    tempFile.copyTo(dbFile, overwrite = true)
+                    tempFile.delete()
+                } catch (throwable: Throwable) {
+                    tempFile.delete()
+                    if (shouldRestoreOnFailure && dbFile.exists()) {
+                        runCatching {
+                            serviceInstance = open(dbFile.absolutePath)
+                        }.onFailure { restoreError ->
+                            throwable.addSuppressed(restoreError)
+                        }
+                    }
+                    throw throwable
+                }
+            }.fold(
+                onSuccess = { Result.success(Unit) },
+                onFailure = { throwable ->
+                    Log.e(TAG, "Failed to replace database", throwable)
+                    Result.failure(throwable.toSynapError())
+                },
             )
         }
     }
@@ -131,20 +213,24 @@ class CoreffiRuntime @Inject constructor(
         withService { service -> service.restoreNote(targetId) }
 
     private suspend fun <T> withService(block: (FfiSynapService) -> T): Result<T> =
-        withContext(ioDispatcher) {
-            runCatching {
-                val service = serviceInstance ?: throw SynapError.Database(
-                    message = "Service not initialized. Call initialize() first.",
+        mutex.withLock {
+            withContext(ioDispatcher) {
+                runCatching {
+                    val service = serviceInstance ?: throw SynapError.Database(
+                        message = "Service not initialized. Call initialize() first.",
+                    )
+                    block(service)
+                }.fold(
+                    onSuccess = { Result.success(it) },
+                    onFailure = { throwable ->
+                        Log.e(TAG, "Coreffi call failed", throwable)
+                        Result.failure(throwable.toSynapError())
+                    },
                 )
-                block(service)
-            }.fold(
-                onSuccess = { Result.success(it) },
-                onFailure = { throwable ->
-                    Log.e(TAG, "Coreffi call failed", throwable)
-                    Result.failure(throwable.toSynapError())
-                },
-            )
+            }
         }
+
+    private fun databaseFile(): File = context.getDatabasePath("synap.redb")
 
     private fun Throwable.toSynapError(): SynapError = when (this) {
         is SynapError -> this

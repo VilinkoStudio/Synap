@@ -1,6 +1,8 @@
 package com.fuwaki.synap.data.service
 
 import com.fuwaki.synap.data.model.NoteRecord
+import java.io.InputStream
+import java.io.OutputStream
 
 interface SynapServiceApi {
     val isInitialized: Boolean
@@ -10,6 +12,10 @@ interface SynapServiceApi {
     suspend fun initializeInMemory(): Result<Unit>
 
     suspend fun close(): Result<Unit>
+
+    suspend fun exportDatabase(outputStream: OutputStream): Result<Unit>
+
+    suspend fun replaceDatabase(inputStream: InputStream): Result<Unit>
 
     suspend fun getNote(idOrShortId: String): Result<NoteRecord>
 

@@ -5,8 +5,11 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -16,11 +19,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -41,6 +46,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fuwaki.synap.data.service.SynapServiceApi
 import com.fuwaki.synap.ui.data.sampleLanguages
 import com.fuwaki.synap.ui.screens.HomeScreen
 import com.fuwaki.synap.ui.screens.LanguageSelectionScreen
@@ -64,6 +70,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import javax.inject.Inject
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -76,6 +83,9 @@ val LocalNoteTextSize = compositionLocalOf { 16.sp }
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+    @Inject
+    lateinit var synapService: SynapServiceApi
+
         super.onCreate(savedInstanceState)
         setContent {
             SynapApp()
@@ -83,10 +93,55 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+    suspend fun exportDatabaseToUri(uri: Uri): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            contentResolver.openOutputStream(uri)?.use { output ->
+                synapService.exportDatabase(output).getOrThrow()
+            } ?: error("无法创建导出文件")
+        }
+    }
+
+    suspend fun shareDatabase(): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val cachePath = File(cacheDir, "exports")
+            cachePath.mkdirs()
+            val exportFile = File(cachePath, "synap_database.redb")
+
+            exportFile.outputStream().use { output ->
+                synapService.exportDatabase(output).getOrThrow()
+            }
+
+            val authority = "$packageName.fileprovider"
+            val uri = FileProvider.getUriForFile(this@MainActivity, authority, exportFile)
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/octet-stream"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+
+            withContext(Dispatchers.Main) {
+                startActivity(Intent.createChooser(shareIntent, "分享数据库"))
+            }
+        }
+    }
+
+    suspend fun importDatabaseFromUri(uri: Uri): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            contentResolver.openInputStream(uri)?.use { input ->
+                synapService.replaceDatabase(input).getOrThrow()
+            } ?: error("无法读取导入文件")
+        }
+    }
+
+    fun closeForDatabaseRestart() {
+        finishAffinity()
+    }
+
 @Composable
 private fun SynapApp() {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("synap_settings", Context.MODE_PRIVATE) }
+    val activity = context as? MainActivity
     val supportsMonet = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
     var themeMode by remember { mutableIntStateOf(prefs.getInt("themeMode", 0)) }
@@ -196,7 +251,8 @@ private fun SynapApp() {
                             onNoteTextSizeChange = {
                                 noteTextSize = it
                                 prefs.edit().putFloat("noteTextSize", it).apply()
-                            }
+                            },
+                            databaseActivity = activity,
                         )
                     }
                 }
@@ -222,6 +278,7 @@ private fun SynapNavGraph(
     noteTextSize: Float,
     onNoteTextSizeChange: (Float) -> Unit,
 ) {
+    databaseActivity: MainActivity?,
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
 
@@ -325,6 +382,97 @@ private fun SynapNavGraph(
             val context = LocalContext.current
             val scope = rememberCoroutineScope()
 
+            var showImportWarning by remember { mutableStateOf(false) }
+            var showRestartRequired by remember { mutableStateOf(false) }
+
+            val exportDatabaseLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.CreateDocument("application/octet-stream"),
+            ) { uri ->
+                if (uri == null || databaseActivity == null) {
+                    return@rememberLauncherForActivityResult
+                }
+
+                scope.launch {
+                    databaseActivity.exportDatabaseToUri(uri)
+                        .onSuccess {
+                            Toast.makeText(context, "数据库已导出", Toast.LENGTH_SHORT).show()
+                        }
+                        .onFailure { throwable ->
+                            Toast.makeText(
+                                context,
+                                throwable.message ?: "导出数据库失败",
+                                Toast.LENGTH_LONG,
+                            ).show()
+                        }
+                }
+            }
+
+            val importDatabaseLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.OpenDocument(),
+            ) { uri ->
+                if (uri == null || databaseActivity == null) {
+                    return@rememberLauncherForActivityResult
+                }
+
+                scope.launch {
+                    databaseActivity.importDatabaseFromUri(uri)
+                        .onSuccess {
+                            showRestartRequired = true
+                        }
+                        .onFailure { throwable ->
+                            Toast.makeText(
+                                context,
+                                throwable.message ?: "导入数据库失败",
+                                Toast.LENGTH_LONG,
+                            ).show()
+                        }
+                }
+            }
+
+            if (showImportWarning) {
+                AlertDialog(
+                    onDismissRequest = { showImportWarning = false },
+                    title = { Text("导入并替换数据库") },
+                    text = {
+                        Text("当前本地数据库会被新文件替换，并且导入完成后必须重新启动 App 才会生效。")
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showImportWarning = false
+                                importDatabaseLauncher.launch(arrayOf("*/*"))
+                            },
+                        ) {
+                            Text("选择数据库")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showImportWarning = false }) {
+                            Text("取消")
+                        }
+                    },
+                )
+            }
+
+            if (showRestartRequired) {
+                AlertDialog(
+                    onDismissRequest = {},
+                    title = { Text("需要重启 App") },
+                    text = {
+                        Text("数据库已经替换完成。当前本地数据库会话已失效，请关闭并重新启动 App。")
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showRestartRequired = false
+                                databaseActivity?.closeForDatabaseRestart()
+                            },
+                        ) {
+                            Text("关闭 App")
+                        }
+                    },
+                )
+            }
             SettingsScreen(
                 currentThemeMode = themeMode,
                 onThemeModeChange = onThemeModeChange,
@@ -350,6 +498,32 @@ private fun SynapNavGraph(
             )
         }
 
+                onExportDatabase = {
+                    exportDatabaseLauncher.launch("synap_database.redb")
+                },
+                onShareDatabase = {
+                    if (databaseActivity == null) {
+                        Toast.makeText(context, "当前无法分享数据库", Toast.LENGTH_SHORT).show()
+                    } else {
+                        scope.launch {
+                            databaseActivity.shareDatabase()
+                                .onFailure { throwable ->
+                                    Toast.makeText(
+                                        context,
+                                        throwable.message ?: "分享数据库失败",
+                                        Toast.LENGTH_LONG,
+                                    ).show()
+                                }
+                        }
+                    }
+                },
+                onImportDatabase = {
+                    if (databaseActivity == null) {
+                        Toast.makeText(context, "当前无法导入数据库", Toast.LENGTH_SHORT).show()
+                    } else {
+                        showImportWarning = true
+                    }
+                },
         composable("language_selection") {
             LanguageSelectionScreen(
                 languages = languages,
