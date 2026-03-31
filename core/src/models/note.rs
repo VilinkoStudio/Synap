@@ -432,6 +432,22 @@ impl<'a> NoteReader<'a> {
         self.link_dag.get_parents(&note.id)
     }
 
+    pub fn parents_raw(
+        &self,
+        id: &Uuid,
+    ) -> Result<impl Iterator<Item = Result<Uuid, redb::StorageError>> + '_, redb::StorageError>
+    {
+        self.link_dag.get_parents(id)
+    }
+
+    pub fn children_raw(
+        &self,
+        id: &Uuid,
+    ) -> Result<impl Iterator<Item = Result<Uuid, redb::StorageError>> + '_, redb::StorageError>
+    {
+        self.link_dag.get_children(id)
+    }
+
     pub fn next_versions(
         &self,
         note: &Note,
@@ -446,6 +462,41 @@ impl<'a> NoteReader<'a> {
     ) -> Result<impl Iterator<Item = Result<Uuid, redb::StorageError>> + '_, redb::StorageError>
     {
         self.edit_dag.get_parents(&note.id)
+    }
+
+    pub fn all_versions(
+        &self,
+        note: &Note,
+    ) -> Result<impl Iterator<Item = Result<Uuid, redb::StorageError>> + '_, redb::StorageError>
+    {
+        let mut queue = VecDeque::new();
+        let mut visited = HashSet::new();
+        let mut related = Vec::new();
+
+        queue.push_back(note.id);
+        visited.insert(note.id);
+
+        while let Some(current_id) = queue.pop_front() {
+            for parent_res in self.edit_dag.get_parents(&current_id)? {
+                let parent_id = parent_res?;
+                if visited.insert(parent_id) {
+                    related.push(parent_id);
+                    queue.push_back(parent_id);
+                }
+            }
+
+            for child_res in self.edit_dag.get_children(&current_id)? {
+                let child_id = child_res?;
+                if visited.insert(child_id) {
+                    related.push(child_id);
+                    queue.push_back(child_id);
+                }
+            }
+        }
+
+        Ok(related
+            .into_iter()
+            .map(Result::<Uuid, redb::StorageError>::Ok))
     }
 
     pub fn other_versions(
