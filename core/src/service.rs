@@ -315,21 +315,17 @@ impl SynapService {
                 let mut next_frontier = Vec::new();
 
                 for note in frontier {
-                    let parents = reader.parents(&note).map_err(redb::Error::from)?;
+                    let view = NoteView::new(reader, note);
+                    let parents = view.parents()?;
 
                     for parent_res in parents {
-                        let parent_id = parent_res.map_err(redb::Error::from)?;
+                        let parent_view = parent_res.map_err(ServiceError::from)?;
+                        let parent_id = parent_view.get_note().get_id();
                         if !visited.insert(parent_id) {
                             continue;
                         }
 
-                        let parent_note = reader.get_by_id(&parent_id)?.ok_or(
-                            ServiceError::NoteErr(NoteError::IdNotFound { id: parent_id }),
-                        )?;
-
-                        if parent_note.is_deleted() {
-                            continue;
-                        }
+                        let parent_note = parent_view.get_note().clone();
 
                         origins.push(self.note_to_dto(parent_note.clone(), reader)?);
                         next_frontier.push(parent_note);
@@ -738,6 +734,26 @@ mod tests {
         assert_eq!(deep.len(), 2);
         assert_eq!(deep[0].id, middle.id);
         assert_eq!(deep[1].id, root.id);
+    }
+
+    #[test]
+    fn test_get_origins_depth_one_keeps_only_compacted_parent_layer() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("synap.redb");
+        let service = SynapService::new(Some(db_path.to_string_lossy().into_owned())).unwrap();
+
+        let root = service.create_note("root".to_string(), vec![]).unwrap();
+        let middle = service
+            .reply_note(&root.id, "middle".to_string(), vec![])
+            .unwrap();
+        let leaf = service
+            .reply_note(&middle.id, "leaf".to_string(), vec![])
+            .unwrap();
+
+        let origins = service.get_origins(&leaf.id, 1).unwrap();
+        assert_eq!(origins.len(), 1);
+        assert_eq!(origins[0].id, middle.id);
+        assert_ne!(origins[0].id, root.id);
     }
 
     #[test]

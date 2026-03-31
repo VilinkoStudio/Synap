@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 
 use uuid::Uuid;
 
@@ -72,52 +72,48 @@ impl<'a, 'b> NoteView<'a, 'b> {
             )
             .collect();
 
-        let mut seen: HashSet<Uuid> = version_ids.iter().copied().collect();
-        let mut queue: Vec<Uuid> = Vec::new();
-        let mut result = Vec::new();
-
-        // 初始：收集所有版本的直接 parents
+        let mut direct_parents = Vec::new();
         for version_id in version_ids {
             let parent_ids = self
                 .reader
                 .parents_raw(&version_id)
                 .map_err(|e| NoteError::Db(e.into()))?;
             for parent_res in parent_ids {
-                let parent_id = parent_res.map_err(|e| NoteError::Db(e.into()))?;
-                if seen.insert(parent_id) {
-                    queue.push(parent_id);
-                }
+                direct_parents.push(parent_res.map_err(|e| NoteError::Db(e.into()))?);
             }
         }
 
-        // BFS 穿透已删除节点
-        let mut i = 0;
-        while i < queue.len() {
-            let id = queue[i];
-            i += 1;
+        let mut seen: HashSet<Uuid> = std::iter::once(self.note.get_id())
+            .chain(
+                self.reader
+                    .all_versions(&self.note)
+                    .map_err(|e| NoteError::Db(e.into()))?
+                    .filter_map(Result::ok),
+            )
+            .collect();
+        let mut queue: VecDeque<Uuid> = direct_parents
+            .into_iter()
+            .filter(|id| seen.insert(*id))
+            .collect();
+        let mut result = Vec::new();
 
+        while let Some(id) = queue.pop_front() {
             match self.reader.get_by_id(&id) {
-                Ok(Some(note)) if !note.is_deleted() => {
-                    result.push(Ok(id));
-                }
+                Ok(Some(note)) if !note.is_deleted() => result.push(Ok(id)),
                 Ok(Some(_)) => {
-                    // 已删除：穿透，继续向上找它的 parents
-                    if let Ok(parent_ids) = self.reader.parents_raw(&id) {
-                        for parent_res in parent_ids {
-                            if let Ok(parent_id) = parent_res {
-                                if seen.insert(parent_id) {
-                                    queue.push(parent_id);
-                                }
-                            }
+                    let parent_ids = self
+                        .reader
+                        .parents_raw(&id)
+                        .map_err(|e| NoteError::Db(e.into()))?;
+                    for parent_res in parent_ids {
+                        let parent_id = parent_res.map_err(|e| NoteError::Db(e.into()))?;
+                        if seen.insert(parent_id) {
+                            queue.push_back(parent_id);
                         }
                     }
                 }
-                Ok(None) => {
-                    result.push(Err(NoteError::IdNotFound { id }));
-                }
-                Err(e) => {
-                    result.push(Err(NoteError::Db(e.into())));
-                }
+                Ok(None) => result.push(Err(NoteError::IdNotFound { id })),
+                Err(e) => result.push(Err(NoteError::Db(e.into()))),
             }
         }
 
@@ -138,52 +134,48 @@ impl<'a, 'b> NoteView<'a, 'b> {
             )
             .collect();
 
-        let mut seen: HashSet<Uuid> = version_ids.iter().copied().collect();
-        let mut queue: Vec<Uuid> = Vec::new();
-        let mut result = Vec::new();
-
-        // 初始：收集所有版本的直接 children
+        let mut direct_children = Vec::new();
         for version_id in version_ids {
             let child_ids = self
                 .reader
                 .children_raw(&version_id)
                 .map_err(|e| NoteError::Db(e.into()))?;
             for child_res in child_ids {
-                let child_id = child_res.map_err(|e| NoteError::Db(e.into()))?;
-                if seen.insert(child_id) {
-                    queue.push(child_id);
-                }
+                direct_children.push(child_res.map_err(|e| NoteError::Db(e.into()))?);
             }
         }
 
-        // BFS 穿透已删除节点
-        let mut i = 0;
-        while i < queue.len() {
-            let id = queue[i];
-            i += 1;
+        let mut seen: HashSet<Uuid> = std::iter::once(self.note.get_id())
+            .chain(
+                self.reader
+                    .all_versions(&self.note)
+                    .map_err(|e| NoteError::Db(e.into()))?
+                    .filter_map(Result::ok),
+            )
+            .collect();
+        let mut queue: VecDeque<Uuid> = direct_children
+            .into_iter()
+            .filter(|id| seen.insert(*id))
+            .collect();
+        let mut result = Vec::new();
 
+        while let Some(id) = queue.pop_front() {
             match self.reader.get_by_id(&id) {
-                Ok(Some(note)) if !note.is_deleted() => {
-                    result.push(Ok(id));
-                }
+                Ok(Some(note)) if !note.is_deleted() => result.push(Ok(id)),
                 Ok(Some(_)) => {
-                    // 已删除：穿透，继续向下找它的 children
-                    if let Ok(child_ids) = self.reader.children_raw(&id) {
-                        for child_res in child_ids {
-                            if let Ok(child_id) = child_res {
-                                if seen.insert(child_id) {
-                                    queue.push(child_id);
-                                }
-                            }
+                    let child_ids = self
+                        .reader
+                        .children_raw(&id)
+                        .map_err(|e| NoteError::Db(e.into()))?;
+                    for child_res in child_ids {
+                        let child_id = child_res.map_err(|e| NoteError::Db(e.into()))?;
+                        if seen.insert(child_id) {
+                            queue.push_back(child_id);
                         }
                     }
                 }
-                Ok(None) => {
-                    result.push(Err(NoteError::IdNotFound { id }));
-                }
-                Err(e) => {
-                    result.push(Err(NoteError::Db(e.into())));
-                }
+                Ok(None) => result.push(Err(NoteError::IdNotFound { id })),
+                Err(e) => result.push(Err(NoteError::Db(e.into()))),
             }
         }
 
@@ -525,6 +517,66 @@ mod tests {
             !children.contains(&middle_id),
             "should not contain deleted middle"
         );
+    }
+
+    #[test]
+    fn test_children_stops_at_live_node() {
+        let db = create_temp_db();
+
+        let write_txn = db.begin_write().unwrap();
+        let root = Note::create(&write_txn, "root".to_string(), vec![]).unwrap();
+        let root_id = root.get_id();
+        let live_child = Note::create(&write_txn, "live_child".to_string(), vec![]).unwrap();
+        let live_child_id = live_child.get_id();
+        let grandchild = Note::create(&write_txn, "grandchild".to_string(), vec![]).unwrap();
+        let grandchild_id = grandchild.get_id();
+
+        root.reply(&write_txn, &live_child).unwrap();
+        live_child.reply(&write_txn, &grandchild).unwrap();
+        write_txn.commit().unwrap();
+
+        let read_txn = db.begin_read().unwrap();
+        let reader = NoteReader::new(&read_txn).unwrap();
+        let root_view = NoteView::new(&reader, reader.get_by_id(&root_id).unwrap().unwrap());
+
+        let children: Vec<Uuid> = root_view
+            .children()
+            .unwrap()
+            .map(|item| item.unwrap().get_note().get_id())
+            .collect();
+
+        assert_eq!(children, vec![live_child_id]);
+        assert!(!children.contains(&grandchild_id));
+    }
+
+    #[test]
+    fn test_parents_stops_at_live_node() {
+        let db = create_temp_db();
+
+        let write_txn = db.begin_write().unwrap();
+        let grandparent = Note::create(&write_txn, "grandparent".to_string(), vec![]).unwrap();
+        let grandparent_id = grandparent.get_id();
+        let live_parent = Note::create(&write_txn, "live_parent".to_string(), vec![]).unwrap();
+        let live_parent_id = live_parent.get_id();
+        let leaf = Note::create(&write_txn, "leaf".to_string(), vec![]).unwrap();
+        let leaf_id = leaf.get_id();
+
+        grandparent.reply(&write_txn, &live_parent).unwrap();
+        live_parent.reply(&write_txn, &leaf).unwrap();
+        write_txn.commit().unwrap();
+
+        let read_txn = db.begin_read().unwrap();
+        let reader = NoteReader::new(&read_txn).unwrap();
+        let leaf_view = NoteView::new(&reader, reader.get_by_id(&leaf_id).unwrap().unwrap());
+
+        let parents: Vec<Uuid> = leaf_view
+            .parents()
+            .unwrap()
+            .map(|item| item.unwrap().get_note().get_id())
+            .collect();
+
+        assert_eq!(parents, vec![live_parent_id]);
+        assert!(!parents.contains(&grandparent_id));
     }
 
     #[test]
