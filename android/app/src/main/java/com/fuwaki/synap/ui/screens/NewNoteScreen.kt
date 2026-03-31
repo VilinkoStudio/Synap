@@ -9,9 +9,10 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets // --- 新增引入 ---
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.imePadding // --- 恢复引入 ---
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -51,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -73,6 +75,10 @@ fun NewNoteScreen(
 ) {
     var tagInputText by remember { mutableStateOf("") }
     var isTagInputVisible by remember { mutableStateOf(false) }
+
+    // --- 新增：记录输入框是否真正获取过焦点 ---
+    var tagInputHasFocus by remember { mutableStateOf(false) }
+
     val bodyFocusRequester = remember { FocusRequester() }
     val tagFocusRequester = remember { FocusRequester() }
     val tagScrollState = rememberScrollState()
@@ -126,6 +132,8 @@ fun NewNoteScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                // --- 核心修复：消耗掉 Scaffold 已经算过的 Insets，防止跟 imePadding 重复计算高度 ---
+                .consumeWindowInsets(innerPadding)
                 .padding(horizontal = 16.dp),
         ) {
             when (val mode = uiState.mode) {
@@ -198,6 +206,7 @@ fun NewNoteScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    // --- 核心修复：重新加回 imePadding() 让它在键盘上方浮起 ---
                     .imePadding()
                     .padding(bottom = if (isImeVisible) 0.dp else 16.dp)
             ) {
@@ -248,7 +257,19 @@ fun NewNoteScreen(
                         placeholder = { Text("在此输入标签文字") },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .focusRequester(tagFocusRequester),
+                            .focusRequester(tagFocusRequester)
+                            // --- 核心修复：确保真的获取焦点后，再处理失去焦点的逻辑 ---
+                            .onFocusChanged { focusState ->
+                                if (focusState.isFocused) {
+                                    tagInputHasFocus = true
+                                } else {
+                                    // 仅当曾经获取过焦点，现在失去了，且内容为空时，才收起
+                                    if (tagInputHasFocus && tagInputText.isBlank()) {
+                                        isTagInputVisible = false
+                                    }
+                                    tagInputHasFocus = false
+                                }
+                            },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = {

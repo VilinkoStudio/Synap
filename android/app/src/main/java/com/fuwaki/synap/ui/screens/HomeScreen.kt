@@ -129,7 +129,6 @@ fun HomeScreen(
             Column {
                 TopAppBar(
                     title = {
-                        // --- 修改：去掉了这里的 Surface 背景，改成了纯文字 ---
                         Text(
                             text = "Synap",
                             style = MaterialTheme.typography.titleLarge,
@@ -281,7 +280,13 @@ fun HomeScreen(
                         columns = StaggeredGridCells.Adaptive(minSize = 240.dp),
                         state = gridState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
+                        // --- 修改：增加 96.dp 底部留白，完全避开小白条和 FAB 的遮挡 ---
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            top = 16.dp,
+                            end = 16.dp,
+                            bottom = 96.dp
+                        ),
                         verticalItemSpacing = 16.dp,
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                     ) {

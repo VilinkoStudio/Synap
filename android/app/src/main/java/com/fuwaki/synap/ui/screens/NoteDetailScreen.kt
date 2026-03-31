@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Reply
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -52,6 +53,7 @@ import kotlinx.coroutines.launch
 fun NoteDetailScreen(
     uiState: DetailUiState,
     onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit, // --- 新增回调 ---
     onDelete: () -> Unit,
     onReply: () -> Unit,
     onEdit: () -> Unit,
@@ -73,8 +75,14 @@ fun NoteDetailScreen(
             TopAppBar(
                 title = { Text("笔记详情") },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
+                    // --- 修改：用 Row 包裹两个按钮 ---
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
+                        }
+                        IconButton(onClick = onNavigateHome) {
+                            Icon(Icons.Filled.Home, contentDescription = "主页")
+                        }
                     }
                 },
                 actions = {

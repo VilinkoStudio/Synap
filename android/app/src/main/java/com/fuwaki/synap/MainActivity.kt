@@ -114,14 +114,11 @@ private fun SynapApp() {
         ) {
             val currentScheme = MaterialTheme.colorScheme
 
-            // --- 核心修改：完整重写颜色生成算法，保证背景、卡片和按钮全是纯色 ---
             val finalScheme = if (!useMonet) {
-                // 1. 主强调色 (Primary)
                 val sPrimary = if (isDarkTheme) 0.6f else 0.8f
                 val vPrimary = if (isDarkTheme) 0.8f else 0.45f
                 val customPrimary = Color.hsv(customThemeHue, sPrimary, vPrimary)
 
-                // 2. 容器色 (Container)：放弃 alpha 透明度，使用纯实的浅色/深色，完美解决按钮透明问题
                 val sContainer = if (isDarkTheme) 0.3f else 0.15f
                 val vContainer = if (isDarkTheme) 0.25f else 0.95f
                 val customPrimaryContainer = Color.hsv(customThemeHue, sContainer, vContainer)
@@ -129,12 +126,10 @@ private fun SynapApp() {
                 val vOnContainer = if (isDarkTheme) 0.9f else 0.1f
                 val customOnPrimaryContainer = Color.hsv(customThemeHue, sOnContainer, vOnContainer)
 
-                // 3. 全局背景色 (Background/Surface)：带上极淡的主题色相，不再是死白/死黑
                 val sBg = if (isDarkTheme) 0.08f else 0.02f
                 val vBg = if (isDarkTheme) 0.08f else 0.99f
                 val customBackground = Color.hsv(customThemeHue, sBg, vBg)
 
-                // 4. 卡片背景色 (SurfaceVariant)：比全局背景色略微加深，形成层次感
                 val sVariant = if (isDarkTheme) 0.12f else 0.06f
                 val vVariant = if (isDarkTheme) 0.14f else 0.94f
                 val customSurfaceVariant = Color.hsv(customThemeHue, sVariant, vVariant)
@@ -144,7 +139,7 @@ private fun SynapApp() {
                     onPrimary = if (isDarkTheme) Color(0xFF202020) else Color.White,
                     primaryContainer = customPrimaryContainer,
                     onPrimaryContainer = customOnPrimaryContainer,
-                    secondaryContainer = customPrimaryContainer, // 统一组件底色
+                    secondaryContainer = customPrimaryContainer,
                     onSecondaryContainer = customOnPrimaryContainer,
                     background = customBackground,
                     surface = customBackground,
@@ -308,6 +303,7 @@ private fun SynapNavGraph(
             NoteDetailScreen(
                 uiState = uiState,
                 onNavigateBack = { navController.popBackStack() },
+                onNavigateHome = { navController.popBackStack("home", inclusive = false) }, // --- 传入返回首页回调 ---
                 onDelete = viewModel::deleteCurrentNote,
                 onReply = {
                     uiState.note?.let { note ->
