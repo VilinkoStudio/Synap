@@ -2,6 +2,11 @@ package com.fuwaki.synap.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -49,6 +56,8 @@ fun SettingsScreen(
     useMonet: Boolean,
     supportsMonet: Boolean,
     onUseMonetChange: (Boolean) -> Unit,
+    customThemeHue: Float,                                   // 👈 接收的是 0-360 的色相值
+    onCustomThemeHueChange: (Float) -> Unit,
     isSystemLanguage: Boolean,
     onSystemLanguageToggle: (Boolean) -> Unit,
     noteTextSize: Float,
@@ -155,7 +164,7 @@ fun SettingsScreen(
                             text = when {
                                 !supportsMonet -> "当前设备不支持，需要 Android 12 及以上"
                                 useMonet -> "当前正在使用 Android 系统壁纸取色"
-                                else -> "当前使用软件配色"
+                                else -> "当前已关闭，可自由调节主题色"
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -166,6 +175,41 @@ fun SettingsScreen(
                         onCheckedChange = onUseMonetChange,
                         enabled = supportsMonet,
                     )
+                }
+
+                // --- 核心修改：展开的主题色相滑块 ---
+                AnimatedVisibility(
+                    visible = !useMonet,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Column {
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                        )
+                        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                            Text(
+                                text = "拖动调节主题色",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // 动态计算当前滑块的纯净颜色用于视觉反馈
+                            val currentPureColor = Color.hsv(customThemeHue, 1f, 1f)
+
+                            Slider(
+                                value = customThemeHue,
+                                onValueChange = onCustomThemeHueChange,
+                                valueRange = 0f..360f,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = currentPureColor,
+                                    activeTrackColor = currentPureColor,
+                                )
+                            )
+                        }
+                    }
                 }
 
                 HorizontalDivider(
@@ -186,7 +230,7 @@ fun SettingsScreen(
                         )
                         if (noteTextSize != 16f) {
                             TextButton(onClick = { onNoteTextSizeChange(16f) }) {
-                                Text("恢复默认大小")
+                                Text("恢复默认")
                             }
                         }
                     }
