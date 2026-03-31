@@ -1,5 +1,7 @@
 package com.fuwaki.synap
 
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.Build
@@ -27,7 +29,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -41,7 +45,7 @@ import com.fuwaki.synap.ui.screens.LanguageSelectionScreen
 import com.fuwaki.synap.ui.screens.NewNoteScreen
 import com.fuwaki.synap.ui.screens.NoteDetailScreen
 import com.fuwaki.synap.ui.screens.SettingsScreen
-import com.fuwaki.synap.ui.screens.SearchScreen // 新增了 SearchScreen 的引用
+import com.fuwaki.synap.ui.screens.SearchScreen
 import com.fuwaki.synap.ui.theme.MyApplicationTheme
 import com.fuwaki.synap.ui.viewmodel.AppSessionUiState
 import com.fuwaki.synap.ui.viewmodel.AppSessionViewModel
@@ -54,6 +58,14 @@ import com.fuwaki.synap.ui.viewmodel.HomeViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -207,7 +219,6 @@ private fun SynapNavGraph(
                 onClearSearch = viewModel::clearSearch,
                 onNavigateBack = { navController.popBackStack() },
                 onOpenNote = { noteId -> navController.navigate(detailRoute(noteId)) },
-                // --- 新增：把 ViewModel 的删除逻辑传进去 ---
                 onToggleDeleted = viewModel::toggleDeleted
             )
         }
@@ -250,6 +261,9 @@ private fun SynapNavGraph(
         }
 
         composable("settings") {
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
+
             SettingsScreen(
                 currentThemeMode = themeMode,
                 onThemeModeChange = onThemeModeChange,
@@ -258,6 +272,21 @@ private fun SynapNavGraph(
                 onUseMonetChange = onUseMonetChange,
                 isSystemLanguage = isSystemLanguage,
                 onSystemLanguageToggle = onSystemLanguageToggle,
+                onExportNotes = {
+                    // 启动一个协程，在后台线程处理文件打包，防止卡顿主界面
+                    scope.launch(Dispatchers.IO) {
+                        // TODO: 1. 从数据库获取所有笔记（比如 val allNotes = repository.getAllNotes()）
+                        // TODO: 2. 将笔记列表转换为 JSON 字符串（比如使用 Gson().toJson(allNotes) 或 Kotlinx Serialization）
+
+                        // 临时的测试JSON字符串
+                        val testJsonData = "[\n  {\n    \"id\": \"1\",\n    \"content\": \"这是一条导出测试笔记。\"\n  }\n]"
+
+                        // 切换回主线程启动系统分享面板
+                        withContext(Dispatchers.Main) {
+                            exportDataToZipAndShare(context, testJsonData)
+                        }
+                    }
+                },
                 onNavigateToLanguageSelection = { navController.navigate("language_selection") },
                 onNavigateBack = { navController.popBackStack() },
             )
@@ -383,5 +412,35 @@ private fun SessionErrorScreen(message: String, onRetry: () -> Unit) {
         ) {
             Text("重试")
         }
+    }
+}
+
+// 打包与分享逻辑
+fun exportDataToZipAndShare(context: Context, jsonData: String) {
+    try {
+        val cachePath = File(context.cacheDir, "exports")
+        cachePath.mkdirs()
+        val zipFile = File(cachePath, "synap_backup.zip")
+
+        ZipOutputStream(FileOutputStream(zipFile)).use { zos ->
+            val entry = ZipEntry("synap_notes.json")
+            zos.putNextEntry(entry)
+            zos.write(jsonData.toByteArray(Charsets.UTF_8))
+            zos.closeEntry()
+        }
+
+        val authority = "${context.packageName}.fileprovider"
+        val uri: Uri = FileProvider.getUriForFile(context, authority, zipFile)
+
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/zip"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        context.startActivity(Intent.createChooser(shareIntent, "导出备份文件"))
+
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
 }
