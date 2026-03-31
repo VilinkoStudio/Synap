@@ -1,37 +1,41 @@
 package com.fuwaki.synap.ui.screens
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton // --- 新增：使用扩展 FAB ---
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SearchBar
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,11 +46,13 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.fuwaki.synap.ui.components.NoteCardItem
 import com.fuwaki.synap.ui.model.Note
@@ -54,6 +60,7 @@ import com.fuwaki.synap.ui.viewmodel.HomeUiState
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,22 +71,45 @@ fun HomeScreen(
     onOpenNote: (String) -> Unit,
     onReplyToNote: (String, String) -> Unit,
     onToggleDeleted: (Note) -> Unit,
-    onToggleDeletedFeed: () -> Unit,
-    onSearchQueryChange: (String) -> Unit,
-    onSubmitSearch: () -> Unit,
-    onClearSearch: () -> Unit,
+    onOpenSearch: () -> Unit,
     onLoadMore: () -> Unit,
     onRefresh: () -> Unit,
 ) {
     val gridState = rememberLazyStaggeredGridState()
-    var searchActive by rememberSaveable { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    var showFilterSheet by remember { mutableStateOf(false) }
+    var currentFilter by rememberSaveable { mutableStateOf("全部") }
+
+    // --- 优化：只要稍微往下滑动一点（第一项不在顶部），就立刻显示按钮 ---
+    val isScrolledDown by remember {
+        derivedStateOf {
+            gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 100
+        }
+    }
+
+    val isAtTop by remember {
+        derivedStateOf {
+            gridState.firstVisibleItemIndex == 0
+        }
+    }
+
     val shouldLoadMore by remember(uiState.notes, uiState.hasMore, uiState.isLoading) {
         derivedStateOf {
             val lastVisible = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
             uiState.hasMore &&
-                !uiState.isLoading &&
-                uiState.notes.isNotEmpty() &&
-                lastVisible >= uiState.notes.lastIndex - 4
+                    !uiState.isLoading &&
+                    uiState.notes.isNotEmpty() &&
+                    lastVisible >= uiState.notes.lastIndex - 4
+        }
+    }
+
+    val displayNotes = remember(uiState.notes, currentFilter) {
+        val sorted = uiState.notes.sortedBy { it.isDeleted }
+        when (currentFilter) {
+            "正常" -> sorted.filter { !it.isDeleted }
+            "已删除" -> sorted.filter { it.isDeleted }
+            else -> sorted
         }
     }
 
@@ -111,60 +141,93 @@ fun HomeScreen(
                         }
                     },
                     actions = {
-                        if (searchActive) {
-                            TextButton(
-                                onClick = {
-                                    searchActive = false
-                                    if (uiState.query.isBlank()) {
-                                        onClearSearch()
-                                    }
-                                },
-                            ) {
-                                Text("完成")
-                            }
-                        } else {
-                            IconButton(onClick = { searchActive = true }) {
+                        AnimatedVisibility(
+                            visible = !isAtTop,
+                            enter = fadeIn(),
+                            exit = fadeOut()
+                        ) {
+                            IconButton(onClick = onOpenSearch) {
                                 Icon(Icons.Filled.Search, contentDescription = "搜索")
                             }
-                            IconButton(onClick = onOpenSettings) {
-                                Icon(Icons.Filled.Settings, contentDescription = "设置")
-                            }
+                        }
+
+                        IconButton(onClick = { showFilterSheet = true }) {
+                            Icon(Icons.Filled.FilterList, contentDescription = "筛选")
+                        }
+
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Filled.Settings, contentDescription = "设置")
                         }
                     },
                 )
 
                 AnimatedVisibility(
-                    visible = searchActive,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically(),
+                    visible = isAtTop,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
                 ) {
-                    SearchBar(
-                        query = uiState.query,
-                        onQueryChange = onSearchQueryChange,
-                        onSearch = { onSubmitSearch() },
-                        active = false,
-                        onActiveChange = {},
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
-                        placeholder = { Text("搜索笔记、标签、片段") },
-                        leadingIcon = {
-                            Icon(Icons.Filled.Search, contentDescription = null)
-                        },
-                        trailingIcon = {
-                            if (uiState.query.isNotBlank()) {
-                                IconButton(onClick = onClearSearch) {
-                                    Icon(Icons.Filled.Clear, contentDescription = "清除")
-                                }
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(MaterialTheme.shapes.extraLarge)
+                                .clickable { onOpenSearch() },
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            shape = MaterialTheme.shapes.extraLarge
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Search,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "搜索笔记、标签、片段...",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
                             }
-                        },
-                    ) {}
+                        }
+                    }
                 }
             }
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onComposeNote) {
-                Icon(Icons.Filled.Add, contentDescription = "创建笔记")
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // --- 修改：同步使用带有“回到顶部”文字的 Extended FAB ---
+                AnimatedVisibility(
+                    visible = isScrolledDown,
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    ExtendedFloatingActionButton(
+                        onClick = {
+                            scope.launch {
+                                gridState.animateScrollToItem(0)
+                            }
+                        },
+                        icon = { Icon(Icons.Filled.ArrowUpward, contentDescription = null) },
+                        text = { Text(text = "回到顶部") },
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+
+                // 新建笔记按钮（大 FAB）
+                FloatingActionButton(onClick = onComposeNote) {
+                    Icon(Icons.Filled.Add, contentDescription = "创建笔记")
+                }
             }
         },
     ) { innerPadding ->
@@ -173,50 +236,6 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                FilterChip(
-                    selected = !uiState.showDeleted,
-                    onClick = {
-                        if (uiState.showDeleted) {
-                            onToggleDeletedFeed()
-                        }
-                    },
-                    label = { Text("时间线") },
-                    enabled = !uiState.isSearchMode,
-                )
-                FilterChip(
-                    selected = uiState.showDeleted,
-                    onClick = {
-                        if (!uiState.showDeleted) {
-                            onToggleDeletedFeed()
-                        }
-                    },
-                    label = { Text("删除流") },
-                    enabled = !uiState.isSearchMode,
-                )
-                AnimatedContent(
-                    targetState = when {
-                        uiState.isSearchMode -> "搜索结果"
-                        searchActive -> "输入关键词后搜索"
-                        uiState.showDeleted -> "查看已删除节点"
-                        else -> "按时间浏览最新节点"
-                    },
-                    label = "home_hint",
-                ) { hint ->
-                    Text(
-                        text = hint,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
             when {
                 uiState.isLoading && uiState.notes.isEmpty() -> {
                     Box(
@@ -250,17 +269,13 @@ fun HomeScreen(
                     }
                 }
 
-                uiState.notes.isEmpty() -> {
+                displayNotes.isEmpty() -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            text = when {
-                                uiState.isSearchMode -> "没有匹配的笔记"
-                                uiState.showDeleted -> "删除流为空"
-                                else -> "还没有笔记"
-                            },
+                            text = "这里空空如也",
                             style = MaterialTheme.typography.bodyLarge,
                         )
                     }
@@ -275,7 +290,7 @@ fun HomeScreen(
                         verticalItemSpacing = 16.dp,
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        itemsIndexed(uiState.notes, key = { _, note -> note.id }) { index, note ->
+                        itemsIndexed(displayNotes, key = { _, note -> note.id }) { index, note ->
                             NoteCardItem(
                                 note = note,
                                 onClick = { onOpenNote(note.id) },
@@ -285,6 +300,54 @@ fun HomeScreen(
                             )
                         }
                     }
+                }
+            }
+        }
+    }
+
+    if (showFilterSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showFilterSheet = false }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 48.dp)
+            ) {
+                Text(
+                    text = "筛选",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    FilterChip(
+                        selected = currentFilter == "全部",
+                        onClick = {
+                            currentFilter = "全部"
+                            showFilterSheet = false
+                        },
+                        label = { Text("全部") }
+                    )
+                    FilterChip(
+                        selected = currentFilter == "正常",
+                        onClick = {
+                            currentFilter = "正常"
+                            showFilterSheet = false
+                        },
+                        label = { Text("正常") }
+                    )
+                    FilterChip(
+                        selected = currentFilter == "已删除",
+                        onClick = {
+                            currentFilter = "已删除"
+                            showFilterSheet = false
+                        },
+                        label = { Text("已删除") }
+                    )
                 }
             }
         }

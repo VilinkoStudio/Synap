@@ -41,6 +41,7 @@ import com.fuwaki.synap.ui.screens.LanguageSelectionScreen
 import com.fuwaki.synap.ui.screens.NewNoteScreen
 import com.fuwaki.synap.ui.screens.NoteDetailScreen
 import com.fuwaki.synap.ui.screens.SettingsScreen
+import com.fuwaki.synap.ui.screens.SearchScreen // 新增了 SearchScreen 的引用
 import com.fuwaki.synap.ui.theme.MyApplicationTheme
 import com.fuwaki.synap.ui.viewmodel.AppSessionUiState
 import com.fuwaki.synap.ui.viewmodel.AppSessionViewModel
@@ -175,12 +176,39 @@ private fun SynapNavGraph(
                     navController.navigate(editorRoute(parentId = noteId, parentSummary = summary))
                 },
                 onToggleDeleted = viewModel::toggleDeleted,
-                onToggleDeletedFeed = viewModel::toggleDeletedFeed,
+                onOpenSearch = { navController.navigate("search") },
+                onLoadMore = viewModel::loadMore,
+                onRefresh = viewModel::refresh,
+            )
+        }
+
+        composable(
+            route = "search",
+            enterTransition = {
+                slideIntoContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Up,
+                    animationSpec = tween(300)
+                ) + fadeIn()
+            },
+            exitTransition = {
+                slideOutOfContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Down,
+                    animationSpec = tween(300)
+                ) + fadeOut()
+            }
+        ) {
+            val viewModel: HomeViewModel = hiltViewModel()
+            val uiState by viewModel.uiState.collectAsState()
+
+            SearchScreen(
+                uiState = uiState,
                 onSearchQueryChange = viewModel::updateQuery,
                 onSubmitSearch = viewModel::submitSearch,
                 onClearSearch = viewModel::clearSearch,
-                onLoadMore = viewModel::loadMore,
-                onRefresh = viewModel::refresh,
+                onNavigateBack = { navController.popBackStack() },
+                onOpenNote = { noteId -> navController.navigate(detailRoute(noteId)) },
+                // --- 新增：把 ViewModel 的删除逻辑传进去 ---
+                onToggleDeleted = viewModel::toggleDeleted
             )
         }
 

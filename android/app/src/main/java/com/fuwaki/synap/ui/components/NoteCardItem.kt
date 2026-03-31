@@ -40,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow // --- 新增：导入 TextOverflow ---
 import androidx.compose.ui.unit.dp
 import com.fuwaki.synap.ui.model.Note
 import com.fuwaki.synap.ui.util.formatNoteTime
@@ -166,6 +167,9 @@ fun NoteCardItem(
                     style = MaterialTheme.typography.bodyLarge,
                     color = if (note.isDeleted) Color.Gray else Color.Unspecified,
                     textDecoration = if (note.isDeleted) TextDecoration.LineThrough else TextDecoration.None,
+                    // --- 新增：限制最大行数为 4，超出部分显示省略号 ---
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
                 )
 
                 if (!note.parentSummary.isNullOrBlank()) {

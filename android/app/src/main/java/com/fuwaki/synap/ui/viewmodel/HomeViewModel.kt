@@ -20,13 +20,12 @@ data class HomeUiState(
     val isLoading: Boolean = true,
     val hasMore: Boolean = false,
     val isSearchMode: Boolean = false,
-    val showDeleted: Boolean = false,
+    val showDeleted: Boolean = false, // 保留字段以防报错，但不再用于切换逻辑
     val errorMessage: String? = null,
 )
 
 private data class HomeQueryState(
     val query: String,
-    val showDeleted: Boolean,
     val searchResults: List<Note>,
     val isSearchLoading: Boolean,
     val searchError: String?,
@@ -39,20 +38,19 @@ class HomeViewModel @Inject constructor(
     private val recentPortal = repository.openRecentPortal(limit = 20u)
     private val deletedPortal = repository.openDeletedPortal(limit = 20u)
     private val query = MutableStateFlow("")
-    private val showDeleted = MutableStateFlow(false)
     private val searchResults = MutableStateFlow<List<Note>>(emptyList())
     private val isSearchLoading = MutableStateFlow(false)
     private val searchError = MutableStateFlow<String?>(null)
+
+    // 移除了 showDeleted 的合并逻辑
     private val queryState = combine(
         query,
-        showDeleted,
         searchResults,
         isSearchLoading,
         searchError,
-    ) { currentQuery, currentShowDeleted, currentSearchResults, searching, currentSearchError ->
+    ) { currentQuery, currentSearchResults, searching, currentSearchError ->
         HomeQueryState(
             query = currentQuery,
-            showDeleted = currentShowDeleted,
             searchResults = currentSearchResults,
             isSearchLoading = searching,
             searchError = currentSearchError,
@@ -65,29 +63,30 @@ class HomeViewModel @Inject constructor(
         queryState,
     ) { recent, deleted, currentState ->
         val searchMode = currentState.query.isNotBlank()
-        val portalState = if (currentState.showDeleted) deleted else recent
-        val portalNotes = if (currentState.showDeleted) {
-            deleted.items.map { it.toUiNote(isDeleted = true) }
-        } else {
-            recent.items.map { it.toUiNote() }
-        }
+
+        // --- 核心修改：同时获取正常笔记和已删除笔记，并合并到一个列表中 ---
+        val recentNotes = recent.items.map { it.toUiNote(isDeleted = false) }
+        val deletedNotes = deleted.items.map { it.toUiNote(isDeleted = true) }
+        val combinedNotes = recentNotes + deletedNotes
 
         HomeUiState(
             query = currentState.query,
-            notes = if (searchMode) currentState.searchResults else portalNotes,
+            notes = if (searchMode) currentState.searchResults else combinedNotes,
+            // 只要其中一个还在加载，就显示 Loading
             isLoading = if (searchMode) {
                 currentState.isSearchLoading
             } else {
-                portalState.isLoading
+                recent.isLoading || deleted.isLoading
             },
+            // 只要其中一个还有更多数据，就允许继续下滑加载
             hasMore = if (searchMode) {
                 false
             } else {
-                portalState.hasMore
+                recent.hasMore || deleted.hasMore
             },
             isSearchMode = searchMode,
-            showDeleted = currentState.showDeleted,
-            errorMessage = currentState.searchError ?: portalState.error?.message,
+            showDeleted = false,
+            errorMessage = currentState.searchError ?: recent.error?.message ?: deleted.error?.message,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -124,13 +123,6 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun toggleDeletedFeed() {
-        showDeleted.value = !showDeleted.value
-        if (query.value.isBlank()) {
-            refresh()
-        }
-    }
-
     fun clearSearch() {
         updateQuery("")
         refresh()
@@ -143,16 +135,18 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    // --- 修改：触底时同时尝试加载两种笔记的下一页 ---
     fun loadMore() {
         if (query.value.isNotBlank()) {
             return
         }
 
         viewModelScope.launch {
-            if (showDeleted.value) {
-                deletedPortal.loadNext()
-            } else {
+            if (recentPortal.state.value.hasMore) {
                 recentPortal.loadNext()
+            }
+            if (deletedPortal.state.value.hasMore) {
+                deletedPortal.loadNext()
             }
         }
     }
