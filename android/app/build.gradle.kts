@@ -28,6 +28,33 @@ fun resolveConfigFile(path: String): File =
 fun latestChildDir(parent: File): File? =
     parent.listFiles()?.filter(File::isDirectory)?.maxByOrNull { it.name }
 
+fun runGitCommand(repoRoot: File, vararg args: String): String? {
+    val output = runCatching {
+        ProcessBuilder(listOf("git", *args))
+            .directory(repoRoot)
+            .redirectErrorStream(true)
+            .start()
+            .let { process ->
+                val text = process.inputStream.bufferedReader().use { it.readText().trim() }
+                if (process.waitFor() == 0) {
+                    text.ifBlank { null }
+                } else {
+                    null
+                }
+            }
+    }.getOrNull()
+
+    return output
+}
+
+val repoRootDir = rootDir.parentFile ?: rootDir
+val gitShortCommit = runGitCommand(repoRootDir, "rev-parse", "--short=12", "HEAD") ?: "unknown"
+val gitBranch = runGitCommand(repoRootDir, "rev-parse", "--abbrev-ref", "HEAD")
+    ?.let { branch -> if (branch == "HEAD") "detached" else branch }
+    ?: "unknown"
+val gitTag = runGitCommand(repoRootDir, "describe", "--tags", "--exact-match", "HEAD")
+val resolvedVersionName = gitTag?.let { "$it ($gitShortCommit)" } ?: "$gitBranch ($gitShortCommit)"
+
 fun resolveAndroidSdkDir(): File? {
     val configured = androidLocalProperties.getProperty("sdk.dir")
         ?: System.getenv("ANDROID_HOME")
@@ -82,7 +109,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 1
-        versionName = "1.0"
+        versionName = resolvedVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
