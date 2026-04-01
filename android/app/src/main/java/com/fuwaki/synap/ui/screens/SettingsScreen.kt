@@ -10,6 +10,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,6 +27,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -39,6 +42,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,10 +63,10 @@ fun SettingsScreen(
     useMonet: Boolean,
     supportsMonet: Boolean,
     onUseMonetChange: (Boolean) -> Unit,
-    customThemeHue: Float,                                   // 👈 接收的是 0-360 的色相值
+    customThemeHue: Float,
     onCustomThemeHueChange: (Float) -> Unit,
-    isSystemLanguage: Boolean,
-    onSystemLanguageToggle: (Boolean) -> Unit,
+    handedness: String,                               // 👈 增加握持选项参数
+    onHandednessChange: (String) -> Unit,             // 👈 增加握持修改回调
     noteTextSize: Float,
     onNoteTextSizeChange: (Float) -> Unit,
     buildVersion: String,
@@ -182,7 +189,6 @@ fun SettingsScreen(
                     )
                 }
 
-                // --- 核心修改：展开的主题色相滑块 ---
                 AnimatedVisibility(
                     visible = !useMonet,
                     enter = expandVertically() + fadeIn(),
@@ -201,7 +207,6 @@ fun SettingsScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            // 动态计算当前滑块的纯净颜色用于视觉反馈
                             val currentPureColor = Color.hsv(customThemeHue, 1f, 1f)
 
                             Slider(
@@ -222,6 +227,7 @@ fun SettingsScreen(
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
 
+                // --- 修改：字号调节模块 ---
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -233,10 +239,12 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        if (noteTextSize != 16f) {
-                            TextButton(onClick = { onNoteTextSizeChange(16f) }) {
-                                Text("恢复默认")
-                            }
+                        // 始终显示按钮，但是如果本身就是默认值 16f，则禁用点击功能
+                        TextButton(
+                            onClick = { onNoteTextSizeChange(16f) },
+                            enabled = noteTextSize != 16f
+                        ) {
+                            Text("恢复默认")
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
@@ -244,36 +252,91 @@ fun SettingsScreen(
                         value = noteTextSize,
                         onValueChange = onNoteTextSizeChange,
                         valueRange = 10f..30f,
-                        steps = 9
+                        steps = 19 // (30-10)/1 - 1 = 19 个阶梯点，实现 1sp 的步进
                     )
                 }
-            }
-            Spacer(modifier = Modifier.height(24.dp))
 
-            Text(
-                text = "同步",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            ) {
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+
+                // --- 修改：语言选项移到了外观下 ---
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clickable { onNavigateToLanguageSelection() }
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = "功能开发中，敬请期待……",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "语言 (Language)",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                    Icon(
+                        Icons.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+
+                // --- 新增：适人握持设定 ---
+                var showHandednessMenu by remember { mutableStateOf(false) }
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showHandednessMenu = true }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "适人握持",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "更改浮动按钮和页面出现的位置",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Text(
+                            text = handedness,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showHandednessMenu,
+                        onDismissRequest = { showHandednessMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("靠左") },
+                            onClick = {
+                                onHandednessChange("靠左")
+                                showHandednessMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("靠右") },
+                            onClick = {
+                                onHandednessChange("靠右")
+                                showHandednessMenu = false
+                            }
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(24.dp))
@@ -379,58 +442,6 @@ fun SettingsScreen(
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
-            }
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                text = "语言 (Language)",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("跟随系统语言设置", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                    }
-                    Switch(checked = isSystemLanguage, onCheckedChange = onSystemLanguageToggle)
-                }
-
-                if (!isSystemLanguage) {
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onNavigateToLanguageSelection() }
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "选择语言",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Icon(
-                            Icons.Filled.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
                 }
             }
             Spacer(modifier = Modifier.height(24.dp))

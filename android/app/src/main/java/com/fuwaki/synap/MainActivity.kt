@@ -21,19 +21,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -92,6 +87,11 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.Arrangement
 
 val LocalNoteTextSize = compositionLocalOf { 16.sp }
 
@@ -162,9 +162,16 @@ private fun SynapApp() {
     var themeMode by remember { mutableIntStateOf(prefs.getInt("themeMode", 0)) }
     var useMonet by remember { mutableStateOf(prefs.getBoolean("useMonet", supportsMonet)) }
     var customThemeHue by remember { mutableFloatStateOf(prefs.getFloat("customThemeHue", 210f)) }
-    var isSystemLanguage by remember { mutableStateOf(prefs.getBoolean("isSystemLanguage", true)) }
+
+    // --- 核心修改：将跟随系统合并进语言列表 ---
     var selectedLanguageIndex by remember { mutableIntStateOf(prefs.getInt("selectedLanguage", 0)) }
+    val baseLanguages = remember { sampleLanguages() }
+    val languages = remember(baseLanguages) { listOf("跟随系统语言设置") + baseLanguages }
+
     var noteTextSize by remember { mutableFloatStateOf(prefs.getFloat("noteTextSize", 16f)) }
+
+    // --- 核心修改：新增握持习惯设定 ---
+    var handedness by remember { mutableStateOf(prefs.getString("handedness", "靠右") ?: "靠右") }
 
     val sessionViewModel: AppSessionViewModel = hiltViewModel()
     val sessionState by sessionViewModel.uiState.collectAsState()
@@ -174,8 +181,6 @@ private fun SynapApp() {
         2 -> true
         else -> isSystemInDarkTheme()
     }
-
-    val languages = remember { sampleLanguages() }
 
     CompositionLocalProvider(LocalNoteTextSize provides noteTextSize.sp) {
         MyApplicationTheme(
@@ -251,10 +256,10 @@ private fun SynapApp() {
                                 customThemeHue = it
                                 prefs.edit().putFloat("customThemeHue", it).apply()
                             },
-                            isSystemLanguage = isSystemLanguage,
-                            onSystemLanguageToggle = {
-                                isSystemLanguage = it
-                                prefs.edit().putBoolean("isSystemLanguage", it).apply()
+                            handedness = handedness,
+                            onHandednessChange = {
+                                handedness = it
+                                prefs.edit().putString("handedness", it).apply()
                             },
                             languages = languages,
                             selectedLanguageIndex = selectedLanguageIndex,
@@ -285,8 +290,8 @@ private fun SynapNavGraph(
     onUseMonetChange: (Boolean) -> Unit,
     customThemeHue: Float,
     onCustomThemeHueChange: (Float) -> Unit,
-    isSystemLanguage: Boolean,
-    onSystemLanguageToggle: (Boolean) -> Unit,
+    handedness: String,
+    onHandednessChange: (String) -> Unit,
     languages: List<String>,
     selectedLanguageIndex: Int,
     onLanguageSelect: (Int) -> Unit,
@@ -301,10 +306,7 @@ private fun SynapNavGraph(
     val isLargeScreen = configuration.screenWidthDp >= 600
     var showSettingsSidebar by rememberSaveable { mutableStateOf(false) }
 
-    // --- 核心修改：使用 Box 叠加层来实现真正的 Modal Side Sheet ---
     Box(modifier = Modifier.fillMaxSize()) {
-
-        // 底层：主导航内容区
         NavHost(
             navController = navController,
             startDestination = "home",
@@ -417,8 +419,8 @@ private fun SynapNavGraph(
                     onUseMonetChange = onUseMonetChange,
                     customThemeHue = customThemeHue,
                     onCustomThemeHueChange = onCustomThemeHueChange,
-                    isSystemLanguage = isSystemLanguage,
-                    onSystemLanguageToggle = onSystemLanguageToggle,
+                    handedness = handedness,
+                    onHandednessChange = onHandednessChange,
                     noteTextSize = noteTextSize,
                     onNoteTextSizeChange = onNoteTextSizeChange,
                     databaseActivity = databaseActivity,
@@ -473,7 +475,6 @@ private fun SynapNavGraph(
             }
         }
 
-        // --- 中层：半透明遮罩 (Scrim) ---
         AnimatedVisibility(
             visible = isLargeScreen && showSettingsSidebar,
             enter = fadeIn(),
@@ -483,29 +484,27 @@ private fun SynapNavGraph(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.4f)) // 背景变暗
+                    .background(Color.Black.copy(alpha = 0.4f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
-                        indication = null, // 点击时不要水波纹
-                        onClick = { showSettingsSidebar = false } // 点击外侧空白处收起
+                        indication = null,
+                        onClick = { showSettingsSidebar = false }
                     )
             )
         }
 
-        // --- 顶层：悬浮的 Modal Side Sheet 本体 ---
         AnimatedVisibility(
             visible = isLargeScreen && showSettingsSidebar,
             enter = slideInHorizontally(initialOffsetX = { it }),
             exit = slideOutHorizontally(targetOffsetX = { it }),
-            modifier = Modifier.align(Alignment.CenterEnd) // 紧贴右侧
+            modifier = Modifier.align(Alignment.CenterEnd)
         ) {
             Surface(
                 modifier = Modifier
-                    .width(320.dp) // 固定 320px
+                    .width(320.dp)
                     .fillMaxHeight(),
-                // M3 侧边栏规范：左侧有圆角，右侧直角贴边
                 shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
-                shadowElevation = 8.dp, // 加上模态阴影
+                shadowElevation = 8.dp,
                 color = MaterialTheme.colorScheme.surface
             ) {
                 SettingsContainer(
@@ -516,8 +515,8 @@ private fun SynapNavGraph(
                     onUseMonetChange = onUseMonetChange,
                     customThemeHue = customThemeHue,
                     onCustomThemeHueChange = onCustomThemeHueChange,
-                    isSystemLanguage = isSystemLanguage,
-                    onSystemLanguageToggle = onSystemLanguageToggle,
+                    handedness = handedness,
+                    onHandednessChange = onHandednessChange,
                     noteTextSize = noteTextSize,
                     onNoteTextSizeChange = onNoteTextSizeChange,
                     databaseActivity = databaseActivity,
@@ -541,8 +540,8 @@ private fun SettingsContainer(
     onUseMonetChange: (Boolean) -> Unit,
     customThemeHue: Float,
     onCustomThemeHueChange: (Float) -> Unit,
-    isSystemLanguage: Boolean,
-    onSystemLanguageToggle: (Boolean) -> Unit,
+    handedness: String,
+    onHandednessChange: (String) -> Unit,
     noteTextSize: Float,
     onNoteTextSizeChange: (Float) -> Unit,
     databaseActivity: MainActivity?,
@@ -653,8 +652,8 @@ private fun SettingsContainer(
         onUseMonetChange = onUseMonetChange,
         customThemeHue = customThemeHue,
         onCustomThemeHueChange = onCustomThemeHueChange,
-        isSystemLanguage = isSystemLanguage,
-        onSystemLanguageToggle = onSystemLanguageToggle,
+        handedness = handedness,
+        onHandednessChange = onHandednessChange,
         noteTextSize = noteTextSize,
         onNoteTextSizeChange = onNoteTextSizeChange,
         buildVersion = settingsUiState.buildVersion,
