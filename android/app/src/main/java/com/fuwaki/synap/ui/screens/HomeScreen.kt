@@ -1,10 +1,14 @@
 package com.fuwaki.synap.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateDpAsState // --- 新增引入 ---
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -19,8 +23,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset // --- 新增引入 ---
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
@@ -67,9 +72,11 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.fuwaki.synap.ui.components.NoteCardItem
 import com.fuwaki.synap.ui.model.Note
 import com.fuwaki.synap.ui.theme.MyApplicationTheme
@@ -79,6 +86,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.util.Calendar
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -95,6 +103,7 @@ fun HomeScreen(
     onLoadMore: () -> Unit,
     onRefresh: () -> Unit,
 ) {
+    val context = LocalContext.current
     val gridState = rememberLazyStaggeredGridState()
     val scope = rememberCoroutineScope()
 
@@ -105,8 +114,15 @@ fun HomeScreen(
     var undoProgress by remember { mutableFloatStateOf(1f) }
     var timeLeftSeconds by remember { mutableIntStateOf(3) }
 
-    // --- 核心修改：计算 FAB 躲避弹窗的偏移量动画 ---
-    // 弹窗高度大约 60dp + 底部 32dp 的留白，因此向上偏移 96dp 刚好能留出空隙
+    // --- 新增：检查当前日期是否为4月1日 ---
+    val isAprilFools by remember {
+        val calendar = Calendar.getInstance()
+        mutableStateOf(
+            calendar.get(Calendar.MONTH) == Calendar.APRIL &&
+                    calendar.get(Calendar.DAY_OF_MONTH) == 1
+        )
+    }
+
     val fabDodgeOffset by animateDpAsState(
         targetValue = if (deletedNoteToUndo != null) (-96).dp else 0.dp,
         label = "fab_dodge_animation"
@@ -174,12 +190,39 @@ fun HomeScreen(
             Column {
                 TopAppBar(
                     title = {
-                        Text(
-                            text = "Synap",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Synap",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+
+                            // --- 核心修改：彩蛋图标，基于日期显示 ---
+                            AnimatedVisibility(
+                                visible = isAprilFools,
+                                enter = fadeIn() + scaleIn(),
+                                exit = fadeOut() + scaleOut()
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://b23.tv/5yYgkQf"))
+                                        intent.setPackage("tv.danmaku.bili")
+                                        try {
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            intent.setPackage(null)
+                                            context.startActivity(intent)
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .padding(start = 4.dp)
+                                        .size(36.dp)
+                                ) {
+                                    Text("🤡", fontSize = 22.sp)
+                                }
+                            }
+                        }
                     },
                     actions = {
                         AnimatedVisibility(
@@ -245,12 +288,10 @@ fun HomeScreen(
             Column(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                // --- 核心修改：应用躲避偏移量动画，使整个按钮组丝滑上下移动 ---
                 modifier = Modifier.offset(y = fabDodgeOffset)
             ) {
-                // 回到顶部按钮：向下滚动时显示
                 AnimatedVisibility(
-                    visible = isScrolledDown, // 移除了之前的 deletedNoteToUndo 判断
+                    visible = isScrolledDown,
                     enter = fadeIn(),
                     exit = fadeOut()
                 ) {
@@ -267,7 +308,6 @@ fun HomeScreen(
                     )
                 }
 
-                // --- 核心修改：移除了“+”号按钮外部的 AnimatedVisibility，让它常驻并随容器偏移 ---
                 FloatingActionButton(onClick = onComposeNote) {
                     Icon(Icons.Filled.Add, contentDescription = "创建笔记")
                 }

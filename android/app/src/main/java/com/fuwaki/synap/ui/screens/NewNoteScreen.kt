@@ -1,12 +1,5 @@
 package com.fuwaki.synap.ui.screens
 
-import android.content.Intent
-import android.net.Uri
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -23,7 +16,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -51,7 +43,6 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,11 +53,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.fuwaki.synap.LocalNoteTextSize
 import com.fuwaki.synap.ui.viewmodel.EditorMode
 import com.fuwaki.synap.ui.viewmodel.EditorUiState
@@ -83,8 +72,6 @@ fun NewNoteScreen(
     onRemoveTag: (Int) -> Unit,
     onSave: () -> Unit,
 ) {
-    val context = LocalContext.current
-
     var tagInputText by remember { mutableStateOf("") }
     var isTagInputVisible by remember { mutableStateOf(false) }
     var tagInputHasFocus by remember { mutableStateOf(false) }
@@ -93,15 +80,6 @@ fun NewNoteScreen(
     val tagFocusRequester = remember { FocusRequester() }
     val tagScrollState = rememberScrollState()
     val isImeVisible = WindowInsets.isImeVisible
-
-    val hasEasterEgg by remember(uiState.content) {
-        derivedStateOf {
-            uiState.content.contains("愚人节", ignoreCase = true) ||
-            uiState.content.contains("Fools' Day", ignoreCase = true) ||
-            uiState.content.contains("Fool Day", ignoreCase = true) ||
-            uiState.content.contains("Fools Day", ignoreCase = true)
-        }
-    }
 
     LaunchedEffect(Unit) {
         delay(300)
@@ -119,38 +97,13 @@ fun NewNoteScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            when (uiState.mode) {
-                                EditorMode.Create -> "新建笔记"
-                                is EditorMode.Reply -> "回复笔记"
-                                is EditorMode.Edit -> "编辑笔记"
-                            },
-                        )
-                        AnimatedVisibility(
-                            visible = hasEasterEgg,
-                            enter = fadeIn() + scaleIn(),
-                            exit = fadeOut() + scaleOut()
-                        ) {
-                            IconButton(
-                                onClick = {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://b23.tv/5yYgkQf"))
-                                    intent.setPackage("tv.danmaku.bili")
-                                    try {
-                                        context.startActivity(intent)
-                                    } catch (e: Exception) {
-                                        intent.setPackage(null)
-                                        context.startActivity(intent)
-                                    }
-                                },
-                                modifier = Modifier
-                                    .padding(start = 4.dp)
-                                    .size(36.dp)
-                            ) {
-                                Text("🤡", fontSize = 22.sp) // 你也可以换成 🎉 或者 🎁
-                            }
-                        }
-                    }
+                    Text(
+                        when (uiState.mode) {
+                            EditorMode.Create -> "新建笔记"
+                            is EditorMode.Reply -> "回复笔记"
+                            is EditorMode.Edit -> "编辑笔记"
+                        },
+                    )
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
