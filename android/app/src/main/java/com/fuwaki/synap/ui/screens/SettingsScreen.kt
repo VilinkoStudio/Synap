@@ -38,6 +38,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -65,8 +66,8 @@ fun SettingsScreen(
     onUseMonetChange: (Boolean) -> Unit,
     customThemeHue: Float,
     onCustomThemeHueChange: (Float) -> Unit,
-    handedness: String,                               // 👈 增加握持选项参数
-    onHandednessChange: (String) -> Unit,             // 👈 增加握持修改回调
+    handedness: String,
+    onHandednessChange: (String) -> Unit,
     noteTextSize: Float,
     onNoteTextSizeChange: (Float) -> Unit,
     buildVersion: String,
@@ -175,8 +176,8 @@ fun SettingsScreen(
                         Text(
                             text = when {
                                 !supportsMonet -> "当前设备不支持，需要 Android 12 及以上"
-                                useMonet -> "当前正在使用 Android 系统壁纸取色"
-                                else -> "当前已关闭，可自由调节主题色"
+                                useMonet -> "正在使用 Android 系统壁纸取色"
+                                else -> "已关闭系统取色，可自由调节主题色"
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -201,7 +202,7 @@ fun SettingsScreen(
                         )
                         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                             Text(
-                                text = "拖动调节主题色",
+                                text = "拖动以调节主题色",
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -227,7 +228,6 @@ fun SettingsScreen(
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
 
-                // --- 修改：字号调节模块 ---
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -239,7 +239,6 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        // 始终显示按钮，但是如果本身就是默认值 16f，则禁用点击功能
                         TextButton(
                             onClick = { onNoteTextSizeChange(16f) },
                             enabled = noteTextSize != 16f
@@ -252,7 +251,35 @@ fun SettingsScreen(
                         value = noteTextSize,
                         onValueChange = onNoteTextSizeChange,
                         valueRange = 10f..30f,
-                        steps = 19 // (30-10)/1 - 1 = 19 个阶梯点，实现 1sp 的步进
+                        steps = 19
+                    )
+
+                    // --- 新增：文字大小预览 ---
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "文字大小预览",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface, // 使用原色背景，以便和设置项区分
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "“盼望着，盼望着，东风来了，春天的脚步近了。”",
+                            fontSize = noteTextSize.sp,
+                            lineHeight = noteTextSize.sp * 1.5f,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "——示例文字选自 朱自清《春》",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
@@ -261,7 +288,6 @@ fun SettingsScreen(
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
 
-                // --- 修改：语言选项移到了外观下 ---
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -288,7 +314,7 @@ fun SettingsScreen(
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
 
-                // --- 新增：适人握持设定 ---
+                // 适人握持设定
                 var showHandednessMenu by remember { mutableStateOf(false) }
                 Box(modifier = Modifier.fillMaxWidth()) {
                     Row(
@@ -505,7 +531,7 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Fuwaki/Synap")))
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/VilinkoStudio/Synap")))
                         }
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -523,7 +549,7 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Fuwaki/Synap/releases")))
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/VilinkoStudio/Synap/releases")))
                         }
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
