@@ -68,9 +68,11 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.fuwaki.synap.ui.components.NoteCardItem
 import com.fuwaki.synap.ui.model.Note
+import com.fuwaki.synap.ui.theme.MyApplicationTheme
 import com.fuwaki.synap.ui.viewmodel.HomeUiState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -499,5 +501,91 @@ fun WavyProgressIndicator(
                 )
             )
         }
+    }
+}
+
+private val sampleNotes = listOf(
+    Note(
+        id = "1",
+        content = "今天的会议讨论了产品路线图，需要注意几个关键决策点。",
+        tags = listOf("会议", "产品"),
+        timestamp = 1700000000000,
+    ),
+    Note(
+        id = "2",
+        content = "读书笔记：设计模式中的策略模式可以用来替换多重条件判断。",
+        tags = listOf("读书", "技术"),
+        timestamp = 1699900000000,
+    ),
+    Note(
+        id = "3",
+        content = "买了新的笔记本支架，站立办公效果不错。",
+        tags = listOf("生活"),
+        timestamp = 1699800000000,
+    ),
+    Note(
+        id = "4",
+        content = "灵感：可以做一个碎片化知识管理工具，自动关联相关内容。",
+        tags = listOf("灵感", "产品"),
+        timestamp = 1699700000000,
+        isDeleted = true,
+    ),
+)
+
+@Preview(name = "With data", showBackground = true)
+@Composable
+private fun HomeScreenPreview() {
+    MyApplicationTheme {
+        HomeScreen(
+            uiState = HomeUiState(
+                isLoading = false,
+                notes = sampleNotes,
+                hasMore = true,
+            ),
+            onOpenSettings = {},
+            onComposeNote = {},
+            onOpenNote = {},
+            onReplyToNote = { _, _ -> },
+            onToggleDeleted = {},
+            onOpenSearch = {},
+            onLoadMore = {},
+            onRefresh = {},
+        )
+    }
+}
+
+@Preview(name = "Empty", showBackground = true)
+@Composable
+private fun HomeScreenEmptyPreview() {
+    MyApplicationTheme {
+        HomeScreen(
+            uiState = HomeUiState(isLoading = false),
+            onOpenSettings = {},
+            onComposeNote = {},
+            onOpenNote = {},
+            onReplyToNote = { _, _ -> },
+            onToggleDeleted = {},
+            onOpenSearch = {},
+            onLoadMore = {},
+            onRefresh = {},
+        )
+    }
+}
+
+@Preview(name = "Loading", showBackground = true)
+@Composable
+private fun HomeScreenLoadingPreview() {
+    MyApplicationTheme {
+        HomeScreen(
+            uiState = HomeUiState(isLoading = true),
+            onOpenSettings = {},
+            onComposeNote = {},
+            onOpenNote = {},
+            onReplyToNote = { _, _ -> },
+            onToggleDeleted = {},
+            onOpenSearch = {},
+            onLoadMore = {},
+            onRefresh = {},
+        )
     }
 }
