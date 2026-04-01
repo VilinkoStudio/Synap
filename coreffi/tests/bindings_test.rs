@@ -1,7 +1,7 @@
 //! Integration tests for FFI bindings.
 
-use uniffi_synap_coreffi::{open, open_memory, FfiError};
 use tempfile::tempdir;
+use uniffi_synap_coreffi::{open, open_memory, FfiError};
 use uuid::Uuid;
 
 fn sorted_ids(notes: &[uniffi_synap_coreffi::NoteDTO]) -> Vec<String> {
@@ -141,9 +141,7 @@ fn test_reply_and_paging_workflow() {
         .reply_note(parent.id.clone(), "Child 2".to_string(), vec![])
         .unwrap();
 
-    let page_one = service
-        .get_replies(parent.id.clone(), None, 1)
-        .unwrap();
+    let page_one = service.get_replies(parent.id.clone(), None, 1).unwrap();
     assert_eq!(page_one.len(), 1);
 
     let page_two = service
@@ -172,14 +170,9 @@ fn test_origins_and_version_queries_workflow() {
         .reply_note(middle.id.clone(), "Leaf".to_string(), vec![])
         .unwrap();
 
-    let shallow = service.get_origins(leaf.id.clone(), 1).unwrap();
-    assert_eq!(shallow.len(), 1);
-    assert_eq!(shallow[0].id, middle.id);
-
-    let deep = service.get_origins(leaf.id, 2).unwrap();
-    assert_eq!(deep.len(), 2);
-    assert_eq!(deep[0].id, middle.id);
-    assert_eq!(deep[1].id, root.id);
+    let origins = service.get_origins(leaf.id.clone()).unwrap();
+    assert_eq!(origins.len(), 1);
+    assert_eq!(origins[0].id, middle.id);
 
     let v2a = service
         .edit_note(root.id.clone(), "Root v2a".to_string(), vec![])

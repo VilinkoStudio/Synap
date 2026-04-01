@@ -33,7 +33,7 @@ interface SynapService {
     [Throws=FfiError] NoteDTO get_note(string id_or_short_id);
     [Throws=FfiError] sequence<NoteDTO> get_replies(string parent_id, string? cursor, u32 limit);
     [Throws=FfiError] sequence<NoteDTO> get_recent_note(string? cursor, u32? limit);
-    [Throws=FfiError] sequence<NoteDTO> get_origins(string child_id, u32 depth);
+    [Throws=FfiError] sequence<NoteDTO> get_origins(string child_id);
     [Throws=FfiError] sequence<NoteDTO> get_previous_versions(string note_id);
     [Throws=FfiError] sequence<NoteDTO> get_next_versions(string note_id);
     [Throws=FfiError] sequence<NoteDTO> get_other_versions(string note_id);

@@ -23,7 +23,7 @@ interface SynapServiceApi {
 
     suspend fun getRecentNote(cursor: String?, limit: UInt?): Result<List<NoteRecord>>
 
-    suspend fun getOrigins(childId: String, depth: UInt): Result<List<NoteRecord>>
+    suspend fun getOrigins(childId: String): Result<List<NoteRecord>>
 
     suspend fun getPreviousVersions(noteId: String): Result<List<NoteRecord>>
 

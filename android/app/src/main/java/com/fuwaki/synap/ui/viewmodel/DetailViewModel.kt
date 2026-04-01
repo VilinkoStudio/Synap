@@ -134,7 +134,7 @@ class DetailViewModel @Inject constructor(
         runCatching {
             coroutineScope {
                 val noteDeferred = async { repository.getNote(noteId).toUiNote() }
-                val originsDeferred = async { repository.getOrigins(noteId, depth = 4u).map { it.toUiNote() } }
+                val originsDeferred = async { repository.getOrigins(noteId).map { it.toUiNote() } }
                 val previousDeferred = async { repository.getPreviousVersions(noteId).map { it.toUiNote() } }
                 val nextDeferred = async { repository.getNextVersions(noteId).map { it.toUiNote() } }
 

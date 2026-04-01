@@ -60,8 +60,8 @@ impl ServiceWrapper {
         Self::with_service(|service| service.get_replies(parent_id, cursor, limit))
     }
 
-    pub fn origins(note_id: &str, depth: usize) -> Result<Vec<NoteDTO>> {
-        Self::with_service(|service| service.get_origins(note_id, depth))
+    pub fn origins(note_id: &str) -> Result<Vec<NoteDTO>> {
+        Self::with_service(|service| service.get_origins(note_id))
     }
 
     pub fn other_versions(note_id: &str) -> Result<Vec<NoteDTO>> {

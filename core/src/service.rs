@@ -2,7 +2,7 @@ use std::{collections::HashSet, path::Path};
 
 use crate::{
     dto::NoteDTO,
-    error::{NoteError, ServiceError},
+    error::ServiceError,
     models::{
         note::{Note, NoteReader},
         tag::{Tag, TagReader, TagWriter},
@@ -191,6 +191,12 @@ impl SynapService {
         Ok(note)
     }
 
+    fn resolve_tag(tx: &ReadTransaction, content: &str) -> Result<Option<Tag>, ServiceError> {
+        TagReader::new(tx)?
+            .find_by_content(content)
+            .map_err(Into::into)
+    }
+
     fn is_latest_version(reader: &NoteReader<'_>, note: &Note) -> Result<bool, ServiceError> {
         let mut next_versions = reader.next_versions(note).map_err(redb::Error::from)?;
         Ok(next_versions
@@ -291,55 +297,19 @@ impl SynapService {
         })
     }
 
-    //TODO: 所有迭代操作去除skip while 尝试能够直接跳转进度从而极限优化性能
-    pub fn get_origins(&self, child_id: &str, depth: usize) -> Result<Vec<NoteDTO>, ServiceError> {
+    pub fn get_origins(&self, child_id: &str) -> Result<Vec<NoteDTO>, ServiceError> {
         self.with_read(|_tx, reader| {
-            if depth == 0 {
-                return Ok(Vec::new());
-            }
-
             let child_uuid = Self::parse_id(child_id)?;
             let child = Self::require_live_note(reader, child_uuid, child_id)?;
+            let view = NoteView::new(reader, child);
+            let parents_iter = view.parents()?;
 
-            let mut visited = HashSet::new();
-            let mut frontier = vec![child];
-            let mut origins = Vec::new();
-
-            visited.insert(child_uuid);
-
-            for _ in 0..depth {
-                if frontier.is_empty() {
-                    break;
-                }
-
-                let mut next_frontier = Vec::new();
-
-                for note in frontier {
-                    let parents = reader.parents(&note).map_err(redb::Error::from)?;
-
-                    for parent_res in parents {
-                        let parent_id = parent_res.map_err(redb::Error::from)?;
-                        if !visited.insert(parent_id) {
-                            continue;
-                        }
-
-                        let parent_note = reader.get_by_id(&parent_id)?.ok_or(
-                            ServiceError::NoteErr(NoteError::IdNotFound { id: parent_id }),
-                        )?;
-
-                        if parent_note.is_deleted() {
-                            continue;
-                        }
-
-                        origins.push(self.note_to_dto(parent_note.clone(), reader)?);
-                        next_frontier.push(parent_note);
-                    }
-                }
-
-                frontier = next_frontier;
-            }
-
-            Ok(origins)
+            parents_iter
+                .map(|res| -> Result<NoteDTO, ServiceError> {
+                    let parent_view = res.map_err(|e| ServiceError::NoteErr(e))?;
+                    parent_view.to_dto().map_err(Into::into)
+                })
+                .collect::<Result<Vec<_>, _>>()
         })
     }
 
@@ -454,22 +424,30 @@ impl SynapService {
         self.with_read(|tx, _reader| {
             let tag_reader = TagReader::new(tx)?;
             let mut seen = HashSet::new();
-            let mut tags = Vec::new();
 
-            for item in ids {
-                match tag_reader.get_by_id(&item.id) {
+            ids.into_iter()
+                .filter_map(|item| match tag_reader.get_by_id(&item.id) {
                     Ok(Some(tag)) => {
                         let content = tag.get_content().to_string();
-                        if seen.insert(content.clone()) {
-                            tags.push(content);
-                        }
+                        seen.insert(content.clone()).then_some(Ok(content))
                     }
-                    Ok(None) => {}
-                    Err(err) => return Err(ServiceError::Db(err)),
-                }
-            }
+                    Ok(None) => None,
+                    Err(err) => Some(Err(ServiceError::Db(err))),
+                })
+                .collect()
+        })
+    }
 
-            Ok(tags)
+    pub fn get_notes_by_tag(&self, tag: &str) -> Result<Vec<NoteDTO>, ServiceError> {
+        self.with_read(|tx, reader| {
+            let Some(tag) = Self::resolve_tag(tx, tag)? else {
+                return Ok(Vec::new());
+            };
+
+            reader
+                .latest_notes_with_tag(&tag)?
+                .map(|note| self.note_to_dto(note?, reader))
+                .collect()
         })
     }
 
@@ -614,6 +592,35 @@ mod tests {
     }
 
     #[test]
+    fn test_get_notes_by_tag_returns_only_live_latest_matches() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("synap.redb");
+        let service = SynapService::new(Some(db_path.to_string_lossy().into_owned())).unwrap();
+
+        let dropped = service
+            .create_note("learn rust".to_string(), vec!["rust".into()])
+            .unwrap();
+        let _replacement = service
+            .edit_note(&dropped.id, "learn async".to_string(), vec!["async".into()])
+            .unwrap();
+
+        let deleted = service
+            .create_note("ship rust".to_string(), vec!["rust".into()])
+            .unwrap();
+        service.delete_note(&deleted.id).unwrap();
+
+        let live = service
+            .create_note("keep rust".to_string(), vec!["rust".into()])
+            .unwrap();
+
+        let rust_notes = service.get_notes_by_tag(" rust ").unwrap();
+        assert_eq!(rust_notes.len(), 1);
+        assert_eq!(rust_notes[0].id, live.id);
+
+        assert!(service.get_notes_by_tag("missing").unwrap().is_empty());
+    }
+
+    #[test]
     fn test_create_note_updates_service_searchers() {
         let dir = tempdir().unwrap();
         let db_path = dir.path().join("synap.redb");
@@ -717,7 +724,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_origins_walks_parent_chain_up_to_depth() {
+    fn test_get_origins_returns_only_parent_layer() {
         let dir = tempdir().unwrap();
         let db_path = dir.path().join("synap.redb");
         let service = SynapService::new(Some(db_path.to_string_lossy().into_owned())).unwrap();
@@ -730,14 +737,29 @@ mod tests {
             .reply_note(&middle.id, "leaf".to_string(), vec![])
             .unwrap();
 
-        let shallow = service.get_origins(&leaf.id, 1).unwrap();
-        assert_eq!(shallow.len(), 1);
-        assert_eq!(shallow[0].id, middle.id);
+        let origins = service.get_origins(&leaf.id).unwrap();
+        assert_eq!(origins.len(), 1);
+        assert_eq!(origins[0].id, middle.id);
+    }
 
-        let deep = service.get_origins(&leaf.id, 2).unwrap();
-        assert_eq!(deep.len(), 2);
-        assert_eq!(deep[0].id, middle.id);
-        assert_eq!(deep[1].id, root.id);
+    #[test]
+    fn test_get_origins_depth_one_keeps_only_compacted_parent_layer() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("synap.redb");
+        let service = SynapService::new(Some(db_path.to_string_lossy().into_owned())).unwrap();
+
+        let root = service.create_note("root".to_string(), vec![]).unwrap();
+        let middle = service
+            .reply_note(&root.id, "middle".to_string(), vec![])
+            .unwrap();
+        let leaf = service
+            .reply_note(&middle.id, "leaf".to_string(), vec![])
+            .unwrap();
+
+        let origins = service.get_origins(&leaf.id).unwrap();
+        assert_eq!(origins.len(), 1);
+        assert_eq!(origins[0].id, middle.id);
+        assert_ne!(origins[0].id, root.id);
     }
 
     #[test]

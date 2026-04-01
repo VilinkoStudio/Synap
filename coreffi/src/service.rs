@@ -55,9 +55,9 @@ impl SynapService {
             .map_err(Into::into)
     }
 
-    pub fn get_origins(&self, child_id: String, depth: u32) -> Result<Vec<NoteDTO>, FfiError> {
+    pub fn get_origins(&self, child_id: String) -> Result<Vec<NoteDTO>, FfiError> {
         self.inner
-            .get_origins(&child_id, depth as usize)
+            .get_origins(&child_id)
             .map(Self::map_notes)
             .map_err(Into::into)
     }
@@ -211,7 +211,7 @@ mod tests {
     }
 
     #[test]
-    fn test_version_queries_and_origins_are_exposed() {
+    fn test_get_origins_returns_only_parent_layer() {
         let service = open_memory().unwrap();
         let root = service.create_note("Root".to_string(), vec![]).unwrap();
         let middle = service
@@ -229,10 +229,9 @@ mod tests {
             )
             .unwrap();
 
-        let origins = service.get_origins(leaf.id, 2).unwrap();
-        assert_eq!(origins.len(), 2);
+        let origins = service.get_origins(leaf.id).unwrap();
+        assert_eq!(origins.len(), 1);
         assert_eq!(origins[0].id, middle.id);
-        assert_eq!(origins[1].id, root.id);
 
         let previous = service.get_previous_versions(v2.id.clone()).unwrap();
         assert_eq!(previous.len(), 1);

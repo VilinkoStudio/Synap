@@ -33,7 +33,7 @@ interface SynapRepository {
 
     suspend fun getNote(idOrShortId: String): NoteRecord
 
-    suspend fun getOrigins(noteId: String, depth: UInt = 4u): List<NoteRecord>
+    suspend fun getOrigins(noteId: String): List<NoteRecord>
 
     suspend fun getPreviousVersions(noteId: String): List<NoteRecord>
 
@@ -103,8 +103,8 @@ class SynapRepositoryImpl @Inject constructor(
     override suspend fun getNote(idOrShortId: String): NoteRecord =
         service.getNote(idOrShortId).unwrap()
 
-    override suspend fun getOrigins(noteId: String, depth: UInt): List<NoteRecord> =
-        service.getOrigins(noteId, depth).unwrap()
+    override suspend fun getOrigins(noteId: String): List<NoteRecord> =
+        service.getOrigins(noteId).unwrap()
 
     override suspend fun getPreviousVersions(noteId: String): List<NoteRecord> =
         service.getPreviousVersions(noteId).unwrap()

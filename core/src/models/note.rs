@@ -15,6 +15,7 @@ use crate::{
     error::NoteError,
     models::{tag::Tag, util::random_id},
     search::types::Searchable,
+    text::sanitize_search_text,
 };
 
 // ==========================================
@@ -172,70 +173,7 @@ impl Note {
     }
 
     fn filter_search_text(content: &str) -> String {
-        let bytes = content.as_bytes();
-        let mut output: Vec<u8> = Vec::with_capacity(bytes.len());
-        let mut i = 0;
-
-        while i < bytes.len() {
-            if bytes[i..].starts_with(b"data:image/") {
-                let mut j = i;
-                while j < bytes.len() && !bytes[j].is_ascii_whitespace() && bytes[j] != b')' {
-                    j += 1;
-                }
-
-                if !output.is_empty() && !output.last().is_some_and(|b| b.is_ascii_whitespace()) {
-                    output.push(b' ');
-                }
-                i = j;
-                continue;
-            }
-
-            if bytes[i] == b'!' && i + 1 < bytes.len() && bytes[i + 1] == b'[' {
-                let mut alt_end = i + 2;
-                while alt_end < bytes.len() && bytes[alt_end] != b']' {
-                    alt_end += 1;
-                }
-
-                if alt_end + 1 < bytes.len() && bytes[alt_end + 1] == b'(' {
-                    let mut url_end = alt_end + 2;
-                    let mut depth = 1usize;
-
-                    while url_end < bytes.len() {
-                        match bytes[url_end] {
-                            b'(' => depth += 1,
-                            b')' => {
-                                depth -= 1;
-                                if depth == 0 {
-                                    url_end += 1;
-                                    break;
-                                }
-                            }
-                            _ => {}
-                        }
-                        url_end += 1;
-                    }
-
-                    if depth == 0 {
-                        if !output.is_empty()
-                            && !output.last().is_some_and(|b| b.is_ascii_whitespace())
-                        {
-                            output.push(b' ');
-                        }
-                        i = url_end;
-                        continue;
-                    }
-                }
-            }
-
-            output.push(bytes[i]);
-            i += 1;
-        }
-
-        String::from_utf8(output)
-            .unwrap_or_else(|_| content.to_string())
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ")
+        sanitize_search_text(content)
     }
 
     pub fn to_sync_record(&self) -> NoteSyncRecord {
@@ -404,6 +342,26 @@ impl<'a> NoteReader<'a> {
         }))
     }
 
+    /// 当前 tag 视图：跳过墓碑，同时过滤掉已被后继版本覆盖的旧 note。
+    pub fn latest_notes_with_tag(
+        &self,
+        tag: &Tag,
+    ) -> Result<impl Iterator<Item = Result<Note, NoteError>> + '_, redb::Error> {
+        let iter = self.notes_with_tag(tag)?;
+
+        Ok(iter.filter_map(move |note_res| match note_res {
+            Ok(note) => match self.next_versions(&note) {
+                Ok(mut next_versions) => match next_versions.next() {
+                    Some(Ok(_)) => None,
+                    Some(Err(e)) => Some(Err(NoteError::Db(e.into()))),
+                    None => Some(Ok(note)),
+                },
+                Err(e) => Some(Err(NoteError::Db(e.into()))),
+            },
+            Err(e) => Some(Err(e)),
+        }))
+    }
+
     pub fn deleted_note_ids(
         &self,
     ) -> Result<
@@ -432,6 +390,22 @@ impl<'a> NoteReader<'a> {
         self.link_dag.get_parents(&note.id)
     }
 
+    pub fn parents_raw(
+        &self,
+        id: &Uuid,
+    ) -> Result<impl Iterator<Item = Result<Uuid, redb::StorageError>> + '_, redb::StorageError>
+    {
+        self.link_dag.get_parents(id)
+    }
+
+    pub fn children_raw(
+        &self,
+        id: &Uuid,
+    ) -> Result<impl Iterator<Item = Result<Uuid, redb::StorageError>> + '_, redb::StorageError>
+    {
+        self.link_dag.get_children(id)
+    }
+
     pub fn next_versions(
         &self,
         note: &Note,
@@ -446,6 +420,41 @@ impl<'a> NoteReader<'a> {
     ) -> Result<impl Iterator<Item = Result<Uuid, redb::StorageError>> + '_, redb::StorageError>
     {
         self.edit_dag.get_parents(&note.id)
+    }
+
+    pub fn all_versions(
+        &self,
+        note: &Note,
+    ) -> Result<impl Iterator<Item = Result<Uuid, redb::StorageError>> + '_, redb::StorageError>
+    {
+        let mut queue = VecDeque::new();
+        let mut visited = HashSet::new();
+        let mut related = Vec::new();
+
+        queue.push_back(note.id);
+        visited.insert(note.id);
+
+        while let Some(current_id) = queue.pop_front() {
+            for parent_res in self.edit_dag.get_parents(&current_id)? {
+                let parent_id = parent_res?;
+                if visited.insert(parent_id) {
+                    related.push(parent_id);
+                    queue.push_back(parent_id);
+                }
+            }
+
+            for child_res in self.edit_dag.get_children(&current_id)? {
+                let child_id = child_res?;
+                if visited.insert(child_id) {
+                    related.push(child_id);
+                    queue.push_back(child_id);
+                }
+            }
+        }
+
+        Ok(related
+            .into_iter()
+            .map(Result::<Uuid, redb::StorageError>::Ok))
     }
 
     pub fn other_versions(
@@ -754,6 +763,33 @@ mod tests {
             .map(|res| res.unwrap().get_id())
             .collect();
         assert!(visible_notes.is_empty());
+    }
+
+    #[test]
+    fn test_note_latest_notes_with_tag_filters_superseded_versions() {
+        let db = create_temp_db();
+
+        let write_txn = db.begin_write().unwrap();
+        let tag_writer = TagWriter::new(&write_txn);
+        let rust = tag_writer.find_or_create("rust").unwrap();
+        let async_tag = tag_writer.find_or_create("async").unwrap();
+
+        let v1 = Note::create(&write_txn, "learn rust".to_string(), vec![rust.clone()]).unwrap();
+        let _v2 = v1
+            .edit(&write_txn, "learn async".to_string(), vec![async_tag])
+            .unwrap();
+        let live = Note::create(&write_txn, "ship rust".to_string(), vec![rust.clone()]).unwrap();
+        write_txn.commit().unwrap();
+
+        let read_txn = db.begin_read().unwrap();
+        let reader = NoteReader::new(&read_txn).unwrap();
+
+        let visible_notes: Vec<Uuid> = reader
+            .latest_notes_with_tag(&rust)
+            .unwrap()
+            .map(|res| res.unwrap().get_id())
+            .collect();
+        assert_eq!(visible_notes, vec![live.get_id()]);
     }
 
     #[test]

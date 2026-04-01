@@ -168,8 +168,8 @@ class CoreffiRuntime @Inject constructor(
     override suspend fun getRecentNote(cursor: String?, limit: UInt?): Result<List<NoteRecord>> =
         withService { service -> service.getRecentNote(cursor, limit).toNoteRecords() }
 
-    override suspend fun getOrigins(childId: String, depth: UInt): Result<List<NoteRecord>> =
-        withService { service -> service.getOrigins(childId, depth).toNoteRecords() }
+    override suspend fun getOrigins(childId: String): Result<List<NoteRecord>> =
+        withService { service -> service.getOrigins(childId).toNoteRecords() }
 
     override suspend fun getPreviousVersions(noteId: String): Result<List<NoteRecord>> =
         withService { service -> service.getPreviousVersions(noteId).toNoteRecords() }
