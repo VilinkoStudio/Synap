@@ -191,6 +191,12 @@ impl SynapService {
         Ok(note)
     }
 
+    fn resolve_tag(tx: &ReadTransaction, content: &str) -> Result<Option<Tag>, ServiceError> {
+        TagReader::new(tx)?
+            .find_by_content(content)
+            .map_err(Into::into)
+    }
+
     fn is_latest_version(reader: &NoteReader<'_>, note: &Note) -> Result<bool, ServiceError> {
         let mut next_versions = reader.next_versions(note).map_err(redb::Error::from)?;
         Ok(next_versions
@@ -418,22 +424,30 @@ impl SynapService {
         self.with_read(|tx, _reader| {
             let tag_reader = TagReader::new(tx)?;
             let mut seen = HashSet::new();
-            let mut tags = Vec::new();
 
-            for item in ids {
-                match tag_reader.get_by_id(&item.id) {
+            ids.into_iter()
+                .filter_map(|item| match tag_reader.get_by_id(&item.id) {
                     Ok(Some(tag)) => {
                         let content = tag.get_content().to_string();
-                        if seen.insert(content.clone()) {
-                            tags.push(content);
-                        }
+                        seen.insert(content.clone()).then_some(Ok(content))
                     }
-                    Ok(None) => {}
-                    Err(err) => return Err(ServiceError::Db(err)),
-                }
-            }
+                    Ok(None) => None,
+                    Err(err) => Some(Err(ServiceError::Db(err))),
+                })
+                .collect()
+        })
+    }
 
-            Ok(tags)
+    pub fn get_notes_by_tag(&self, tag: &str) -> Result<Vec<NoteDTO>, ServiceError> {
+        self.with_read(|tx, reader| {
+            let Some(tag) = Self::resolve_tag(tx, tag)? else {
+                return Ok(Vec::new());
+            };
+
+            reader
+                .latest_notes_with_tag(&tag)?
+                .map(|note| self.note_to_dto(note?, reader))
+                .collect()
         })
     }
 
@@ -575,6 +589,35 @@ mod tests {
         assert!(results.iter().any(|tag| tag == "rust"));
         assert!(results.iter().any(|tag| tag == "async-rust"));
         assert!(!results.iter().any(|tag| tag == "python"));
+    }
+
+    #[test]
+    fn test_get_notes_by_tag_returns_only_live_latest_matches() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("synap.redb");
+        let service = SynapService::new(Some(db_path.to_string_lossy().into_owned())).unwrap();
+
+        let dropped = service
+            .create_note("learn rust".to_string(), vec!["rust".into()])
+            .unwrap();
+        let _replacement = service
+            .edit_note(&dropped.id, "learn async".to_string(), vec!["async".into()])
+            .unwrap();
+
+        let deleted = service
+            .create_note("ship rust".to_string(), vec!["rust".into()])
+            .unwrap();
+        service.delete_note(&deleted.id).unwrap();
+
+        let live = service
+            .create_note("keep rust".to_string(), vec!["rust".into()])
+            .unwrap();
+
+        let rust_notes = service.get_notes_by_tag(" rust ").unwrap();
+        assert_eq!(rust_notes.len(), 1);
+        assert_eq!(rust_notes[0].id, live.id);
+
+        assert!(service.get_notes_by_tag("missing").unwrap().is_empty());
     }
 
     #[test]

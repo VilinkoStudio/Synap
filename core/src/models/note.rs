@@ -342,6 +342,26 @@ impl<'a> NoteReader<'a> {
         }))
     }
 
+    /// 当前 tag 视图：跳过墓碑，同时过滤掉已被后继版本覆盖的旧 note。
+    pub fn latest_notes_with_tag(
+        &self,
+        tag: &Tag,
+    ) -> Result<impl Iterator<Item = Result<Note, NoteError>> + '_, redb::Error> {
+        let iter = self.notes_with_tag(tag)?;
+
+        Ok(iter.filter_map(move |note_res| match note_res {
+            Ok(note) => match self.next_versions(&note) {
+                Ok(mut next_versions) => match next_versions.next() {
+                    Some(Ok(_)) => None,
+                    Some(Err(e)) => Some(Err(NoteError::Db(e.into()))),
+                    None => Some(Ok(note)),
+                },
+                Err(e) => Some(Err(NoteError::Db(e.into()))),
+            },
+            Err(e) => Some(Err(e)),
+        }))
+    }
+
     pub fn deleted_note_ids(
         &self,
     ) -> Result<
@@ -743,6 +763,33 @@ mod tests {
             .map(|res| res.unwrap().get_id())
             .collect();
         assert!(visible_notes.is_empty());
+    }
+
+    #[test]
+    fn test_note_latest_notes_with_tag_filters_superseded_versions() {
+        let db = create_temp_db();
+
+        let write_txn = db.begin_write().unwrap();
+        let tag_writer = TagWriter::new(&write_txn);
+        let rust = tag_writer.find_or_create("rust").unwrap();
+        let async_tag = tag_writer.find_or_create("async").unwrap();
+
+        let v1 = Note::create(&write_txn, "learn rust".to_string(), vec![rust.clone()]).unwrap();
+        let _v2 = v1
+            .edit(&write_txn, "learn async".to_string(), vec![async_tag])
+            .unwrap();
+        let live = Note::create(&write_txn, "ship rust".to_string(), vec![rust.clone()]).unwrap();
+        write_txn.commit().unwrap();
+
+        let read_txn = db.begin_read().unwrap();
+        let reader = NoteReader::new(&read_txn).unwrap();
+
+        let visible_notes: Vec<Uuid> = reader
+            .latest_notes_with_tag(&rust)
+            .unwrap()
+            .map(|res| res.unwrap().get_id())
+            .collect();
+        assert_eq!(visible_notes, vec![live.get_id()]);
     }
 
     #[test]
