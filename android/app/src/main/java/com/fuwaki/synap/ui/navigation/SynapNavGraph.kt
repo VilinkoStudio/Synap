@@ -172,6 +172,8 @@ fun SynapNavGraph(
                     databaseActivity = databaseActivity,
                     onNavigateToTypographySettings = { navController.navigate("typography_settings") },
                     onNavigateToLanguageSelection = { navController.navigate("language_selection") },
+                    // --- 修改：添加在非大屏模式下点击跳转教程页的路由 ---
+                    onNavigateToTutorial = { navController.navigate("tutorial") },
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
@@ -244,6 +246,11 @@ fun SynapNavGraph(
                     handedness = handedness, onHandednessChange = onHandednessChange, databaseActivity = databaseActivity,
                     onNavigateToTypographySettings = { showSettingsSidebar = false; navController.navigate("typography_settings") },
                     onNavigateToLanguageSelection = { showSettingsSidebar = false; navController.navigate("language_selection") },
+                    // --- 修改：添加在大屏模式下点击跳转教程页的路由 ---
+                    onNavigateToTutorial = {
+                        showSettingsSidebar = false
+                        navController.navigate("tutorial")
+                    },
                     onNavigateBack = { showSettingsSidebar = false }
                 )
             }

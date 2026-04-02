@@ -72,8 +72,9 @@ fun SettingsScreen(
     onExportDatabase: () -> Unit,
     onShareDatabase: () -> Unit,
     onImportDatabase: () -> Unit,
-    onNavigateToTypographySettings: () -> Unit, // --- 新增排版设置跳转 ---
+    onNavigateToTypographySettings: () -> Unit,
     onNavigateToLanguageSelection: () -> Unit,
+    onNavigateToTutorial: () -> Unit, // --- 新增：跳转到教程 ---
     onNavigateBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -223,7 +224,6 @@ fun SettingsScreen(
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
 
-                // --- 修改：替换为跳转到排版与字体设置 ---
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -233,7 +233,7 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "文字样式",
+                            text = "排版与字体",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
@@ -481,6 +481,23 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                }
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+
+                // --- 新增：使用教程 ---
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onNavigateToTutorial() }
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("使用教程", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                    Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
                 HorizontalDivider(
