@@ -36,6 +36,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.fuwaki.synap.LocalNoteFontFamily
+import com.fuwaki.synap.LocalNoteFontWeight
 import com.fuwaki.synap.LocalNoteTextSize
 import com.fuwaki.synap.ui.model.Note
 import com.fuwaki.synap.ui.util.formatNoteTime
@@ -49,7 +51,7 @@ fun NoteCardItem(
     onClick: () -> Unit,
     onToggleDeleted: () -> Unit,
     onReply: () -> Unit,
-    animationDelayMillis: Int = 0, // 保留参数占位，避免调用方报错
+    animationDelayMillis: Int = 0,
 ) {
     val scope = rememberCoroutineScope()
 
@@ -57,7 +59,6 @@ fun NoteCardItem(
         confirmValueChange = { dismissValue ->
             when (dismissValue) {
                 SwipeToDismissBoxValue.StartToEnd -> {
-                    // 这里的 delay 仅为了保留原生滑动回弹动画的视觉缓冲
                     scope.launch {
                         delay(150)
                         onToggleDeleted()
@@ -141,9 +142,12 @@ fun NoteCardItem(
             ),
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
+                // --- 核心修改：应用字体和字重 ---
                 Text(
                     text = note.content,
                     style = MaterialTheme.typography.bodyLarge.copy(
+                        fontFamily = LocalNoteFontFamily.current,
+                        fontWeight = LocalNoteFontWeight.current,
                         fontSize = LocalNoteTextSize.current,
                         lineHeight = LocalNoteTextSize.current * 1.5f
                     ),

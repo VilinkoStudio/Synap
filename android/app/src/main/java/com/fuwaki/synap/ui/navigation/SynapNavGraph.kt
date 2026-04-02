@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -69,6 +68,8 @@ fun SynapNavGraph(
     onLanguageSelect: (Int) -> Unit,
     currentFontFamily: String,
     onFontFamilyChange: (String) -> Unit,
+    currentFontWeight: Int, // --- 新增参数 ---
+    onFontWeightChange: (Int) -> Unit, // --- 新增参数 ---
     noteTextSize: Float,
     onNoteTextSizeChange: (Float) -> Unit,
     hasSeenTutorial: Boolean,
@@ -172,7 +173,6 @@ fun SynapNavGraph(
                     databaseActivity = databaseActivity,
                     onNavigateToTypographySettings = { navController.navigate("typography_settings") },
                     onNavigateToLanguageSelection = { navController.navigate("language_selection") },
-                    // --- 修改：添加在非大屏模式下点击跳转教程页的路由 ---
                     onNavigateToTutorial = { navController.navigate("tutorial") },
                     onNavigateBack = { navController.popBackStack() }
                 )
@@ -188,6 +188,7 @@ fun SynapNavGraph(
             composable("typography_settings") {
                 TypographySettingsScreen(
                     currentFontFamily = currentFontFamily, onFontFamilyChange = onFontFamilyChange,
+                    currentFontWeight = currentFontWeight, onFontWeightChange = onFontWeightChange, // --- 传入 ---
                     noteTextSize = noteTextSize, onNoteTextSizeChange = onNoteTextSizeChange,
                     onNavigateBack = { navController.popBackStack() }
                 )
@@ -246,11 +247,7 @@ fun SynapNavGraph(
                     handedness = handedness, onHandednessChange = onHandednessChange, databaseActivity = databaseActivity,
                     onNavigateToTypographySettings = { showSettingsSidebar = false; navController.navigate("typography_settings") },
                     onNavigateToLanguageSelection = { showSettingsSidebar = false; navController.navigate("language_selection") },
-                    // --- 修改：添加在大屏模式下点击跳转教程页的路由 ---
-                    onNavigateToTutorial = {
-                        showSettingsSidebar = false
-                        navController.navigate("tutorial")
-                    },
+                    onNavigateToTutorial = { showSettingsSidebar = false; navController.navigate("tutorial") },
                     onNavigateBack = { showSettingsSidebar = false }
                 )
             }

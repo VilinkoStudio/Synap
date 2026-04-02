@@ -23,7 +23,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Reply
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton // 确保引入了这个组件
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +41,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.fuwaki.synap.LocalNoteFontFamily
+import com.fuwaki.synap.LocalNoteFontWeight
 import com.fuwaki.synap.LocalNoteTextSize
 import com.fuwaki.synap.ui.model.Note
 import com.fuwaki.synap.ui.util.formatNoteTime
@@ -91,7 +93,6 @@ fun NoteDetailScreen(
             )
         },
         floatingActionButton = {
-            // 确保只有在笔记加载成功后才显示右下角的悬浮按钮组
             if (uiState.note != null) {
                 Column(
                     horizontalAlignment = Alignment.End,
@@ -115,24 +116,20 @@ fun NoteDetailScreen(
                         )
                     }
 
-                    // --- 核心修改：将 FloatingActionButton 替换为 ExtendedFloatingActionButton 并添加文字标题 ---
-
-                    // 编辑按钮（使用次级颜色，作为次要操作）
                     ExtendedFloatingActionButton(
                         onClick = onEdit,
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
                         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        icon = { Icon(Icons.Filled.Edit, contentDescription = null) }, // 图标插槽，去掉 contentDescription
-                        text = { Text(text = "编辑") } // 文字插槽，添加标题“编辑”
+                        icon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                        text = { Text(text = "编辑") }
                     )
 
-                    // 回复按钮（使用主色，作为主要操作）
                     ExtendedFloatingActionButton(
                         onClick = onReply,
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        icon = { Icon(Icons.Filled.Reply, contentDescription = null) }, // 图标插槽，去掉 contentDescription
-                        text = { Text(text = "回复") } // 文字插槽，添加标题“回复”
+                        icon = { Icon(Icons.Filled.Reply, contentDescription = null) },
+                        text = { Text(text = "回复") }
                     )
                 }
             }
@@ -209,9 +206,12 @@ fun NoteDetailScreen(
                 }
             }
 
+            // --- 核心修改 1：应用字体和字重 ---
             Text(
                 text = note.content,
                 style = MaterialTheme.typography.bodyLarge.copy(
+                    fontFamily = LocalNoteFontFamily.current,
+                    fontWeight = LocalNoteFontWeight.current,
                     fontSize = LocalNoteTextSize.current,
                     lineHeight = LocalNoteTextSize.current * 1.5f
                 ),
@@ -287,9 +287,12 @@ private fun RelationSection(
                     .clickable { onOpenRelatedNote(note.id) },
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
+                    // --- 核心修改 2：关联笔记也应用字体和字重，只是字号略小 ---
                     Text(
                         text = note.content,
                         style = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = LocalNoteFontFamily.current,
+                            fontWeight = LocalNoteFontWeight.current,
                             fontSize = (LocalNoteTextSize.current.value - 2).coerceAtLeast(10f).sp,
                             lineHeight = (LocalNoteTextSize.current.value - 2).coerceAtLeast(10f).sp * 1.5f
                         ),

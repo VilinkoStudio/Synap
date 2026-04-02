@@ -27,9 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,18 +38,10 @@ import com.fuwaki.synap.ui.theme.MyApplicationTheme
 import com.fuwaki.synap.ui.viewmodel.AppSessionUiState
 import com.fuwaki.synap.ui.viewmodel.AppSessionViewModel
 
+// --- 定义专属于笔记正文的 CompositionLocal ---
 val LocalNoteTextSize = compositionLocalOf { 16.sp }
-
-fun buildAppTypography(fontFamilySelection: String): Typography {
-    val family = if (fontFamilySelection == "Serif") FontFamily.Serif else FontFamily.SansSerif
-    return Typography(
-        titleLarge = TextStyle(fontFamily = family, fontWeight = FontWeight.Bold, fontSize = 24.sp, lineHeight = 30.sp),
-        titleMedium = TextStyle(fontFamily = family, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, lineHeight = 24.sp),
-        bodyLarge = TextStyle(fontFamily = family, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 25.sp),
-        bodyMedium = TextStyle(fontFamily = family, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 21.sp),
-        labelMedium = TextStyle(fontFamily = family, fontWeight = FontWeight.Medium, fontStyle = FontStyle.Normal, fontSize = 12.sp, lineHeight = 16.sp)
-    )
-}
+val LocalNoteFontFamily = compositionLocalOf { FontFamily.SansSerif }
+val LocalNoteFontWeight = compositionLocalOf { FontWeight.Normal }
 
 @Composable
 fun SynapApp(activity: MainActivity?) {
@@ -69,6 +59,9 @@ fun SynapApp(activity: MainActivity?) {
 
     var noteTextSize by remember { mutableFloatStateOf(prefs.getFloat("noteTextSize", 16f)) }
     var currentFontFamily by remember { mutableStateOf(prefs.getString("fontFamily", "SansSerif") ?: "SansSerif") }
+    // --- 新增：读取和存储字重 ---
+    var currentFontWeight by remember { mutableIntStateOf(prefs.getInt("fontWeight", 400)) }
+
     var handedness by remember { mutableStateOf(prefs.getString("handedness", "靠右") ?: "靠右") }
     var hasSeenTutorial by remember { mutableStateOf(prefs.getBoolean("hasSeenTutorial", false)) }
 
@@ -81,7 +74,16 @@ fun SynapApp(activity: MainActivity?) {
         else -> isSystemInDarkTheme()
     }
 
-    CompositionLocalProvider(LocalNoteTextSize provides noteTextSize.sp) {
+    // 计算当前的字体和字重对象
+    val actualFontFamily = if (currentFontFamily == "Serif") FontFamily.Serif else FontFamily.SansSerif
+    val actualFontWeight = FontWeight(currentFontWeight)
+
+    // --- 把字号、字体、字重都通过 Local 往下传 ---
+    CompositionLocalProvider(
+        LocalNoteTextSize provides noteTextSize.sp,
+        LocalNoteFontFamily provides actualFontFamily,
+        LocalNoteFontWeight provides actualFontWeight
+    ) {
         MyApplicationTheme(darkTheme = isDarkTheme, dynamicColor = supportsMonet && useMonet) {
             val currentScheme = MaterialTheme.colorScheme
 
@@ -115,7 +117,8 @@ fun SynapApp(activity: MainActivity?) {
                 currentScheme
             }
 
-            MaterialTheme(colorScheme = finalScheme, typography = buildAppTypography(currentFontFamily), shapes = MaterialTheme.shapes) {
+            // --- 核心修改：让 Typography() 恢复默认，仅通过 Local 影响正文 ---
+            MaterialTheme(colorScheme = finalScheme, typography = Typography(), shapes = MaterialTheme.shapes) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     when (val state = sessionState) {
                         AppSessionUiState.Initializing -> SessionLoadingScreen()
@@ -127,6 +130,7 @@ fun SynapApp(activity: MainActivity?) {
                             handedness = handedness, onHandednessChange = { handedness = it; prefs.edit().putString("handedness", it).apply() },
                             languages = languages, selectedLanguageIndex = selectedLanguageIndex, onLanguageSelect = { selectedLanguageIndex = it; prefs.edit().putInt("selectedLanguage", it).apply() },
                             currentFontFamily = currentFontFamily, onFontFamilyChange = { currentFontFamily = it; prefs.edit().putString("fontFamily", it).apply() },
+                            currentFontWeight = currentFontWeight, onFontWeightChange = { currentFontWeight = it; prefs.edit().putInt("fontWeight", it).apply() }, // --- 传递字重 ---
                             noteTextSize = noteTextSize, onNoteTextSizeChange = { noteTextSize = it; prefs.edit().putFloat("noteTextSize", it).apply() },
                             hasSeenTutorial = hasSeenTutorial, onTutorialFinished = { hasSeenTutorial = true; prefs.edit().putBoolean("hasSeenTutorial", true).apply() },
                             databaseActivity = activity,

@@ -56,6 +56,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.fuwaki.synap.LocalNoteFontFamily
+import com.fuwaki.synap.LocalNoteFontWeight
 import com.fuwaki.synap.LocalNoteTextSize
 import com.fuwaki.synap.ui.viewmodel.EditorMode
 import com.fuwaki.synap.ui.viewmodel.EditorUiState
@@ -182,7 +184,10 @@ fun NewNoteScreen(
                         .weight(1f)
                         .fillMaxWidth()
                         .focusRequester(bodyFocusRequester),
+                    // --- 核心修改：应用字体和字重 ---
                     textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        fontFamily = LocalNoteFontFamily.current,
+                        fontWeight = LocalNoteFontWeight.current,
                         fontSize = LocalNoteTextSize.current,
                         lineHeight = LocalNoteTextSize.current * 1.5f,
                         color = MaterialTheme.colorScheme.onSurface
