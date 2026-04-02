@@ -227,22 +227,22 @@ fun NoteDetailScreen(
             }
 
             RelationSection(
-                title = "父链溯源",
+                title = "源笔记",
                 notes = uiState.origins,
                 onOpenRelatedNote = onOpenRelatedNote,
             )
             RelationSection(
-                title = "前置版本",
+                title = "上一版本",
                 notes = uiState.previousVersions,
                 onOpenRelatedNote = onOpenRelatedNote,
             )
             RelationSection(
-                title = "后续版本",
+                title = "下一版本",
                 notes = uiState.nextVersions,
                 onOpenRelatedNote = onOpenRelatedNote,
             )
             RelationSection(
-                title = "回复流",
+                title = "回复",
                 notes = uiState.replies,
                 onOpenRelatedNote = onOpenRelatedNote,
             )
@@ -255,9 +255,6 @@ fun NoteDetailScreen(
                     Text(if (uiState.repliesLoading) "加载中..." else "加载更多回复")
                 }
             }
-
-            // 大幅增加底部的留白，从 48.dp 提升到 200.dp
-            // 确保滑到最底端时，内容完全高于三个叠加的 FAB 按钮
             Spacer(modifier = Modifier.height(200.dp))
         }
     }

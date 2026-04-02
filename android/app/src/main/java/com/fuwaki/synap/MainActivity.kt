@@ -32,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -46,6 +47,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.navigation.NavType
@@ -62,6 +67,7 @@ import com.fuwaki.synap.ui.screens.LanguageSelectionScreen
 import com.fuwaki.synap.ui.screens.NewNoteScreen
 import com.fuwaki.synap.ui.screens.NoteDetailScreen
 import com.fuwaki.synap.ui.screens.SettingsScreen
+import com.fuwaki.synap.ui.screens.TypographySettingsScreen // --- 新增引入 ---
 import com.fuwaki.synap.ui.screens.SearchScreen
 import com.fuwaki.synap.ui.theme.MyApplicationTheme
 import com.fuwaki.synap.ui.viewmodel.AppSessionUiState
@@ -94,6 +100,44 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.foundation.layout.Arrangement
 
 val LocalNoteTextSize = compositionLocalOf { 16.sp }
+
+// --- 动态构建 Typography ---
+fun buildAppTypography(fontFamilySelection: String): Typography {
+    val family = if (fontFamilySelection == "Serif") FontFamily.Serif else FontFamily.SansSerif
+    return Typography(
+        titleLarge = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Bold,
+            fontSize = 24.sp,
+            lineHeight = 30.sp,
+        ),
+        titleMedium = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 18.sp,
+            lineHeight = 24.sp,
+        ),
+        bodyLarge = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Normal,
+            fontSize = 16.sp,
+            lineHeight = 25.sp,
+        ),
+        bodyMedium = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Normal,
+            fontSize = 14.sp,
+            lineHeight = 21.sp,
+        ),
+        labelMedium = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Medium,
+            fontStyle = FontStyle.Normal,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+        ),
+    )
+}
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -169,6 +213,9 @@ private fun SynapApp() {
 
     var noteTextSize by remember { mutableFloatStateOf(prefs.getFloat("noteTextSize", 16f)) }
 
+    // --- 新增：字体族持久化 ---
+    var currentFontFamily by remember { mutableStateOf(prefs.getString("fontFamily", "SansSerif") ?: "SansSerif") }
+
     var handedness by remember { mutableStateOf(prefs.getString("handedness", "靠右") ?: "靠右") }
 
     val sessionViewModel: AppSessionViewModel = hiltViewModel()
@@ -224,7 +271,8 @@ private fun SynapApp() {
 
             MaterialTheme(
                 colorScheme = finalScheme,
-                typography = MaterialTheme.typography,
+                // --- 核心修改：动态应用字体设置 ---
+                typography = buildAppTypography(currentFontFamily),
                 shapes = MaterialTheme.shapes
             ) {
                 Surface(
@@ -265,6 +313,11 @@ private fun SynapApp() {
                                 selectedLanguageIndex = it
                                 prefs.edit().putInt("selectedLanguage", it).apply()
                             },
+                            currentFontFamily = currentFontFamily,
+                            onFontFamilyChange = {
+                                currentFontFamily = it
+                                prefs.edit().putString("fontFamily", it).apply()
+                            },
                             noteTextSize = noteTextSize,
                             onNoteTextSizeChange = {
                                 noteTextSize = it
@@ -293,6 +346,8 @@ private fun SynapNavGraph(
     languages: List<String>,
     selectedLanguageIndex: Int,
     onLanguageSelect: (Int) -> Unit,
+    currentFontFamily: String,
+    onFontFamilyChange: (String) -> Unit,
     noteTextSize: Float,
     onNoteTextSizeChange: (Float) -> Unit,
     databaseActivity: MainActivity?,
@@ -419,9 +474,8 @@ private fun SynapNavGraph(
                     onCustomThemeHueChange = onCustomThemeHueChange,
                     handedness = handedness,
                     onHandednessChange = onHandednessChange,
-                    noteTextSize = noteTextSize,
-                    onNoteTextSizeChange = onNoteTextSizeChange,
                     databaseActivity = databaseActivity,
+                    onNavigateToTypographySettings = { navController.navigate("typography_settings") }, // --- 新增路由 ---
                     onNavigateToLanguageSelection = { navController.navigate("language_selection") },
                     onNavigateBack = { navController.popBackStack() }
                 )
@@ -433,6 +487,17 @@ private fun SynapNavGraph(
                     selectedIndex = selectedLanguageIndex,
                     onLanguageSelect = onLanguageSelect,
                     onNavigateBack = { navController.popBackStack() },
+                )
+            }
+
+            // --- 新增：排版设置路由 ---
+            composable("typography_settings") {
+                TypographySettingsScreen(
+                    currentFontFamily = currentFontFamily,
+                    onFontFamilyChange = onFontFamilyChange,
+                    noteTextSize = noteTextSize,
+                    onNoteTextSizeChange = onNoteTextSizeChange,
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
 
@@ -515,9 +580,11 @@ private fun SynapNavGraph(
                     onCustomThemeHueChange = onCustomThemeHueChange,
                     handedness = handedness,
                     onHandednessChange = onHandednessChange,
-                    noteTextSize = noteTextSize,
-                    onNoteTextSizeChange = onNoteTextSizeChange,
                     databaseActivity = databaseActivity,
+                    onNavigateToTypographySettings = {
+                        showSettingsSidebar = false
+                        navController.navigate("typography_settings")
+                    },
                     onNavigateToLanguageSelection = {
                         showSettingsSidebar = false
                         navController.navigate("language_selection")
@@ -540,9 +607,8 @@ private fun SettingsContainer(
     onCustomThemeHueChange: (Float) -> Unit,
     handedness: String,
     onHandednessChange: (String) -> Unit,
-    noteTextSize: Float,
-    onNoteTextSizeChange: (Float) -> Unit,
     databaseActivity: MainActivity?,
+    onNavigateToTypographySettings: () -> Unit,
     onNavigateToLanguageSelection: () -> Unit,
     onNavigateBack: () -> Unit
 ) {
@@ -553,7 +619,6 @@ private fun SettingsContainer(
 
     var showImportWarning by remember { mutableStateOf(false) }
     var showRestartRequired by remember { mutableStateOf(false) }
-    // --- 新增：文件类型错误弹窗状态 ---
     var showFileTypeError by remember { mutableStateOf(false) }
 
     val exportDatabaseLauncher = rememberLauncherForActivityResult(
@@ -585,7 +650,6 @@ private fun SettingsContainer(
             return@rememberLauncherForActivityResult
         }
 
-        // --- 核心修改：检查文件后缀名 ---
         var isRedbFile = false
         context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
             if (cursor.moveToFirst()) {
@@ -600,10 +664,8 @@ private fun SettingsContainer(
         }
 
         if (!isRedbFile) {
-            // 拦截：显示文件类型错误弹窗
             showFileTypeError = true
         } else {
-            // 通过校验：继续原有的导入逻辑
             scope.launch {
                 databaseActivity.importDatabaseFromUri(uri)
                     .onSuccess {
@@ -645,7 +707,6 @@ private fun SettingsContainer(
         )
     }
 
-    // --- 新增：文件类型错误的 UI 弹窗 ---
     if (showFileTypeError) {
         AlertDialog(
             onDismissRequest = { showFileTypeError = false },
@@ -657,7 +718,7 @@ private fun SettingsContainer(
                 TextButton(
                     onClick = {
                         showFileTypeError = false
-                        importDatabaseLauncher.launch(arrayOf("*/*")) // 重新唤起文件选择器
+                        importDatabaseLauncher.launch(arrayOf("*/*"))
                     },
                 ) {
                     Text("重新选择")
@@ -701,8 +762,6 @@ private fun SettingsContainer(
         onCustomThemeHueChange = onCustomThemeHueChange,
         handedness = handedness,
         onHandednessChange = onHandednessChange,
-        noteTextSize = noteTextSize,
-        onNoteTextSizeChange = onNoteTextSizeChange,
         buildVersion = settingsUiState.buildVersion,
         buildVersionDetails = settingsUiState.buildVersionDetails,
         onExportNotes = {
@@ -739,6 +798,7 @@ private fun SettingsContainer(
                 showImportWarning = true
             }
         },
+        onNavigateToTypographySettings = onNavigateToTypographySettings,
         onNavigateToLanguageSelection = onNavigateToLanguageSelection,
         onNavigateBack = onNavigateBack,
     )

@@ -1,7 +1,5 @@
 package com.fuwaki.synap.ui.screens
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateDpAsState
@@ -37,6 +35,7 @@ import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowUpward
@@ -45,6 +44,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -98,6 +98,62 @@ import java.util.Calendar
 import kotlin.math.PI
 import kotlin.math.sin
 
+// --- 新增：定义节日彩蛋数据结构 ---
+private data class EasterEgg(
+    val startMonth: Int, // Calendar 月份，从 0 开始 (一月是 0)
+    val startDate: Int,
+    val endMonth: Int,
+    val endDate: Int,
+    val emoji: String,
+    val dialogTitle: String,
+    val dialogMessage: String
+)
+
+// --- 新增：节日彩蛋列表 ---
+private val easterEggs = listOf(
+    // 愚人节 (4月1日)
+    EasterEgg(
+        startMonth = Calendar.APRIL, startDate = 1,
+        endMonth = Calendar.APRIL, endDate = 1,
+        emoji = "🤡",
+        dialogTitle = "愚人节彩蛋",
+        dialogMessage = "你被骗了！愚人节快乐！"
+    ),
+    // 清明节 (4月2日 - 4月5日)
+    EasterEgg(
+        startMonth = Calendar.APRIL, startDate = 2,
+        endMonth = Calendar.APRIL, endDate = 5,
+        emoji = "🌱",
+        dialogTitle = "清明节彩蛋",
+        dialogMessage = "“清明时节雨纷纷，路上行人欲断魂。”——杜牧《清明》。注意休息，踏青愉快。"
+    ),
+    // 劳动节 (5月1日)
+    EasterEgg(
+        startMonth = Calendar.MAY, startDate = 1,
+        endMonth = Calendar.MAY, endDate = 5,
+        emoji = "🛠️",
+        dialogTitle = "劳动节彩蛋",
+        dialogMessage = "劳动节快乐，感谢你的辛勤付出！劳动节小长假记得出门开开风景。"
+    ),
+    // 元旦 (1月1日)
+    EasterEgg(
+        startMonth = Calendar.JANUARY, startDate = 1,
+        endMonth = Calendar.JANUARY, endDate = 1,
+        emoji = "🎉",
+        dialogTitle = "新年快乐",
+        dialogMessage = "新的一年，新的开始！祝你新的一年，所愿皆成真。"
+    ),
+    // 元旦 (1月1日)
+    EasterEgg(
+        startMonth = Calendar.SEPTEMBER, startDate = 30,
+        endMonth = Calendar.OCTOBER, endDate = 7,
+        emoji = "🎉",
+        dialogTitle = "国庆节快乐",
+        dialogMessage = "十一小长假有规划去哪里玩吗？没有的话要不用 Synap 规划一下，嘻嘻。"
+    )
+
+)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
@@ -118,28 +174,41 @@ fun HomeScreen(
     var showFilterSheet by remember { mutableStateOf(false) }
     var currentFilter by rememberSaveable { mutableStateOf("全部") }
 
-    // --- 核心修复：撤销功能的真实状态管理 ---
     var deletedNoteToUndo by remember { mutableStateOf<Note?>(null) }
     var undoProgress by remember { mutableFloatStateOf(1f) }
     var timeLeftSeconds by remember { mutableIntStateOf(3) }
 
-    // 我们用一个本地列表来暂时隐藏被标记删除的笔记，等倒计时结束才真正通知 ViewModel 删除
     var pendingDeleteNoteIds by remember { mutableStateOf(setOf<String>()) }
 
-    val isAprilFools by remember {
+    // --- 核心修改：检测当前日期是否匹配任何彩蛋 ---
+    val currentEasterEgg by remember {
         val calendar = Calendar.getInstance()
-        mutableStateOf(
-            calendar.get(Calendar.MONTH) == Calendar.APRIL &&
-                    calendar.get(Calendar.DAY_OF_MONTH) == 1
-        )
+        val currentMonth = calendar.get(Calendar.MONTH)
+        val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
+
+        // 简单的日期范围匹配逻辑
+        val matchedEgg = easterEggs.firstOrNull { egg ->
+            if (egg.startMonth == egg.endMonth) {
+                // 在同一个月内
+                currentMonth == egg.startMonth && currentDay in egg.startDate..egg.endDate
+            } else {
+                // 跨月的情况（较为复杂，目前只处理不跨年的情况）
+                (currentMonth == egg.startMonth && currentDay >= egg.startDate) ||
+                        (currentMonth == egg.endMonth && currentDay <= egg.endDate) ||
+                        (currentMonth in (egg.startMonth + 1)..<egg.endMonth)
+            }
+        }
+        mutableStateOf(matchedEgg)
     }
+
+    // --- 新增：彩蛋弹窗状态 ---
+    var showEasterEggDialog by remember { mutableStateOf(false) }
 
     val fabDodgeOffset by animateDpAsState(
         targetValue = if (deletedNoteToUndo != null) (-96).dp else 0.dp,
         label = "fab_dodge_animation"
     )
 
-    // --- 核心修复：倒计时逻辑 ---
     LaunchedEffect(deletedNoteToUndo) {
         val note = deletedNoteToUndo
         if (note != null) {
@@ -151,10 +220,9 @@ fun HomeScreen(
                 undoProgress = timeLeft.toFloat() / 3000f
                 timeLeftSeconds = kotlin.math.ceil(timeLeft / 1000f).toInt()
             }
-            // 倒计时结束，如果这个笔记还在 pending 列表里，说明用户没点撤销
             if (note.id in pendingDeleteNoteIds) {
                 pendingDeleteNoteIds = pendingDeleteNoteIds - note.id
-                onToggleDeleted(note) // 真正触发删除（传给 ViewModel 存入数据库）
+                onToggleDeleted(note)
             }
             deletedNoteToUndo = null
         }
@@ -168,7 +236,7 @@ fun HomeScreen(
 
     val isAtTop by remember {
         derivedStateOf {
-            gridState.firstVisibleItemIndex == 0
+            gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset <= 10
         }
     }
 
@@ -186,10 +254,8 @@ fun HomeScreen(
     var isUntaggedUnselected by rememberSaveable { mutableStateOf(false) }
     var isTagsExpanded by rememberSaveable { mutableStateOf(false) }
 
-    // --- 核心修复：在初步过滤时，把处于“待删除”状态（pendingDeleteNoteIds）的笔记从列表中剔除 ---
     val statusFilteredNotes = remember(uiState.notes, currentFilter, pendingDeleteNoteIds) {
         val uniqueNotes = uiState.notes.distinctBy { it.id }
-        // 过滤掉正在倒计时的笔记
         val visibleNotes = uniqueNotes.filter { it.id !in pendingDeleteNoteIds }
 
         val sorted = visibleNotes.sortedBy { it.isDeleted }
@@ -229,6 +295,20 @@ fun HomeScreen(
             }
     }
 
+    // --- 新增：彩蛋弹窗 UI ---
+    if (showEasterEggDialog && currentEasterEgg != null) {
+        AlertDialog(
+            onDismissRequest = { showEasterEggDialog = false },
+            title = { Text(currentEasterEgg!!.dialogTitle) },
+            text = { Text(currentEasterEgg!!.dialogMessage) },
+            confirmButton = {
+                TextButton(onClick = { showEasterEggDialog = false }) {
+                    Text("好的")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             Column {
@@ -242,27 +322,21 @@ fun HomeScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
 
+                            // --- 核心修改：动态显示匹配到的彩蛋 ---
                             AnimatedVisibility(
-                                visible = isAprilFools,
+                                visible = currentEasterEgg != null,
                                 enter = fadeIn() + scaleIn(),
                                 exit = fadeOut() + scaleOut()
                             ) {
                                 IconButton(
                                     onClick = {
-                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://b23.tv/5yYgkQf"))
-                                        intent.setPackage("tv.danmaku.bili")
-                                        try {
-                                            context.startActivity(intent)
-                                        } catch (e: Exception) {
-                                            intent.setPackage(null)
-                                            context.startActivity(intent)
-                                        }
+                                        showEasterEggDialog = true // 触发弹窗
                                     },
                                     modifier = Modifier
                                         .padding(start = 4.dp)
                                         .size(36.dp)
                                 ) {
-                                    Text("🤡", fontSize = 22.sp)
+                                    Text(currentEasterEgg?.emoji ?: "", fontSize = 22.sp)
                                 }
                             }
                         }
@@ -357,7 +431,12 @@ fun HomeScreen(
             }
         },
     ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+        // --- 核心修改：移除了 PullToRefreshBox，恢复为普通的 Box ---
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
             Column(
                 modifier = Modifier.fillMaxSize(),
             ) {
@@ -521,7 +600,8 @@ fun HomeScreen(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .fillMaxWidth(),
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState()),
                             contentAlignment = Alignment.Center,
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -544,7 +624,8 @@ fun HomeScreen(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .fillMaxWidth(),
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState()),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
@@ -574,16 +655,12 @@ fun HomeScreen(
                                 NoteCardItem(
                                     note = note,
                                     onClick = { onOpenNote(note.id) },
-                                    // --- 核心修复：把直接删除改为暂存待删除列表，并唤起弹窗 ---
                                     onToggleDeleted = {
                                         if (!note.isDeleted) {
-                                            // 如果当前是正常状态，准备删除：
-                                            // 先把它塞进暂存列表让 UI 隐藏，然后弹出撤销框
                                             pendingDeleteNoteIds = pendingDeleteNoteIds + note.id
                                             deletedNoteToUndo = note
                                             undoProgress = 1f
                                         } else {
-                                            // 如果是从垃圾篓里恢复，直接调用 ViewModel
                                             onToggleDeleted(note)
                                         }
                                     },
@@ -634,7 +711,6 @@ fun HomeScreen(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
                                     .clickable {
-                                        // --- 核心修复：点击撤销，只需把它从暂存列表里拿出来，UI 就会自动恢复显示 ---
                                         deletedNoteToUndo?.let { note ->
                                             pendingDeleteNoteIds = pendingDeleteNoteIds - note.id
                                         }
