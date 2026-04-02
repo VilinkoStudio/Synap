@@ -163,14 +163,12 @@ private fun SynapApp() {
     var useMonet by remember { mutableStateOf(prefs.getBoolean("useMonet", supportsMonet)) }
     var customThemeHue by remember { mutableFloatStateOf(prefs.getFloat("customThemeHue", 210f)) }
 
-    // --- 核心修改：将跟随系统合并进语言列表 ---
     var selectedLanguageIndex by remember { mutableIntStateOf(prefs.getInt("selectedLanguage", 0)) }
     val baseLanguages = remember { sampleLanguages() }
     val languages = remember(baseLanguages) { listOf("跟随系统语言设置") + baseLanguages }
 
     var noteTextSize by remember { mutableFloatStateOf(prefs.getFloat("noteTextSize", 16f)) }
 
-    // --- 核心修改：新增握持习惯设定 ---
     var handedness by remember { mutableStateOf(prefs.getString("handedness", "靠右") ?: "靠右") }
 
     val sessionViewModel: AppSessionViewModel = hiltViewModel()
@@ -552,8 +550,11 @@ private fun SettingsContainer(
     val scope = rememberCoroutineScope()
     val settingsViewModel: SettingsViewModel = hiltViewModel()
     val settingsUiState by settingsViewModel.uiState.collectAsState()
+
     var showImportWarning by remember { mutableStateOf(false) }
     var showRestartRequired by remember { mutableStateOf(false) }
+    // --- 新增：文件类型错误弹窗状态 ---
+    var showFileTypeError by remember { mutableStateOf(false) }
 
     val exportDatabaseLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/octet-stream"),
@@ -584,27 +585,47 @@ private fun SettingsContainer(
             return@rememberLauncherForActivityResult
         }
 
-        scope.launch {
-            databaseActivity.importDatabaseFromUri(uri)
-                .onSuccess {
-                    showRestartRequired = true
+        // --- 核心修改：检查文件后缀名 ---
+        var isRedbFile = false
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val displayNameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (displayNameIndex != -1) {
+                    val displayName = cursor.getString(displayNameIndex)
+                    if (displayName != null && displayName.endsWith(".redb", ignoreCase = true)) {
+                        isRedbFile = true
+                    }
                 }
-                .onFailure { throwable ->
-                    Toast.makeText(
-                        context,
-                        throwable.message ?: "导入数据库失败",
-                        Toast.LENGTH_LONG,
-                    ).show()
-                }
+            }
+        }
+
+        if (!isRedbFile) {
+            // 拦截：显示文件类型错误弹窗
+            showFileTypeError = true
+        } else {
+            // 通过校验：继续原有的导入逻辑
+            scope.launch {
+                databaseActivity.importDatabaseFromUri(uri)
+                    .onSuccess {
+                        showRestartRequired = true
+                    }
+                    .onFailure { throwable ->
+                        Toast.makeText(
+                            context,
+                            throwable.message ?: "导入数据库失败",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }
+            }
         }
     }
 
     if (showImportWarning) {
         AlertDialog(
             onDismissRequest = { showImportWarning = false },
-            title = { Text("导入并替换数据库") },
+            title = { Text("导入备份并替换") },
             text = {
-                Text("当前本地数据库会被新文件替换，并且导入完成后必须重新启动 App 才会生效。")
+                Text("注意！导入备份文件后，原来的数据将会被清空，请谨慎操作。导入后需要重启 App 生效")
             },
             confirmButton = {
                 TextButton(
@@ -624,12 +645,38 @@ private fun SettingsContainer(
         )
     }
 
+    // --- 新增：文件类型错误的 UI 弹窗 ---
+    if (showFileTypeError) {
+        AlertDialog(
+            onDismissRequest = { showFileTypeError = false },
+            title = { Text("文件类型错误") },
+            text = {
+                Text("请上传“.redb”格式的备份文件")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showFileTypeError = false
+                        importDatabaseLauncher.launch(arrayOf("*/*")) // 重新唤起文件选择器
+                    },
+                ) {
+                    Text("重新选择")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFileTypeError = false }) {
+                    Text("取消")
+                }
+            },
+        )
+    }
+
     if (showRestartRequired) {
         AlertDialog(
             onDismissRequest = {},
-            title = { Text("需要重启 App") },
+            title = { Text("需要重启应用") },
             text = {
-                Text("数据库已经替换完成。当前本地数据库会话已失效，请关闭并重新启动 App。")
+                Text("已成功导入备份数据，重启应用后生效。")
             },
             confirmButton = {
                 TextButton(
@@ -638,7 +685,7 @@ private fun SettingsContainer(
                         databaseActivity?.closeForDatabaseRestart()
                     },
                 ) {
-                    Text("关闭 App")
+                    Text("关闭应用")
                 }
             },
         )
