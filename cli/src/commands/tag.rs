@@ -1,86 +1,77 @@
 //! Tag command implementation.
 
-use synap_core::{SynapService, Ulid};
+use synap_core::SynapService;
 
-/// Execute the tag command.
+use crate::{
+    output,
+    support::{add_tag_to_note, remove_tag_from_note, resolve_note_prefix},
+};
+
 pub fn execute(
-    id_str: &str,
+    id_prefix: &str,
     tag: &str,
     remove: bool,
     service: &SynapService,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if tag.is_empty() {
+    if tag.trim().is_empty() {
         return Err("标签名称不能为空".into());
     }
 
-    let id = parse_ulid(id_str)?;
+    let note = resolve_note_prefix(service, id_prefix)?;
+    let tags = if remove {
+        remove_tag_from_note(&note, tag)
+    } else {
+        add_tag_to_note(&note, tag)
+    };
 
-    // Verify the note exists
-    let note = service.get_note(id)?;
-
-    if note.deleted {
-        return Err(format!("笔记 {} 已被删除", id_str).into());
+    if tags == note.tags {
+        output::success("标签集合未发生变化");
+        return Ok(());
     }
 
+    let updated = service.edit_note(&note.id, note.content.clone(), tags)?;
     if remove {
-        service.remove_tag(id, tag)?;
-
-        crate::output::success(&format!(
-            "已删除标签: #{}",
-            tag
+        output::success(&format!(
+            "已移除标签 #{}，新版本: {}",
+            tag.trim(),
+            &updated.id[..8]
         ));
     } else {
-        service.add_tag(id, tag.to_string())?;
-
-        crate::output::success(&format!(
-            "已添加标签: #{}",
-            tag
+        output::success(&format!(
+            "已添加标签 #{}，新版本: {}",
+            tag.trim(),
+            &updated.id[..8]
         ));
     }
 
     Ok(())
 }
 
-/// Execute tag add operation.
-pub fn execute_add(id_str: &str, tag: &str, service: &SynapService) -> Result<(), Box<dyn std::error::Error>> {
-    execute(id_str, tag, false, service)
+pub fn execute_add(
+    id_prefix: &str,
+    tag: &str,
+    service: &SynapService,
+) -> Result<(), Box<dyn std::error::Error>> {
+    execute(id_prefix, tag, false, service)
 }
 
-/// Execute tag remove operation.
-pub fn execute_remove(id_str: &str, tag: &str, service: &SynapService) -> Result<(), Box<dyn std::error::Error>> {
-    execute(id_str, tag, true, service)
-}
-
-/// Parse a ULID from a string.
-fn parse_ulid(s: &str) -> Result<Ulid, Box<dyn std::error::Error>> {
-    Ulid::parse_str(s)
-        .map_err(|e| format!("无效的 ULID: {}", e).into())
+pub fn execute_remove(
+    id_prefix: &str,
+    tag: &str,
+    service: &SynapService,
+) -> Result<(), Box<dyn std::error::Error>> {
+    execute(id_prefix, tag, true, service)
 }
 
 #[cfg(test)]
 mod tests {
-    use uuid::Uuid;
-
     use super::*;
 
     #[test]
-    fn test_parse_ulid_full() {
-        let ulid = Uuid::new_v4();
-        let ulid_str = ulid.to_string();
-        let result = parse_ulid(&ulid_str);
+    fn test_execute_add_smoke() {
+        let service = SynapService::open_memory().unwrap();
+        let note = service.create_note("hello".to_string(), vec![]).unwrap();
+        let result = execute_add(&note.id[..8], "rust", &service);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ulid);
-    }
-
-    #[test]
-    fn test_parse_ulid_invalid() {
-        let result = parse_ulid("invalid_ulid");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_parse_ulid_short() {
-        let result = parse_ulid("01KJYFFB4Z");
-        assert!(result.is_err());
     }
 }
