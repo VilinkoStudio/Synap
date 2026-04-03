@@ -1,9 +1,4 @@
 <resources>
-    <string name="home">主页</string>
-    <string name="delete">删除</string>
-    <string name="edit">编辑</string>
-    <string name="reply">回复</string>
-    <string name="retry">重试</string>
     <string name="app_name">Synap</string>
     <string name="back">返回</string>
     <string name="clear">清空</string>
@@ -61,31 +56,4 @@
     <string name="tutorial">使用教程</string>
     <string name="view_project_homepage">查看项目主页</string>
     <string name="download_latest_version">点击下载最新版</string>
-
-    <string name="home_filter_title">筛选</string>
-    <string name="home_filter_delete_all">全部</string>
-    <string name="home_filter_delete_undelete">正常</string>
-    <string name="home_filter_delete_delete">已删除</string>
-
-    <string name="edit_title_creat">新建笔记</string>
-    <string name="edit_title_reply">回复笔记</string>
-    <string name="edit_title_edit">编辑笔记</string>
-    <string name="edit_placeholder">在此输入正文内容……</string>
-    <string name="edit_tag_delete">删除标签</string>
-    <string name="edit_tag_add">添加标签</string>
-    <string name="edit_tag_placeholder">在此输入标签文字</string>
-    <string name="edit_tag_check">确认添加</string>
-
-    <string name="home_search_title">搜索笔记、标签、片段...</string>
-    <string name="home_tagbar_none">无标签</string>
-    <string name="home_tagbar_all">全部标签</string>
-    <string name="home_creatnote">创建笔记</string>
-    <string name="backtop">回到顶部</string>
-    <string name="edit_hint_reply">回复自</string>
-    <string name="notedetail_title">笔记详情</string>
-    <string name="notedetail_errorMessage">笔记不存在</string>
-    <string name="notedetail_origins">源笔记</string>
-    <string name="notedetail_previousVersions">上一版本</string>
-    <string name="notedetail_nextVersions">下一版本</string>
-    <string name="notedetail_replies">回复</string>
 </resources>

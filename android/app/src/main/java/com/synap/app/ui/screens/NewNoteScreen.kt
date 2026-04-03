@@ -1,12 +1,5 @@
 package com.synap.app.ui.screens
 
-import android.content.Intent
-import android.net.Uri
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -23,7 +16,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -51,7 +43,6 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,15 +53,17 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.synap.app.LocalNoteFontFamily
+import com.synap.app.LocalNoteFontWeight
 import com.synap.app.LocalNoteTextSize
 import com.synap.app.ui.viewmodel.EditorMode
 import com.synap.app.ui.viewmodel.EditorUiState
 import kotlinx.coroutines.delay
+import androidx.compose.ui.res.stringResource
+import com.synap.app.R
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -83,8 +76,6 @@ fun NewNoteScreen(
     onRemoveTag: (Int) -> Unit,
     onSave: () -> Unit,
 ) {
-    val context = LocalContext.current
-
     var tagInputText by remember { mutableStateOf("") }
     var isTagInputVisible by remember { mutableStateOf(false) }
     var tagInputHasFocus by remember { mutableStateOf(false) }
@@ -93,15 +84,6 @@ fun NewNoteScreen(
     val tagFocusRequester = remember { FocusRequester() }
     val tagScrollState = rememberScrollState()
     val isImeVisible = WindowInsets.isImeVisible
-
-    val hasEasterEgg by remember(uiState.content) {
-        derivedStateOf {
-            uiState.content.contains("愚人节", ignoreCase = true) ||
-            uiState.content.contains("Fools' Day", ignoreCase = true) ||
-            uiState.content.contains("Fool Day", ignoreCase = true) ||
-            uiState.content.contains("Fools Day", ignoreCase = true)
-        }
-    }
 
     LaunchedEffect(Unit) {
         delay(300)
@@ -119,38 +101,13 @@ fun NewNoteScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            when (uiState.mode) {
-                                EditorMode.Create -> "新建笔记"
-                                is EditorMode.Reply -> "回复笔记"
-                                is EditorMode.Edit -> "编辑笔记"
-                            },
-                        )
-                        AnimatedVisibility(
-                            visible = hasEasterEgg,
-                            enter = fadeIn() + scaleIn(),
-                            exit = fadeOut() + scaleOut()
-                        ) {
-                            IconButton(
-                                onClick = {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://b23.tv/5yYgkQf"))
-                                    intent.setPackage("tv.danmaku.bili")
-                                    try {
-                                        context.startActivity(intent)
-                                    } catch (e: Exception) {
-                                        intent.setPackage(null)
-                                        context.startActivity(intent)
-                                    }
-                                },
-                                modifier = Modifier
-                                    .padding(start = 4.dp)
-                                    .size(36.dp)
-                            ) {
-                                Text("🤡", fontSize = 22.sp) // 你也可以换成 🎉 或者 🎁
-                            }
-                        }
-                    }
+                    Text(
+                        when (uiState.mode) {
+                            EditorMode.Create -> stringResource(R.string.edit_title_creat)
+                            is EditorMode.Reply -> stringResource(R.string.edit_title_reply)
+                            is EditorMode.Edit -> stringResource(R.string.edit_title_edit)
+                        },
+                    )
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
@@ -190,7 +147,8 @@ fun NewNoteScreen(
                                 .padding(bottom = 12.dp),
                         ) {
                             Text(
-                                text = "回复自“${mode.parentSummary}”",
+                                text = "“${stringResource(R.string.reply)}${mode.parentSummary}”"
+                                ,
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -229,12 +187,15 @@ fun NewNoteScreen(
                         .weight(1f)
                         .fillMaxWidth()
                         .focusRequester(bodyFocusRequester),
+                    // --- 核心修改：应用字体和字重 ---
                     textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        fontFamily = LocalNoteFontFamily.current,
+                        fontWeight = LocalNoteFontWeight.current,
                         fontSize = LocalNoteTextSize.current,
                         lineHeight = LocalNoteTextSize.current * 1.5f,
                         color = MaterialTheme.colorScheme.onSurface
                     ),
-                    placeholder = { Text("开始输入正文...") },
+                    placeholder = { Text(stringResource(R.string.edit_placeholder)) },
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
@@ -268,7 +229,7 @@ fun NewNoteScreen(
                             trailingIcon = {
                                 Icon(
                                     imageVector = Icons.Filled.Close,
-                                    contentDescription = "删除标签",
+                                    contentDescription = stringResource(R.string.edit_tag_delete),
                                     modifier = Modifier
                                         .size(InputChipDefaults.AvatarSize)
                                         .clickable { onRemoveTag(index) }
@@ -280,7 +241,7 @@ fun NewNoteScreen(
                     if (!isTagInputVisible) {
                         SuggestionChip(
                             onClick = { isTagInputVisible = true },
-                            label = { Text(" 添加标签") },
+                            label = { Text(stringResource(R.string.edit_tag_add)) },
                             icon = {
                                 Icon(
                                     imageVector = Icons.Filled.Add,
@@ -296,7 +257,7 @@ fun NewNoteScreen(
                     OutlinedTextField(
                         value = tagInputText,
                         onValueChange = { tagInputText = it },
-                        placeholder = { Text("在此输入标签文字") },
+                        placeholder = { Text(stringResource(R.string.edit_tag_placeholder)) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(tagFocusRequester)
@@ -326,7 +287,7 @@ fun NewNoteScreen(
                                     tagInputText = ""
                                     isTagInputVisible = false
                                 }) {
-                                    Icon(Icons.Filled.Check, contentDescription = "确认添加")
+                                    Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.edit_tag_check))
                                 }
                             }
                         }

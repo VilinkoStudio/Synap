@@ -1,0 +1,90 @@
+<resources>
+    <string name="home">홈</string>
+    <string name="delete">삭제</string>
+    <string name="edit">편집</string>
+    <string name="reply">답장</string>
+    <string name="retry">다시 시도</string>
+
+    <string name="app_name">Synap</string>
+    <string name="back">뒤로</string>
+    <string name="clear">지우기</string>
+    <string name="selected">선택됨</string>
+    <string name="search_placeholder">노트, 태그, 스니펫 검색...</string>
+    <string name="search_empty_input_hint">검색할 키워드를 입력하세요</string>
+    <string name="search_no_results">일치하는 노트를 찾을 수 없습니다</string>
+    <string name="select_language">언어 선택</string>
+
+    <string name="note_typography_style">노트 텍스트 스타일</string>
+    <string name="font_family">글꼴</string>
+    <string name="font_sans_serif">산세리프 (기본값)</string>
+    <string name="font_serif">세리프</string>
+    <string name="font_weight">글꼴 두께</string>
+    <string name="current_font_weight">노트 글꼴 두께 (현재: %1$d)</string>
+    <string name="font_weight_hint">*일부 글꼴에서는 두께 조정이 완전히 적용되지 않을 수 있습니다</string>
+    <string name="font_size">글꼴 크기</string>
+    <string name="current_font_size">노트 글꼴 크기 (현재: %1$dsp)</string>
+    <string name="restore_default">기본값 복원</string>
+    <string name="typography_preview">노트 텍스트 미리보기</string>
+    <string name="switch_preview">미리보기 텍스트 전환</string>
+
+    <string name="settings">설정</string>
+    <string name="dark_mode">다크 모드</string>
+    <string name="theme_system">시스템 설정</string>
+    <string name="theme_light">라이트 모드</string>
+    <string name="theme_dark">다크 모드</string>
+
+    <string name="appearance">디자인</string>
+    <string name="sync_system_color">시스템 테마 색상 동기화 (Monet)</string>
+    <string name="monet_unsupported">현재 기기에서는 지원되지 않습니다. Android 12 이상이 필요합니다.</string>
+    <string name="monet_enabled">Android 시스템 배경화면 색상을 사용 중입니다</string>
+    <string name="monet_disabled">시스템 색상 동기화가 꺼져 있습니다. 테마 색상을 자유롭게 조정할 수 있습니다.</string>
+    <string name="adjust_theme_color">드래그하여 테마 색상 조정</string>
+
+    <string name="language">언어 (Language)</string>
+    <string name="handedness">사용 손</string>
+    <string name="handedness_desc">플로팅 버튼 및 페이지 표시 위치 변경</string>
+    <string name="left_handed">왼쪽</string>
+    <string name="right_handed">오른쪽</string>
+
+    <string name="backup_and_restore">백업 및 복원</string>
+    <string name="export_backup">백업 파일로 내보내기 (.redb)</string>
+    <string name="export_backup_desc">전체 데이터를 지정된 위치에 백업합니다</string>
+    <string name="export_and_share">백업 파일을 내보내고 공유하기 (.redb)</string>
+    <string name="export_and_share_desc">전체 데이터를 백업하고 다른 앱이나 기기와 공유합니다</string>
+    <string name="import_backup">백업 파일을 가져와서 덮어쓰기</string>
+    <string name="import_backup_desc">이 작업은 현재 데이터를 지웁니다. 주의해서 진행하세요. 가져오기 후 앱을 다시 시작해야 적용됩니다.</string>
+
+    <string name="about">정보</string>
+    <string name="app_desc">빠른 생각 기록을 위한 미니멀한 노트 앱입니다.</string>
+    <string name="version_info">버전 정보</string>
+    <string name="tutorial">사용 튜토리얼</string>
+    <string name="view_project_homepage">프로젝트 홈페이지 보기</string>
+    <string name="download_latest_version">최신 버전 다운로드</string>
+
+    <string name="home_filter_title">필터</string>
+    <string name="home_filter_delete_all">전체</string>
+    <string name="home_filter_delete_undelete">정상</string>
+    <string name="home_filter_delete_delete">삭제됨</string>
+
+    <string name="edit_title_creat">새 노트 작성</string>
+    <string name="edit_title_reply">노트 답장</string>
+    <string name="edit_title_edit">노트 편집</string>
+    <string name="edit_placeholder">여기에 내용을 입력하세요…</string>
+    <string name="edit_tag_delete">태그 삭제</string>
+    <string name="edit_tag_add">태그 추가</string>
+    <string name="edit_tag_placeholder">여기에 태그 입력</string>
+    <string name="edit_tag_check">확인</string>
+
+    <string name="home_search_title">노트, 태그, 스니펫 검색...</string>
+    <string name="home_tagbar_none">태그 없음</string>
+    <string name="home_tagbar_all">모든 태그</string>
+    <string name="home_creatnote">노트 작성</string>
+    <string name="backtop">맨 위로</string>
+    <string name="edit_hint_reply">답장 대상</string>
+    <string name="notedetail_title">노트 상세</string>
+    <string name="notedetail_errorMessage">노트가 존재하지 않습니다</string>
+    <string name="notedetail_origins">원본 노트</string>
+    <string name="notedetail_previousVersions">이전 버전</string>
+    <string name="notedetail_nextVersions">다음 버전</string>
+    <string name="notedetail_replies">답글</string>
+</resources>

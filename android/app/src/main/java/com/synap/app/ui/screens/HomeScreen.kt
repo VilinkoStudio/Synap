@@ -1,38 +1,50 @@
 package com.synap.app.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateDpAsState // --- 新增引入 ---
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset // --- 新增引入 ---
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -47,6 +59,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -67,9 +80,13 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.synap.app.R
 import com.synap.app.ui.components.NoteCardItem
 import com.synap.app.ui.model.Note
 import com.synap.app.ui.theme.MyApplicationTheme
@@ -79,10 +96,64 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.util.Calendar
 import kotlin.math.PI
 import kotlin.math.sin
 
-@OptIn(ExperimentalMaterial3Api::class)
+data class EasterEgg(
+    val startMonth: Int,
+    val startDate: Int,
+    val endMonth: Int,
+    val endDate: Int,
+    val emoji: String,
+    val dialogTitle: String,
+    val dialogMessage: String
+)
+
+private val easterEggs = listOf(
+    // 愚人节 (4月1日)
+    EasterEgg(
+        startMonth = Calendar.APRIL, startDate = 1,
+        endMonth = Calendar.APRIL, endDate = 1,
+        emoji = "🤡",
+        dialogTitle = "愚人节彩蛋",
+        dialogMessage = "你被骗了！愚人节快乐！"
+    ),
+    // 清明节 (4月2日 - 4月5日)
+    EasterEgg(
+        startMonth = Calendar.APRIL, startDate = 2,
+        endMonth = Calendar.APRIL, endDate = 5,
+        emoji = "🌱",
+        dialogTitle = "清明节彩蛋",
+        dialogMessage = "“清明时节雨纷纷，路上行人欲断魂。”——杜牧《清明》。注意休息，踏青愉快。"
+    ),
+    // 劳动节 (5月1日)
+    EasterEgg(
+        startMonth = Calendar.MAY, startDate = 1,
+        endMonth = Calendar.MAY, endDate = 5,
+        emoji = "🛠️",
+        dialogTitle = "劳动节彩蛋",
+        dialogMessage = "劳动节快乐，感谢你的辛勤付出！劳动节小长假记得出门开开风景。"
+    ),
+    // 元旦 (1月1日)
+    EasterEgg(
+        startMonth = Calendar.JANUARY, startDate = 1,
+        endMonth = Calendar.JANUARY, endDate = 1,
+        emoji = "🎉",
+        dialogTitle = "新年快乐",
+        dialogMessage = "新的一年，新的开始！祝你新的一年，所愿皆成真。"
+    ),
+    // 国庆 (9月30日 - 10月7日)
+    EasterEgg(
+        startMonth = Calendar.SEPTEMBER, startDate = 30,
+        endMonth = Calendar.OCTOBER, endDate = 7,
+        emoji = "🎉",
+        dialogTitle = "国庆节快乐",
+        dialogMessage = "十一小长假有规划去哪里玩吗？没有的话要不用 Synap 规划一下，嘻嘻。"
+    )
+)
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     uiState: HomeUiState,
@@ -95,6 +166,7 @@ fun HomeScreen(
     onLoadMore: () -> Unit,
     onRefresh: () -> Unit,
 ) {
+    val context = LocalContext.current
     val gridState = rememberLazyStaggeredGridState()
     val scope = rememberCoroutineScope()
 
@@ -105,15 +177,52 @@ fun HomeScreen(
     var undoProgress by remember { mutableFloatStateOf(1f) }
     var timeLeftSeconds by remember { mutableIntStateOf(3) }
 
-    // --- 核心修改：计算 FAB 躲避弹窗的偏移量动画 ---
-    // 弹窗高度大约 60dp + 底部 32dp 的留白，因此向上偏移 96dp 刚好能留出空隙
+    var pendingDeleteNoteIds by remember { mutableStateOf(setOf<String>()) }
+
+    fun finalizePendingDelete(note: Note) {
+        if (note.id in pendingDeleteNoteIds) {
+            pendingDeleteNoteIds = pendingDeleteNoteIds - note.id
+            onToggleDeleted(note)
+        }
+    }
+
+    fun showUndoForDeletedNote(note: Note) {
+        deletedNoteToUndo?.takeIf { it.id != note.id }?.let(::finalizePendingDelete)
+        pendingDeleteNoteIds = pendingDeleteNoteIds + note.id
+        deletedNoteToUndo = note
+        undoProgress = 1f
+        timeLeftSeconds = 3
+    }
+
+    val currentEasterEgg by remember {
+        val calendar = Calendar.getInstance()
+        val currentMonth = calendar.get(Calendar.MONTH)
+        val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
+
+        val matchedEgg = easterEggs.firstOrNull { egg ->
+            if (egg.startMonth == egg.endMonth) {
+                currentMonth == egg.startMonth && currentDay in egg.startDate..egg.endDate
+            } else {
+                (currentMonth == egg.startMonth && currentDay >= egg.startDate) ||
+                        (currentMonth == egg.endMonth && currentDay <= egg.endDate) ||
+                        (currentMonth in (egg.startMonth + 1)..<egg.endMonth)
+            }
+        }
+        mutableStateOf(matchedEgg)
+    }
+
+    var showEasterEggDialog by remember { mutableStateOf(false) }
+
     val fabDodgeOffset by animateDpAsState(
         targetValue = if (deletedNoteToUndo != null) (-96).dp else 0.dp,
         label = "fab_dodge_animation"
     )
 
     LaunchedEffect(deletedNoteToUndo) {
-        if (deletedNoteToUndo != null) {
+        val note = deletedNoteToUndo
+        if (note != null) {
+            undoProgress = 1f
+            timeLeftSeconds = 3
             var timeLeft = 3000L
             val interval = 16L
             while (timeLeft > 0) {
@@ -122,6 +231,7 @@ fun HomeScreen(
                 undoProgress = timeLeft.toFloat() / 3000f
                 timeLeftSeconds = kotlin.math.ceil(timeLeft / 1000f).toInt()
             }
+            finalizePendingDelete(note)
             deletedNoteToUndo = null
         }
     }
@@ -134,7 +244,7 @@ fun HomeScreen(
 
     val isAtTop by remember {
         derivedStateOf {
-            gridState.firstVisibleItemIndex == 0
+            gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset <= 10
         }
     }
 
@@ -148,13 +258,37 @@ fun HomeScreen(
         }
     }
 
-    val displayNotes = remember(uiState.notes, currentFilter) {
+    var unselectedTags by rememberSaveable { mutableStateOf(emptySet<String>()) }
+    var isUntaggedUnselected by rememberSaveable { mutableStateOf(false) }
+    var isTagsExpanded by rememberSaveable { mutableStateOf(false) }
+
+    val statusFilteredNotes = remember(uiState.notes, currentFilter, pendingDeleteNoteIds) {
         val uniqueNotes = uiState.notes.distinctBy { it.id }
-        val sorted = uiState.notes.sortedBy { it.isDeleted }
+        val visibleNotes = uniqueNotes.filter { it.id !in pendingDeleteNoteIds }
+
+        val sorted = visibleNotes.sortedBy { it.isDeleted }
         when (currentFilter) {
             "正常" -> sorted.filter { !it.isDeleted }
             "已删除" -> sorted.filter { it.isDeleted }
             else -> sorted
+        }
+    }
+
+    val allTags = remember(statusFilteredNotes) {
+        statusFilteredNotes.flatMap { it.tags }.distinct().sorted()
+    }
+
+    val isAllSelected = remember(allTags, unselectedTags, isUntaggedUnselected) {
+        allTags.none { it in unselectedTags } && !isUntaggedUnselected
+    }
+
+    val displayNotes = remember(statusFilteredNotes, unselectedTags, isUntaggedUnselected) {
+        statusFilteredNotes.filter { note ->
+            if (note.tags.isEmpty()) {
+                !isUntaggedUnselected
+            } else {
+                note.tags.any { it !in unselectedTags }
+            }
         }
     }
 
@@ -169,17 +303,49 @@ fun HomeScreen(
             }
     }
 
+    if (showEasterEggDialog && currentEasterEgg != null) {
+        AlertDialog(
+            onDismissRequest = { showEasterEggDialog = false },
+            title = { Text(currentEasterEgg!!.dialogTitle) },
+            text = { Text(currentEasterEgg!!.dialogMessage) },
+            confirmButton = {
+                TextButton(onClick = { showEasterEggDialog = false }) {
+                    Text("好的")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             Column {
                 TopAppBar(
                     title = {
-                        Text(
-                            text = "Synap",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Synap",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+
+                            AnimatedVisibility(
+                                visible = currentEasterEgg != null,
+                                enter = fadeIn() + scaleIn(),
+                                exit = fadeOut() + scaleOut()
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        showEasterEggDialog = true
+                                    },
+                                    modifier = Modifier
+                                        .padding(start = 4.dp)
+                                        .size(36.dp)
+                                ) {
+                                    Text(currentEasterEgg?.emoji ?: "", fontSize = 22.sp)
+                                }
+                            }
+                        }
                     },
                     actions = {
                         AnimatedVisibility(
@@ -231,7 +397,7 @@ fun HomeScreen(
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
-                                    text = "搜索笔记、标签、片段...",
+                                    text = stringResource(R.string.home_search_title),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     style = MaterialTheme.typography.bodyLarge
                                 )
@@ -245,12 +411,10 @@ fun HomeScreen(
             Column(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                // --- 核心修改：应用躲避偏移量动画，使整个按钮组丝滑上下移动 ---
                 modifier = Modifier.offset(y = fabDodgeOffset)
             ) {
-                // 回到顶部按钮：向下滚动时显示
                 AnimatedVisibility(
-                    visible = isScrolledDown, // 移除了之前的 deletedNoteToUndo 判断
+                    visible = isScrolledDown,
                     enter = fadeIn(),
                     exit = fadeOut()
                 ) {
@@ -261,28 +425,175 @@ fun HomeScreen(
                             }
                         },
                         icon = { Icon(Icons.Filled.ArrowUpward, contentDescription = null) },
-                        text = { Text(text = "回到顶部") },
+                        text = { Text(text = stringResource(R.string.backtop)) },
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                 }
 
-                // --- 核心修改：移除了“+”号按钮外部的 AnimatedVisibility，让它常驻并随容器偏移 ---
                 FloatingActionButton(onClick = onComposeNote) {
-                    Icon(Icons.Filled.Add, contentDescription = "创建笔记")
+                    Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.home_creatnote))
                 }
             }
         },
     ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
             Column(
                 modifier = Modifier.fillMaxSize(),
             ) {
+                AnimatedVisibility(
+                    visible = allTags.isNotEmpty() || statusFilteredNotes.any { it.tags.isEmpty() },
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .animateContentSize(),
+                        verticalAlignment = if (isTagsExpanded) Alignment.Top else Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (isTagsExpanded) {
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    FilterChip(
+                                        selected = isAllSelected,
+                                        onClick = {
+                                            if (isAllSelected) {
+                                                unselectedTags = allTags.toSet()
+                                                isUntaggedUnselected = true
+                                            } else {
+                                                unselectedTags = emptySet()
+                                                isUntaggedUnselected = false
+                                            }
+                                        },
+                                        label = { Text(stringResource(R.string.home_tagbar_all)) }
+                                    )
+
+                                    if (statusFilteredNotes.any { it.tags.isEmpty() }) {
+                                        FilterChip(
+                                            selected = !isUntaggedUnselected,
+                                            onClick = { isUntaggedUnselected = !isUntaggedUnselected },
+                                            label = { Text(stringResource(R.string.home_tagbar_none)) }
+                                        )
+                                    }
+
+                                    if (allTags.isNotEmpty()) {
+                                        Box(
+                                            modifier = Modifier.height(32.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            VerticalDivider(
+                                                modifier = Modifier.height(24.dp).padding(horizontal = 4.dp),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                                            )
+                                        }
+                                    }
+
+                                    allTags.forEach { tag ->
+                                        val isSelected = tag !in unselectedTags
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = {
+                                                unselectedTags = if (isSelected) {
+                                                    unselectedTags + tag
+                                                } else {
+                                                    unselectedTags - tag
+                                                }
+                                            },
+                                            label = { Text(tag) }
+                                        )
+                                    }
+                                }
+                            } else {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    FilterChip(
+                                        selected = isAllSelected,
+                                        onClick = {
+                                            if (isAllSelected) {
+                                                unselectedTags = allTags.toSet()
+                                                isUntaggedUnselected = true
+                                            } else {
+                                                unselectedTags = emptySet()
+                                                isUntaggedUnselected = false
+                                            }
+                                        },
+                                        label = { Text(stringResource(R.string.home_tagbar_all)) }
+                                    )
+
+                                    if (statusFilteredNotes.any { it.tags.isEmpty() }) {
+                                        FilterChip(
+                                            selected = !isUntaggedUnselected,
+                                            onClick = { isUntaggedUnselected = !isUntaggedUnselected },
+                                            label = { Text(stringResource(R.string.home_tagbar_none)) }
+                                        )
+                                    }
+
+                                    if (allTags.isNotEmpty()) {
+                                        Box(
+                                            modifier = Modifier.height(32.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            VerticalDivider(
+                                                modifier = Modifier.height(24.dp).padding(horizontal = 4.dp),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                                            )
+                                        }
+                                    }
+
+                                    allTags.forEach { tag ->
+                                        val isSelected = tag !in unselectedTags
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = {
+                                                unselectedTags = if (isSelected) {
+                                                    unselectedTags + tag
+                                                } else {
+                                                    unselectedTags - tag
+                                                }
+                                            },
+                                            label = { Text(tag) }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { isTagsExpanded = !isTagsExpanded },
+                            modifier = Modifier
+                                .padding(start = 4.dp)
+                                .size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isTagsExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                contentDescription = if (isTagsExpanded) "收起" else "展开",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
                 when {
                     uiState.isLoading && uiState.notes.isEmpty() -> {
                         Box(
                             modifier = Modifier
-                                .fillMaxSize()
+                                .weight(1f)
+                                .fillMaxWidth()
                                 .padding(top = 8.dp),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -292,7 +603,10 @@ fun HomeScreen(
 
                     uiState.errorMessage != null && uiState.notes.isEmpty() -> {
                         Box(
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState()),
                             contentAlignment = Alignment.Center,
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -305,7 +619,7 @@ fun HomeScreen(
                                     onClick = onRefresh,
                                     modifier = Modifier.padding(top = 12.dp),
                                 ) {
-                                    Text("重试")
+                                    Text(stringResource(R.string.retry))
                                 }
                             }
                         }
@@ -313,7 +627,10 @@ fun HomeScreen(
 
                     displayNotes.isEmpty() -> {
                         Box(
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState()),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
@@ -327,10 +644,12 @@ fun HomeScreen(
                         LazyVerticalStaggeredGrid(
                             columns = StaggeredGridCells.Adaptive(minSize = 240.dp),
                             state = gridState,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
                             contentPadding = PaddingValues(
                                 start = 16.dp,
-                                top = 16.dp,
+                                top = 8.dp,
                                 end = 16.dp,
                                 bottom = 96.dp
                             ),
@@ -342,10 +661,10 @@ fun HomeScreen(
                                     note = note,
                                     onClick = { onOpenNote(note.id) },
                                     onToggleDeleted = {
-                                        onToggleDeleted(note)
                                         if (!note.isDeleted) {
-                                            deletedNoteToUndo = note
-                                            undoProgress = 1f
+                                            showUndoForDeletedNote(note)
+                                        } else {
+                                            onToggleDeleted(note)
                                         }
                                     },
                                     onReply = { onReplyToNote(note.id, note.content) },
@@ -395,7 +714,9 @@ fun HomeScreen(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
                                     .clickable {
-                                        deletedNoteToUndo?.let { note -> onToggleDeleted(note) }
+                                        deletedNoteToUndo?.let { note ->
+                                            pendingDeleteNoteIds = pendingDeleteNoteIds - note.id
+                                        }
                                         deletedNoteToUndo = null
                                     }
                                     .padding(8.dp)
@@ -427,7 +748,7 @@ fun HomeScreen(
                     .padding(bottom = 48.dp)
             ) {
                 Text(
-                    text = "筛选",
+                    text = stringResource(R.string.home_filter_title),
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
@@ -441,7 +762,7 @@ fun HomeScreen(
                             currentFilter = "全部"
                             showFilterSheet = false
                         },
-                        label = { Text("全部") }
+                        label = { Text(stringResource(R.string.home_filter_delete_all)) }
                     )
                     FilterChip(
                         selected = currentFilter == "正常",
@@ -449,7 +770,7 @@ fun HomeScreen(
                             currentFilter = "正常"
                             showFilterSheet = false
                         },
-                        label = { Text("正常") }
+                        label = { Text(stringResource(R.string.home_filter_delete_undelete)) }
                     )
                     FilterChip(
                         selected = currentFilter == "已删除",
@@ -457,7 +778,7 @@ fun HomeScreen(
                             currentFilter = "已删除"
                             showFilterSheet = false
                         },
-                        label = { Text("已删除") }
+                        label = { Text(stringResource(R.string.home_filter_delete_delete)) }
                     )
                 }
             }

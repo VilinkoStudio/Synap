@@ -1,0 +1,90 @@
+<resources>
+    <string name="home">Home</string>
+    <string name="delete">Delete</string>
+    <string name="edit">Edit</string>
+    <string name="reply">Reply</string>
+    <string name="retry">Retry</string>
+
+    <string name="app_name">Synap</string>
+    <string name="back">Back</string>
+    <string name="clear">Clear</string>
+    <string name="selected">Selected</string>
+    <string name="search_placeholder">Search notes, tags, snippets...</string>
+    <string name="search_empty_input_hint">Enter keywords to search</string>
+    <string name="search_no_results">No matching notes found</string>
+    <string name="select_language">Select Language</string>
+
+    <string name="note_typography_style">Note Text Style</string>
+    <string name="font_family">Font</string>
+    <string name="font_sans_serif">Sans Serif (Default)</string>
+    <string name="font_serif">Serif</string>
+    <string name="font_weight">Font Weight</string>
+    <string name="current_font_weight">Note Font Weight (Current: %1$d)</string>
+    <string name="font_weight_hint">*Font weight adjustment may not apply to all fonts</string>
+    <string name="font_size">Font Size</string>
+    <string name="current_font_size">Note Font Size (Current: %1$dsp)</string>
+    <string name="restore_default">Restore Default</string>
+    <string name="typography_preview">Note Text Preview</string>
+    <string name="switch_preview">Switch Preview Text</string>
+
+    <string name="settings">Settings</string>
+    <string name="dark_mode">Dark Mode</string>
+    <string name="theme_system">System Default</string>
+    <string name="theme_light">Light Mode</string>
+    <string name="theme_dark">Dark Mode</string>
+
+    <string name="appearance">Appearance</string>
+    <string name="sync_system_color">Sync System Theme Color (Monet)</string>
+    <string name="monet_unsupported">Current device unsupported. Android 12+ required.</string>
+    <string name="monet_enabled">Using Android system wallpaper color</string>
+    <string name="monet_disabled">System color disabled. You can adjust the theme color freely.</string>
+    <string name="adjust_theme_color">Drag to adjust theme color</string>
+
+    <string name="language">Language</string>
+    <string name="handedness">Handedness</string>
+    <string name="handedness_desc">Change the position of floating buttons and pages</string>
+    <string name="left_handed">Left</string>
+    <string name="right_handed">Right</string>
+
+    <string name="backup_and_restore">Backup &amp; Restore</string>
+    <string name="export_backup">Export as backup file (.redb)</string>
+    <string name="export_backup_desc">Backup full data to a specified location</string>
+    <string name="export_and_share">Export and share backup file (.redb)</string>
+    <string name="export_and_share_desc">Backup full data and share to other apps or devices</string>
+    <string name="import_backup">Import and overwrite with backup file</string>
+    <string name="import_backup_desc">This operation will wipe current data. Proceed with caution. Requires app restart.</string>
+
+    <string name="about">About</string>
+    <string name="app_desc">A minimalist note-taking app for quick thought capture.</string>
+    <string name="version_info">Version Info</string>
+    <string name="tutorial">Tutorial</string>
+    <string name="view_project_homepage">View Project Homepage</string>
+    <string name="download_latest_version">Download Latest Version</string>
+
+    <string name="home_filter_title">Filter</string>
+    <string name="home_filter_delete_all">All</string>
+    <string name="home_filter_delete_undelete">Active</string>
+    <string name="home_filter_delete_delete">Deleted</string>
+
+    <string name="edit_title_creat">Create Note</string>
+    <string name="edit_title_reply">Reply to Note</string>
+    <string name="edit_title_edit">Edit Note</string>
+    <string name="edit_placeholder">Start typing here...</string>
+    <string name="edit_tag_delete">Delete tag</string>
+    <string name="edit_tag_add">Add tag</string>
+    <string name="edit_tag_placeholder">Enter tag text here</string>
+    <string name="edit_tag_check">Confirm</string>
+
+    <string name="home_search_title">Search notes, tags, snippets...</string>
+    <string name="home_tagbar_none">No tags</string>
+    <string name="home_tagbar_all">All Tags</string>
+    <string name="home_creatnote">Create Note</string>
+    <string name="backtop">Back to top</string>
+    <string name="edit_hint_reply">Replying to</string>
+    <string name="notedetail_title">Note Details</string>
+    <string name="notedetail_errorMessage">Note not found</string>
+    <string name="notedetail_origins">Source Note</string>
+    <string name="notedetail_previousVersions">Previous Version</string>
+    <string name="notedetail_nextVersions">Next Version</string>
+    <string name="notedetail_replies">Replies</string>
+</resources>

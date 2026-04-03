@@ -24,7 +24,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.synap.app.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,10 +39,10 @@ fun LanguageSelectionScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("选择语言") },
+                title = { Text(stringResource(R.string.select_language)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
             )
@@ -65,7 +67,7 @@ fun LanguageSelectionScreen(
                 ) {
                     Text(text = language, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
                     if (selectedIndex == index) {
-                        Icon(Icons.Filled.Check, contentDescription = "已选择", tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.selected), tint = MaterialTheme.colorScheme.primary)
                     }
                 }
                 if (index < languages.lastIndex) {

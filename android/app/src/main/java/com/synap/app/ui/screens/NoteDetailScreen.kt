@@ -23,7 +23,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Reply
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton // 确保引入了这个组件
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,11 +41,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.synap.app.LocalNoteFontFamily
+import com.synap.app.LocalNoteFontWeight
 import com.synap.app.LocalNoteTextSize
 import com.synap.app.ui.model.Note
 import com.synap.app.ui.util.formatNoteTime
 import com.synap.app.ui.viewmodel.DetailUiState
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.synap.app.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,26 +76,28 @@ fun NoteDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("笔记详情") },
+                title = { Text(stringResource(R.string.notedetail_title)) },
                 navigationIcon = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
+                            Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back)
+                            )
                         }
                         IconButton(onClick = onNavigateHome) {
-                            Icon(Icons.Filled.Home, contentDescription = "主页")
+                            Icon(Icons.Filled.Home, contentDescription = stringResource(R.string.home)
+                            )
                         }
                     }
                 },
                 actions = {
                     IconButton(onClick = onDelete, enabled = uiState.note != null) {
-                        Icon(Icons.Filled.Delete, contentDescription = "删除")
+                        Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.delete)
+                        )
                     }
                 },
             )
         },
         floatingActionButton = {
-            // 确保只有在笔记加载成功后才显示右下角的悬浮按钮组
             if (uiState.note != null) {
                 Column(
                     horizontalAlignment = Alignment.End,
@@ -109,30 +115,26 @@ fun NoteDetailScreen(
                                 }
                             },
                             icon = { Icon(Icons.Filled.ArrowUpward, contentDescription = null) },
-                            text = { Text(text = "回到顶部") },
+                            text = { Text(text = stringResource(R.string.backtop)) },
                             containerColor = MaterialTheme.colorScheme.secondaryContainer,
                             contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                     }
 
-                    // --- 核心修改：将 FloatingActionButton 替换为 ExtendedFloatingActionButton 并添加文字标题 ---
-
-                    // 编辑按钮（使用次级颜色，作为次要操作）
                     ExtendedFloatingActionButton(
                         onClick = onEdit,
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
                         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        icon = { Icon(Icons.Filled.Edit, contentDescription = null) }, // 图标插槽，去掉 contentDescription
-                        text = { Text(text = "编辑") } // 文字插槽，添加标题“编辑”
+                        icon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                        text = { Text(text = stringResource(R.string.edit)) }
                     )
 
-                    // 回复按钮（使用主色，作为主要操作）
                     ExtendedFloatingActionButton(
                         onClick = onReply,
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        icon = { Icon(Icons.Filled.Reply, contentDescription = null) }, // 图标插槽，去掉 contentDescription
-                        text = { Text(text = "回复") } // 文字插槽，添加标题“回复”
+                        icon = { Icon(Icons.Filled.Reply, contentDescription = null) },
+                        text = { Text(text = stringResource(R.string.reply)) }
                     )
                 }
             }
@@ -160,7 +162,7 @@ fun NoteDetailScreen(
                 verticalArrangement = Arrangement.Center,
             ) {
                 Text(
-                    text = uiState.errorMessage ?: "笔记不存在",
+                    text = uiState.errorMessage ?: stringResource(R.string.notedetail_errorMessage),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.error,
                 )
@@ -209,9 +211,12 @@ fun NoteDetailScreen(
                 }
             }
 
+            // --- 核心修改 1：应用字体和字重 ---
             Text(
                 text = note.content,
                 style = MaterialTheme.typography.bodyLarge.copy(
+                    fontFamily = LocalNoteFontFamily.current,
+                    fontWeight = LocalNoteFontWeight.current,
                     fontSize = LocalNoteTextSize.current,
                     lineHeight = LocalNoteTextSize.current * 1.5f
                 ),
@@ -227,22 +232,22 @@ fun NoteDetailScreen(
             }
 
             RelationSection(
-                title = "父链溯源",
+                title = stringResource(R.string.notedetail_origins),
                 notes = uiState.origins,
                 onOpenRelatedNote = onOpenRelatedNote,
             )
             RelationSection(
-                title = "前置版本",
+                title = stringResource(R.string.notedetail_previousVersions),
                 notes = uiState.previousVersions,
                 onOpenRelatedNote = onOpenRelatedNote,
             )
             RelationSection(
-                title = "后续版本",
+                title = stringResource(R.string.notedetail_nextVersions),
                 notes = uiState.nextVersions,
                 onOpenRelatedNote = onOpenRelatedNote,
             )
             RelationSection(
-                title = "回复流",
+                title = stringResource(R.string.notedetail_replies),
                 notes = uiState.replies,
                 onOpenRelatedNote = onOpenRelatedNote,
             )
@@ -255,9 +260,6 @@ fun NoteDetailScreen(
                     Text(if (uiState.repliesLoading) "加载中..." else "加载更多回复")
                 }
             }
-
-            // 大幅增加底部的留白，从 48.dp 提升到 200.dp
-            // 确保滑到最底端时，内容完全高于三个叠加的 FAB 按钮
             Spacer(modifier = Modifier.height(200.dp))
         }
     }
@@ -290,9 +292,12 @@ private fun RelationSection(
                     .clickable { onOpenRelatedNote(note.id) },
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
+                    // --- 核心修改 2：关联笔记也应用字体和字重，只是字号略小 ---
                     Text(
                         text = note.content,
                         style = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = LocalNoteFontFamily.current,
+                            fontWeight = LocalNoteFontWeight.current,
                             fontSize = (LocalNoteTextSize.current.value - 2).coerceAtLeast(10f).sp,
                             lineHeight = (LocalNoteTextSize.current.value - 2).coerceAtLeast(10f).sp * 1.5f
                         ),

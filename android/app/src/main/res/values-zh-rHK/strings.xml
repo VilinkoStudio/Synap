@@ -1,0 +1,90 @@
+<resources>
+    <string name="home">首頁</string>
+    <string name="delete">刪除</string>
+    <string name="edit">編輯</string>
+    <string name="reply">回覆</string>
+    <string name="retry">重試</string>
+
+    <string name="app_name">Synap</string>
+    <string name="back">返回</string>
+    <string name="clear">清空</string>
+    <string name="selected">已選擇</string>
+    <string name="search_placeholder">搜尋筆記、標籤、片段...</string>
+    <string name="search_empty_input_hint">輸入關鍵字開始搜尋</string>
+    <string name="search_no_results">找不到相符的筆記</string>
+    <string name="select_language">選擇語言</string>
+
+    <string name="note_typography_style">筆記文字樣式</string>
+    <string name="font_family">字體</string>
+    <string name="font_sans_serif">無襯線字體 (預設)</string>
+    <string name="font_serif">襯線字體</string>
+    <string name="font_weight">字重</string>
+    <string name="current_font_weight">筆記文字字重 (目前為 %1$d)</string>
+    <string name="font_weight_hint">*部分字體的字重調整可能不會全部生效</string>
+    <string name="font_size">字型大小</string>
+    <string name="current_font_size">筆記文字大小 (目前為 %1$dsp)</string>
+    <string name="restore_default">恢復預設</string>
+    <string name="typography_preview">筆記文字預覽</string>
+    <string name="switch_preview">切換預覽詩詞</string>
+
+    <string name="settings">設定</string>
+    <string name="dark_mode">深色模式</string>
+    <string name="theme_system">跟隨系統</string>
+    <string name="theme_light">淺色模式</string>
+    <string name="theme_dark">深色模式</string>
+
+    <string name="appearance">外觀</string>
+    <string name="sync_system_color">同步系統主題色 (莫奈取色)</string>
+    <string name="monet_unsupported">目前裝置不支援，需要 Android 12 或以上版本</string>
+    <string name="monet_enabled">正在使用 Android 系統桌布取色</string>
+    <string name="monet_disabled">已關閉系統取色，可自由調整主題色</string>
+    <string name="adjust_theme_color">拖曳以調整主題色</string>
+
+    <string name="language">語言 (Language)</string>
+    <string name="handedness">適人握持</string>
+    <string name="handedness_desc">更改浮動按鈕和頁面出現的位置</string>
+    <string name="left_handed">靠左</string>
+    <string name="right_handed">靠右</string>
+
+    <string name="backup_and_restore">備份與還原</string>
+    <string name="export_backup">匯出為備份檔 (.redb)</string>
+    <string name="export_backup_desc">將完整資料備份到指定位置</string>
+    <string name="export_and_share">匯出備份檔 (.redb) 並分享</string>
+    <string name="export_and_share_desc">將完整資料備份並分享到其他應用程式或裝置</string>
+    <string name="import_backup">匯入備份檔並覆蓋</string>
+    <string name="import_backup_desc">此操作會清空目前現有資料，請謹慎操作。匯入後需要重新啟動 App 才能生效</string>
+
+    <string name="about">關於</string>
+    <string name="app_desc">一款極簡的用於快速思維捕捉的筆記應用程式。</string>
+    <string name="version_info">版本資訊</string>
+    <string name="tutorial">使用教學</string>
+    <string name="view_project_homepage">查看專案首頁</string>
+    <string name="download_latest_version">點擊下載最新版</string>
+
+    <string name="home_filter_title">篩選</string>
+    <string name="home_filter_delete_all">全部</string>
+    <string name="home_filter_delete_undelete">正常</string>
+    <string name="home_filter_delete_delete">已刪除</string>
+
+    <string name="edit_title_creat">新增筆記</string>
+    <string name="edit_title_reply">回覆筆記</string>
+    <string name="edit_title_edit">編輯筆記</string>
+    <string name="edit_placeholder">在此輸入正文內容……</string>
+    <string name="edit_tag_delete">刪除標籤</string>
+    <string name="edit_tag_add">新增標籤</string>
+    <string name="edit_tag_placeholder">在此輸入標籤文字</string>
+    <string name="edit_tag_check">確認新增</string>
+
+    <string name="home_search_title">搜尋筆記、標籤、片段...</string>
+    <string name="home_tagbar_none">無標籤</string>
+    <string name="home_tagbar_all">全部標籤</string>
+    <string name="home_creatnote">新增筆記</string>
+    <string name="backtop">回到頂部</string>
+    <string name="edit_hint_reply">回覆自</string>
+    <string name="notedetail_title">筆記詳情</string>
+    <string name="notedetail_errorMessage">筆記不存在</string>
+    <string name="notedetail_origins">來源筆記</string>
+    <string name="notedetail_previousVersions">上一版本</string>
+    <string name="notedetail_nextVersions">下一版本</string>
+    <string name="notedetail_replies">回覆</string>
+</resources>

@@ -182,6 +182,7 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+    implementation("androidx.appcompat:appcompat:1.6.1")
 }
 
 apply(from = rootProject.file("gradle/rust-uniffi.gradle.kts"))

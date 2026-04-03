@@ -1,29 +1,11 @@
 package com.synap.app.ui.data
+data class AppLocale(val displayName: String, val tag: String)
 
-fun sampleLanguages(): List<String> = listOf(
-    "简体中文",
-    "English",
-    "Español",
-    "Français",
-    "العربية",
-    "Русский",
-    "Português",
-    "Deutsch",
-    "हिन्दी",
-    "日本語",
-    "한국어",
-    "Italiano",
-    "Polski",
-    "Nederlands",
-    "Türkçe",
-    "Ελληνικά",
-    "Svenska",
-    "Čeština",
-    "Magyar",
-    "Română",
-    "Български",
-    "ไทย",
-    "Tiếng Việt",
-    "Bahasa Indonesia",
-    "Bahasa Malaysia",
+fun sampleLanguages(): List<AppLocale> = listOf(
+    AppLocale("简体中文", "zh-CN"),
+    AppLocale("繁体中文（适用于中国台湾）", "zh-TW"),
+    AppLocale("繁体中文（适用于中国香港特别行政区）", "zh-HK"),
+    AppLocale("English", "en"),
+    AppLocale("日本語", "ja"),
+    AppLocale("한국어", "ko"),
 )

@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -36,8 +35,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import com.synap.app.R // 导入 R 文件
 import com.synap.app.ui.components.NoteCardItem
 import com.synap.app.ui.model.Note
 import com.synap.app.ui.viewmodel.HomeUiState
@@ -81,7 +82,7 @@ fun SearchScreen(
                         onClearSearch()
                         onNavigateBack()
                     }) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
 
                     TextField(
@@ -94,7 +95,7 @@ fun SearchScreen(
                         modifier = Modifier
                             .weight(1f)
                             .focusRequester(focusRequester),
-                        placeholder = { Text("搜索笔记、标签、片段...") },
+                        placeholder = { Text(stringResource(R.string.search_placeholder)) },
                         singleLine = true,
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = Color.Transparent,
@@ -108,7 +109,7 @@ fun SearchScreen(
 
                     if (uiState.query.isNotEmpty()) {
                         IconButton(onClick = onClearSearch) {
-                            Icon(Icons.Filled.Clear, contentDescription = "清空")
+                            Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.clear))
                         }
                     }
                 }
@@ -124,7 +125,7 @@ fun SearchScreen(
                 // 默认状态：输入框为空时不展示任何笔记
                 uiState.query.isEmpty() -> {
                     Text(
-                        text = "输入关键词开始搜索",
+                        text = stringResource(R.string.search_empty_input_hint),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.align(Alignment.Center)
@@ -150,7 +151,7 @@ fun SearchScreen(
                 // 无结果
                 uiState.notes.isEmpty() -> {
                     Text(
-                        text = "没有找到匹配的笔记",
+                        text = stringResource(R.string.search_no_results),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.align(Alignment.Center)

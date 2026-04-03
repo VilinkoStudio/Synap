@@ -1,0 +1,90 @@
+<resources>
+    <string name="home">ホーム</string>
+    <string name="delete">削除</string>
+    <string name="edit">編集</string>
+    <string name="reply">返信</string>
+    <string name="retry">再試行</string>
+
+    <string name="app_name">Synap</string>
+    <string name="back">戻る</string>
+    <string name="clear">消去</string>
+    <string name="selected">選択済み</string>
+    <string name="search_placeholder">メモ、タグ、スニペットを検索...</string>
+    <string name="search_empty_input_hint">キーワードを入力して検索</string>
+    <string name="search_no_results">一致するメモが見つかりません</string>
+    <string name="select_language">言語を選択</string>
+
+    <string name="note_typography_style">メモのテキストスタイル</string>
+    <string name="font_family">フォント</string>
+    <string name="font_sans_serif">サンセリフ (デフォルト)</string>
+    <string name="font_serif">セリフ</string>
+    <string name="font_weight">フォントの太さ</string>
+    <string name="current_font_weight">メモのフォントの太さ (現在: %1$d)</string>
+    <string name="font_weight_hint">*一部のフォントでは、太さの調整が完全に適用されない場合があります</string>
+    <string name="font_size">文字サイズ</string>
+    <string name="current_font_size">メモの文字サイズ (現在: %1$dsp)</string>
+    <string name="restore_default">デフォルトに戻す</string>
+    <string name="typography_preview">メモのテキストプレビュー</string>
+    <string name="switch_preview">プレビューテキストを切り替え</string>
+
+    <string name="settings">設定</string>
+    <string name="dark_mode">ダークモード</string>
+    <string name="theme_system">システムに従う</string>
+    <string name="theme_light">ライトモード</string>
+    <string name="theme_dark">ダークモード</string>
+
+    <string name="appearance">外観</string>
+    <string name="sync_system_color">システムのテーマカラーと同期 (Monet)</string>
+    <string name="monet_unsupported">お使いのデバイスは対応していません（Android 12 以降が必要）</string>
+    <string name="monet_enabled">Android システムの壁紙の抽出色を使用しています</string>
+    <string name="monet_disabled">システムの抽出色が無効です。テーマカラーを自由に調整できます</string>
+    <string name="adjust_theme_color">ドラッグしてテーマカラーを調整</string>
+
+    <string name="language">言語 (Language)</string>
+    <string name="handedness">利き手</string>
+    <string name="handedness_desc">フローティングボタンとページの表示位置を変更する</string>
+    <string name="left_handed">左寄せ</string>
+    <string name="right_handed">右寄せ</string>
+
+    <string name="backup_and_restore">バックアップと復元</string>
+    <string name="export_backup">バックアップファイルとしてエクスポート (.redb)</string>
+    <string name="export_backup_desc">すべてのデータを指定した場所にバックアップします</string>
+    <string name="export_and_share">バックアップファイルをエクスポートして共有 (.redb)</string>
+    <string name="export_and_share_desc">すべてのデータをバックアップし、他のアプリやデバイスに共有します</string>
+    <string name="import_backup">バックアップファイルをインポートして上書き</string>
+    <string name="import_backup_desc">この操作により現在のデータが消去されますので、ご注意ください。インポート後、アプリの再起動が必要です</string>
+
+    <string name="about">概要</string>
+    <string name="app_desc">思考をすばやく記録するための、ミニマリスト向けメモアプリ。</string>
+    <string name="version_info">バージョン情報</string>
+    <string name="tutorial">チュートリアル</string>
+    <string name="view_project_homepage">プロジェクトのホームページを見る</string>
+    <string name="download_latest_version">最新バージョンをダウンロード</string>
+
+    <string name="home_filter_title">フィルター</string>
+    <string name="home_filter_delete_all">すべて</string>
+    <string name="home_filter_delete_undelete">通常</string>
+    <string name="home_filter_delete_delete">削除済み</string>
+
+    <string name="edit_title_creat">新規メモ作成</string>
+    <string name="edit_title_reply">メモに返信</string>
+    <string name="edit_title_edit">メモを編集</string>
+    <string name="edit_placeholder">ここに本文を入力…</string>
+    <string name="edit_tag_delete">タグを削除</string>
+    <string name="edit_tag_add">タグを追加</string>
+    <string name="edit_tag_placeholder">ここにタグを入力</string>
+    <string name="edit_tag_check">確定</string>
+
+    <string name="home_search_title">メモ、タグ、スニペットを検索...</string>
+    <string name="home_tagbar_none">タグなし</string>
+    <string name="home_tagbar_all">すべてのタグ</string>
+    <string name="home_creatnote">メモを作成</string>
+    <string name="backtop">トップへ戻る</string>
+    <string name="edit_hint_reply">返信元</string>
+    <string name="notedetail_title">メモの詳細</string>
+    <string name="notedetail_errorMessage">メモが存在しません</string>
+    <string name="notedetail_origins">元のメモ</string>
+    <string name="notedetail_previousVersions">前のバージョン</string>
+    <string name="notedetail_nextVersions">次のバージョン</string>
+    <string name="notedetail_replies">返信</string>
+</resources>
