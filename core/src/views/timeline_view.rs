@@ -1,6 +1,10 @@
 use std::collections::VecDeque;
 
-use crate::{error::NoteError, models::note::NoteReader, views::note_view::NoteView};
+use crate::{
+    error::NoteError,
+    models::note::{NoteReader, NoteRef},
+    views::note_view::NoteView,
+};
 
 #[derive(Debug, Clone)]
 pub struct Session {
@@ -38,19 +42,31 @@ impl<'a> TimelineView<'a> {
     pub fn recent(
         &self,
     ) -> Result<impl Iterator<Item = Result<NoteView<'_, 'a>, NoteError>> + '_, redb::Error> {
+        let refs = self.recent_refs()?;
+
+        let views = refs.filter_map(|note_ref_res| match note_ref_res {
+            Ok(note_ref) => Some(NoteView::from_ref(self.reader, note_ref)),
+            Err(e) => Some(Err(e)),
+        });
+
+        Ok(views)
+    }
+
+    pub fn recent_refs(
+        &self,
+    ) -> Result<impl Iterator<Item = Result<NoteRef, NoteError>> + '_, redb::Error> {
         let raw_iter = self.reader.note_by_time()?.rev();
 
-        let views = raw_iter.filter_map(|res| match res {
-            Ok(uuid) => match self.reader.get_by_id(&uuid) {
-                Ok(Some(note)) if !note.is_deleted() => Some(Ok(NoteView::new(self.reader, note))),
-                Ok(Some(_)) => None, // 过滤已删除
-                Ok(None) => Some(Err(NoteError::IdNotFound { id: uuid })),
+        let refs = raw_iter.filter_map(|res| match res {
+            Ok(uuid) => match self.reader.is_deleted(&uuid) {
+                Ok(true) => None,
+                Ok(false) => Some(Ok(NoteRef::new(uuid, false))),
                 Err(e) => Some(Err(NoteError::Db(e.into()))),
             },
             Err(e) => Some(Err(NoteError::Db(e.into()))),
         });
 
-        Ok(views)
+        Ok(refs)
     }
 
     pub fn detect_sessions(

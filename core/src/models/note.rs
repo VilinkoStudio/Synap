@@ -38,6 +38,12 @@ pub struct NoteSyncRecord {
     pub tags: Vec<Uuid>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct NoteRef {
+    id: Uuid,
+    deleted: bool,
+}
+
 /// Note：统一的数据结构，Reader 返回它，Writer 消费它
 #[derive(Clone)]
 pub struct Note {
@@ -59,6 +65,55 @@ const NOTE_VECTOR_INDEX: VectorStore<Vec<f32>> = VectorStore::new("NoteVectors",
 // ==========================================
 // Note：访问器 + 写操作
 // ==========================================
+impl NoteRef {
+    pub(crate) fn new(id: Uuid, deleted: bool) -> Self {
+        Self { id, deleted }
+    }
+
+    pub fn get_id(&self) -> Uuid {
+        self.id
+    }
+
+    pub fn is_deleted(&self) -> bool {
+        self.deleted
+    }
+
+    pub fn hydrate(&self, reader: &NoteReader<'_>) -> Result<Option<Note>, redb::Error> {
+        reader.get_by_id(&self.id)
+    }
+
+    pub fn edit(
+        self,
+        tx: &WriteTransaction,
+        new_content: String,
+        tags: Vec<Tag>,
+    ) -> Result<Note, redb::Error> {
+        let new_note = Note::create(tx, new_content, tags)?;
+        NOTE_EDIT.link(tx, &self.id, &new_note.id)?;
+        Ok(new_note)
+    }
+
+    pub fn reply_to(self, tx: &WriteTransaction, child_id: &Uuid) -> Result<(), redb::Error> {
+        NOTE_LINK.link(tx, &self.id, child_id)
+    }
+
+    pub fn link_to_parent(
+        self,
+        tx: &WriteTransaction,
+        parent_id: &Uuid,
+    ) -> Result<(), redb::Error> {
+        NOTE_LINK.link(tx, parent_id, &self.id)
+    }
+
+    pub fn del(self, tx: &WriteTransaction) -> Result<(), redb::Error> {
+        NOTE_DELETE.add(tx, self.id.as_bytes()).map(|_| ())
+    }
+
+    pub fn restore(self, tx: &WriteTransaction) -> Result<(), redb::Error> {
+        NOTE_DELETE.remove(tx, self.id.as_bytes()).map(|_| ())
+    }
+}
+
 impl Note {
     /// 【系统级调用】强制初始化所有相关的数据表。
     /// 在 App 启动或建立新数据库时，必须且仅需调用一次！
@@ -93,6 +148,10 @@ impl Note {
 
     pub fn is_deleted(&self) -> bool {
         self.deleted
+    }
+
+    pub fn note_ref(&self) -> NoteRef {
+        NoteRef::new(self.id, self.deleted)
     }
 
     fn normalize_tag_ids(tags: Vec<Tag>) -> Vec<Uuid> {
@@ -151,29 +210,27 @@ impl Note {
         new_content: String,
         tags: Vec<Tag>,
     ) -> Result<Self, redb::Error> {
-        let new_note = Self::create(tx, new_content, tags)?;
-        NOTE_EDIT.link(tx, &self.id, &new_note.id)?;
-        Ok(new_note)
+        self.note_ref().edit(tx, new_content, tags)
     }
 
     /// 建立父→子链接
     pub fn reply(&self, tx: &WriteTransaction, child: &Note) -> Result<(), redb::Error> {
-        NOTE_LINK.link(tx, &self.id, &child.id)
+        self.note_ref().reply_to(tx, &child.id)
     }
 
     /// 建立子→父链接（反向视角）
     pub fn link_to_parent(&self, tx: &WriteTransaction, parent: &Note) -> Result<(), redb::Error> {
-        NOTE_LINK.link(tx, &parent.id, &self.id)
+        self.note_ref().link_to_parent(tx, &parent.id)
     }
 
     /// 删除
     pub fn del(self, tx: &WriteTransaction) -> Result<(), redb::Error> {
-        NOTE_DELETE.add(tx, self.id.as_bytes()).map(|_| ())
+        self.note_ref().del(tx)
     }
 
     /// 取消删除标记
     pub fn restore(self, tx: &WriteTransaction) -> Result<(), redb::Error> {
-        NOTE_DELETE.remove(tx, self.id.as_bytes()).map(|_| ())
+        self.note_ref().restore(tx)
     }
 
     fn filter_search_text(content: &str) -> String {
@@ -292,6 +349,17 @@ impl<'a> NoteReader<'a> {
 
     // ---------- 查询 ----------
 
+    pub fn get_ref_by_id(&self, id: &Uuid) -> Result<Option<NoteRef>, redb::Error> {
+        if !self.note_table.contains(id.as_bytes())? {
+            return Ok(None);
+        }
+
+        Ok(Some(NoteRef::new(
+            *id,
+            self.del_set.contains(id.as_bytes())?,
+        )))
+    }
+
     pub fn get_by_id(&self, id: &Uuid) -> Result<Option<Note>, redb::Error> {
         let block = self.note_table.get(id.as_bytes())?;
         let deleted = self.del_set.contains(id.as_bytes())?;
@@ -300,6 +368,13 @@ impl<'a> NoteReader<'a> {
             inner: b,
             deleted,
         }))
+    }
+
+    pub fn get_ref_by_short_id(&self, short_id: &[u8; 8]) -> Result<Option<NoteRef>, redb::Error> {
+        match self.alias_table.get(short_id)? {
+            Some(uuid_bytes) => self.get_ref_by_id(&Uuid::from_bytes(uuid_bytes)),
+            None => Ok(None),
+        }
     }
 
     pub fn get_by_short_id(&self, short_id: &[u8; 8]) -> Result<Option<Note>, redb::Error> {
@@ -315,8 +390,12 @@ impl<'a> NoteReader<'a> {
         impl DoubleEndedIterator<Item = Result<Uuid, redb::StorageError>> + '_,
         redb::StorageError,
     > {
-        let id_iter = self.note_table.iter()?;
-        Ok(id_iter.map(|item| item.map(|(key_guard, _val)| Uuid::from_bytes(key_guard.value()))))
+        let id_iter = self.note_table.keys()?;
+        Ok(id_iter.map(|item| item.map(|key_guard| Uuid::from_bytes(key_guard.value()))))
+    }
+
+    pub fn is_deleted(&self, id: &Uuid) -> Result<bool, redb::Error> {
+        self.del_set.contains(id.as_bytes())
     }
 
     /// 原始 append-only 索引，可能包含旧版本和墓碑 note。
@@ -415,7 +494,7 @@ impl<'a> NoteReader<'a> {
         note: &Note,
     ) -> Result<impl Iterator<Item = Result<Uuid, redb::StorageError>> + '_, redb::StorageError>
     {
-        self.edit_dag.get_children(&note.id)
+        self.next_versions_raw(&note.id)
     }
 
     pub fn previous_versions(
@@ -423,7 +502,7 @@ impl<'a> NoteReader<'a> {
         note: &Note,
     ) -> Result<impl Iterator<Item = Result<Uuid, redb::StorageError>> + '_, redb::StorageError>
     {
-        self.edit_dag.get_parents(&note.id)
+        self.previous_versions_raw(&note.id)
     }
 
     pub fn all_versions(
@@ -431,12 +510,36 @@ impl<'a> NoteReader<'a> {
         note: &Note,
     ) -> Result<impl Iterator<Item = Result<Uuid, redb::StorageError>> + '_, redb::StorageError>
     {
+        self.all_versions_raw(&note.id)
+    }
+
+    pub fn next_versions_raw(
+        &self,
+        id: &Uuid,
+    ) -> Result<impl Iterator<Item = Result<Uuid, redb::StorageError>> + '_, redb::StorageError>
+    {
+        self.edit_dag.get_children(id)
+    }
+
+    pub fn previous_versions_raw(
+        &self,
+        id: &Uuid,
+    ) -> Result<impl Iterator<Item = Result<Uuid, redb::StorageError>> + '_, redb::StorageError>
+    {
+        self.edit_dag.get_parents(id)
+    }
+
+    pub fn all_versions_raw(
+        &self,
+        id: &Uuid,
+    ) -> Result<impl Iterator<Item = Result<Uuid, redb::StorageError>> + '_, redb::StorageError>
+    {
         let mut queue = VecDeque::new();
         let mut visited = HashSet::new();
         let mut related = Vec::new();
 
-        queue.push_back(note.id);
-        visited.insert(note.id);
+        queue.push_back(*id);
+        visited.insert(*id);
 
         while let Some(current_id) = queue.pop_front() {
             for parent_res in self.edit_dag.get_parents(&current_id)? {
@@ -466,12 +569,20 @@ impl<'a> NoteReader<'a> {
         note: &Note,
     ) -> Result<impl Iterator<Item = Result<Uuid, redb::StorageError>> + '_, redb::StorageError>
     {
+        self.other_versions_raw(&note.id)
+    }
+
+    pub fn other_versions_raw(
+        &self,
+        id: &Uuid,
+    ) -> Result<impl Iterator<Item = Result<Uuid, redb::StorageError>> + '_, redb::StorageError>
+    {
         let mut queue = VecDeque::new();
         let mut visited = HashSet::new();
         let mut related = Vec::new();
 
-        queue.push_back(note.id);
-        visited.insert(note.id);
+        queue.push_back(*id);
+        visited.insert(*id);
 
         while let Some(current_id) = queue.pop_front() {
             for parent_res in self.edit_dag.get_parents(&current_id)? {
@@ -494,6 +605,11 @@ impl<'a> NoteReader<'a> {
         Ok(related
             .into_iter()
             .map(Result::<Uuid, redb::StorageError>::Ok))
+    }
+
+    pub fn has_next_version(&self, id: &Uuid) -> Result<bool, redb::StorageError> {
+        let mut next_versions = self.next_versions_raw(id)?;
+        Ok(next_versions.next().transpose()?.is_some())
     }
 }
 

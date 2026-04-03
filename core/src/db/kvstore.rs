@@ -75,6 +75,13 @@ impl<K: redb::Key + 'static, V: DeserializeOwned> KvReader<K, V> {
         }
     }
 
+    pub fn contains<'k>(
+        &self,
+        key: impl std::borrow::Borrow<K::SelfType<'k>>,
+    ) -> Result<bool, redb::Error> {
+        Ok(self.table.get(key)?.is_some())
+    }
+
     /// 返回迭代器，自动反序列化值为 V
     pub fn iter<'a>(&'a self) -> Result<KvIter<'a, K, V>, redb::StorageError>
     where
@@ -85,6 +92,15 @@ impl<K: redb::Key + 'static, V: DeserializeOwned> KvReader<K, V> {
             inner: range,
             _marker: std::marker::PhantomData,
         })
+    }
+
+    /// 只遍历 key，不反序列化 value
+    pub fn keys<'a>(&'a self) -> Result<KvKeyIter<'a, K>, redb::StorageError>
+    where
+        K: std::borrow::Borrow<K::SelfType<'a>>,
+    {
+        let range = self.table.range::<K>(..)?;
+        Ok(KvKeyIter { inner: range })
     }
 }
 
@@ -115,6 +131,27 @@ impl<'a, K: redb::Key + 'static, V: DeserializeOwned> DoubleEndedIterator for Kv
                 (k_guard, value)
             })
         })
+    }
+}
+
+/// 仅遍历 key 的迭代器
+pub struct KvKeyIter<'a, K: redb::Key + 'static> {
+    inner: redb::Range<'a, K, &'static [u8]>,
+}
+
+impl<'a, K: redb::Key + 'static> Iterator for KvKeyIter<'a, K> {
+    type Item = Result<redb::AccessGuard<'a, K>, redb::StorageError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(|res| res.map(|(k_guard, _)| k_guard))
+    }
+}
+
+impl<'a, K: redb::Key + 'static> DoubleEndedIterator for KvKeyIter<'a, K> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.inner
+            .next_back()
+            .map(|res| res.map(|(k_guard, _)| k_guard))
     }
 }
 

@@ -4,7 +4,7 @@ use crate::{
     dto::NoteDTO,
     error::ServiceError,
     models::{
-        note::{Note, NoteReader},
+        note::{Note, NoteReader, NoteRef},
         tag::{Tag, TagReader, TagWriter},
     },
     search::searcher::FuzzyIndex,
@@ -138,10 +138,13 @@ impl SynapService {
             let timeline = TimelineView::new(reader);
             let mut notes = Vec::new();
 
-            for view_res in timeline.recent()? {
-                let view = view_res.map_err(ServiceError::from)?;
-                if Self::is_latest_version(reader, view.get_note())? {
-                    notes.push(view.get_note().clone());
+            for note_ref_res in timeline.recent_refs()? {
+                let note_ref = note_ref_res.map_err(ServiceError::from)?;
+                if Self::is_latest_version(reader, note_ref)? {
+                    let note = note_ref
+                        .hydrate(reader)?
+                        .ok_or(ServiceError::NotFound(note_ref.get_id().to_string()))?;
+                    notes.push(note);
                 }
             }
 
@@ -167,6 +170,39 @@ impl SynapService {
     fn note_to_dto(&self, value: Note, reader: &NoteReader<'_>) -> Result<NoteDTO, ServiceError> {
         let view = NoteView::new(reader, value);
         view.to_dto().map_err(Into::into)
+    }
+
+    fn note_ref_to_dto(
+        &self,
+        note_ref: NoteRef,
+        reader: &NoteReader<'_>,
+    ) -> Result<NoteDTO, ServiceError> {
+        let note = note_ref
+            .hydrate(reader)?
+            .ok_or(ServiceError::NotFound(note_ref.get_id().to_string()))?;
+        self.note_to_dto(note, reader)
+    }
+
+    fn require_note_ref(
+        reader: &NoteReader<'_>,
+        id: Uuid,
+        original: &str,
+    ) -> Result<NoteRef, ServiceError> {
+        reader
+            .get_ref_by_id(&id)?
+            .ok_or(ServiceError::NotFound(original.to_string()))
+    }
+
+    fn require_live_note_ref(
+        reader: &NoteReader<'_>,
+        id: Uuid,
+        original: &str,
+    ) -> Result<NoteRef, ServiceError> {
+        let note_ref = Self::require_note_ref(reader, id, original)?;
+        if note_ref.is_deleted() {
+            return Err(ServiceError::NotFound(original.to_string()));
+        }
+        Ok(note_ref)
     }
 
     fn require_note(
@@ -197,13 +233,10 @@ impl SynapService {
             .map_err(Into::into)
     }
 
-    fn is_latest_version(reader: &NoteReader<'_>, note: &Note) -> Result<bool, ServiceError> {
-        let mut next_versions = reader.next_versions(note).map_err(redb::Error::from)?;
-        Ok(next_versions
-            .next()
-            .transpose()
-            .map_err(redb::Error::from)?
-            .is_none())
+    fn is_latest_version(reader: &NoteReader<'_>, note_ref: NoteRef) -> Result<bool, ServiceError> {
+        Ok(!reader
+            .has_next_version(&note_ref.get_id())
+            .map_err(redb::Error::from)?)
     }
 
     /// 获取单条笔记的完整视图
@@ -235,14 +268,14 @@ impl SynapService {
             let note = Self::require_live_note(reader, uuid, parent_id)?;
             let cursor_uuid = cursor.map(|c| Self::parse_id(&c)).transpose()?;
             let view = NoteView::new(reader, note);
-            let mut children_iter = view.children()?;
+            let mut children_iter = view.children_refs()?;
 
             if let Some(target_id) = cursor_uuid {
                 // 使用 .by_ref() 借用迭代器，不断消耗元素，直到找到游标
                 for res in children_iter.by_ref() {
-                    let child_view = res.map_err(|e| ServiceError::NoteErr(e))?;
+                    let child_ref = res.map_err(ServiceError::from)?;
 
-                    if child_view.get_note().get_id() == target_id {
+                    if child_ref.get_id() == target_id {
                         break;
                     }
                 }
@@ -251,8 +284,8 @@ impl SynapService {
             children_iter
                 .take(limit)
                 .map(|res| -> Result<NoteDTO, ServiceError> {
-                    let child_view = res.map_err(|e| ServiceError::NoteErr(e))?;
-                    child_view.to_dto().map_err(Into::into)
+                    let child_ref = res.map_err(ServiceError::from)?;
+                    self.note_ref_to_dto(child_ref, reader)
                 })
                 .collect::<Result<Vec<_>, _>>()
         })
@@ -267,27 +300,27 @@ impl SynapService {
             let limit = limit.unwrap_or(20);
             let cursor_uuid = cursor.map(Self::parse_id).transpose()?;
             let timeline = TimelineView::new(reader);
-            let recent_iter = timeline.recent()?;
+            let recent_iter = timeline.recent_refs()?;
             let mut cursor_seen = cursor_uuid.is_none();
             let mut notes = Vec::with_capacity(limit);
 
             for res in recent_iter {
-                let view = res.map_err(ServiceError::from)?;
-                if !Self::is_latest_version(reader, view.get_note())? {
+                let note_ref = res.map_err(ServiceError::from)?;
+                if !Self::is_latest_version(reader, note_ref)? {
                     continue;
                 }
 
                 if !cursor_seen {
                     if cursor_uuid
                         .as_ref()
-                        .is_some_and(|target_id| view.get_note().get_id() == *target_id)
+                        .is_some_and(|target_id| note_ref.get_id() == *target_id)
                     {
                         cursor_seen = true;
                     }
                     continue;
                 }
 
-                notes.push(view.to_dto().map_err(ServiceError::from)?);
+                notes.push(self.note_ref_to_dto(note_ref, reader)?);
                 if notes.len() == limit {
                     break;
                 }
@@ -302,12 +335,12 @@ impl SynapService {
             let child_uuid = Self::parse_id(child_id)?;
             let child = Self::require_live_note(reader, child_uuid, child_id)?;
             let view = NoteView::new(reader, child);
-            let parents_iter = view.parents()?;
+            let parents_iter = view.parents_refs()?;
 
             parents_iter
                 .map(|res| -> Result<NoteDTO, ServiceError> {
-                    let parent_view = res.map_err(|e| ServiceError::NoteErr(e))?;
-                    parent_view.to_dto().map_err(Into::into)
+                    let parent_ref = res.map_err(ServiceError::from)?;
+                    self.note_ref_to_dto(parent_ref, reader)
                 })
                 .collect::<Result<Vec<_>, _>>()
         })
@@ -318,12 +351,12 @@ impl SynapService {
             let uuid = Self::parse_id(note_id)?;
             let note = Self::require_live_note(reader, uuid, note_id)?;
             let view = NoteView::new(reader, note);
-            let versions = view.history()?;
+            let versions = view.history_refs()?;
             let mut results = Vec::new();
 
             for res in versions {
-                let version = res.map_err(ServiceError::from)?;
-                results.push(version.to_dto().map_err(ServiceError::from)?);
+                let version_ref = res.map_err(ServiceError::from)?;
+                results.push(self.note_ref_to_dto(version_ref, reader)?);
             }
 
             Ok(results)
@@ -335,12 +368,12 @@ impl SynapService {
             let uuid = Self::parse_id(note_id)?;
             let note = Self::require_live_note(reader, uuid, note_id)?;
             let view = NoteView::new(reader, note);
-            let versions = view.next_version()?;
+            let versions = view.next_version_refs()?;
             let mut results = Vec::new();
 
             for res in versions {
-                let version = res.map_err(ServiceError::from)?;
-                results.push(version.to_dto().map_err(ServiceError::from)?);
+                let version_ref = res.map_err(ServiceError::from)?;
+                results.push(self.note_ref_to_dto(version_ref, reader)?);
             }
 
             Ok(results)
@@ -352,12 +385,12 @@ impl SynapService {
             let uuid = Self::parse_id(note_id)?;
             let note = Self::require_live_note(reader, uuid, note_id)?;
             let view = NoteView::new(reader, note);
-            let versions = view.other_versions()?;
+            let versions = view.other_versions_refs()?;
             let mut results = Vec::new();
 
             for res in versions {
-                let version = res.map_err(ServiceError::from)?;
-                results.push(version.to_dto().map_err(ServiceError::from)?);
+                let version_ref = res.map_err(ServiceError::from)?;
+                results.push(self.note_ref_to_dto(version_ref, reader)?);
             }
 
             Ok(results)
@@ -378,11 +411,6 @@ impl SynapService {
 
             for deleted_id in deleted_ids.rev() {
                 let deleted_id = deleted_id.map_err(redb::Error::from)?;
-                let note = Self::require_note(reader, deleted_id, &deleted_id.to_string())?;
-
-                if !note.is_deleted() {
-                    continue;
-                }
 
                 if !cursor_seen {
                     if cursor_uuid
@@ -394,7 +422,8 @@ impl SynapService {
                     continue;
                 }
 
-                notes.push(self.note_to_dto(note, reader)?);
+                let note_ref = Self::require_note_ref(reader, deleted_id, &deleted_id.to_string())?;
+                notes.push(self.note_ref_to_dto(note_ref, reader)?);
                 if notes.len() == limit {
                     break;
                 }
@@ -474,22 +503,14 @@ impl SynapService {
         tags: Vec<String>,
     ) -> Result<NoteDTO, ServiceError> {
         let parent_id = Self::parse_id(parent_id)?;
-        let parent = self.with_read(|_tx, reader| {
-            let note = reader
-                .get_by_id(&parent_id)?
-                .ok_or(ServiceError::NotFound(parent_id.to_string()))?;
-
-            if note.is_deleted() {
-                return Err(ServiceError::NotFound(parent_id.to_string()));
-            }
-
-            Ok(note)
+        let parent_ref = self.with_read(|_tx, reader| {
+            Self::require_live_note_ref(reader, parent_id, &parent_id.to_string())
         })?;
 
         let child = self.with_write(|tx| {
             let tags = self.materialize_tags(tx, tags)?;
             let child = Note::create(tx, content, tags)?;
-            parent.reply(tx, &child)?;
+            parent_ref.reply_to(tx, &child.get_id())?;
             Ok(child)
         })?;
 
@@ -507,21 +528,13 @@ impl SynapService {
         tags: Vec<String>,
     ) -> Result<NoteDTO, ServiceError> {
         let target_id = Self::parse_id(target_id)?;
-        let note = self.with_read(|_tx, reader| {
-            let note = reader
-                .get_by_id(&target_id)?
-                .ok_or(ServiceError::NotFound(target_id.to_string()))?;
-
-            if note.is_deleted() {
-                return Err(ServiceError::NotFound(target_id.to_string()));
-            }
-
-            Ok(note)
+        let note_ref = self.with_read(|_tx, reader| {
+            Self::require_live_note_ref(reader, target_id, &target_id.to_string())
         })?;
 
         let edited = self.with_write(|tx| {
             let tags = self.materialize_tags(tx, tags)?;
-            note.edit(tx, new_content, tags).map_err(Into::into)
+            note_ref.edit(tx, new_content, tags).map_err(Into::into)
         })?;
 
         self.refresh_search_indexes()?;
@@ -533,11 +546,10 @@ impl SynapService {
     /// 召唤死神
     pub fn delete_note(&self, target_id: &str) -> Result<(), ServiceError> {
         let uuid = Self::parse_id(target_id)?;
-        // 先读取获取 note，然后在写事务中删除
-        let note =
-            self.with_read(|_tx, reader| reader.get_by_id(&uuid)?.ok_or(ServiceError::InvalidId))?;
+        let note_ref = self
+            .with_read(|_tx, reader| reader.get_ref_by_id(&uuid)?.ok_or(ServiceError::InvalidId))?;
         self.with_write(|tx| {
-            note.del(tx)?;
+            note_ref.del(tx)?;
             Ok(())
         })?;
         self.refresh_search_indexes()?;
@@ -546,10 +558,10 @@ impl SynapService {
 
     pub fn restore_note(&self, target_id: &str) -> Result<(), ServiceError> {
         let uuid = Self::parse_id(target_id)?;
-        let note =
-            self.with_read(|_tx, reader| reader.get_by_id(&uuid)?.ok_or(ServiceError::InvalidId))?;
+        let note_ref = self
+            .with_read(|_tx, reader| reader.get_ref_by_id(&uuid)?.ok_or(ServiceError::InvalidId))?;
         self.with_write(|tx| {
-            note.restore(tx)?;
+            note_ref.restore(tx)?;
             Ok(())
         })?;
         self.refresh_search_indexes()?;
