@@ -1,8 +1,15 @@
-mod index;
+mod internal;
+
+pub mod embedding;
+pub mod retrieval;
+pub mod tag;
 #[cfg(test)]
 mod test;
-mod text;
+pub mod traits;
 pub mod types;
 
-pub use index::NlpTagIndex;
+pub use embedding::{EmbeddingModel, LocalHashEmbedding};
+pub use retrieval::{SearchResult, VectorRetrieval};
+pub use tag::NlpTagIndex;
+pub use traits::{LearnableTextEncoder, TextEncoder};
 pub use types::{NlpDocument, TagSuggestion};

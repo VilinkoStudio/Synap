@@ -1,6 +1,5 @@
+use crate::nlp::tag::{NlpDocument, NlpTagIndex};
 use std::time::{Duration, Instant};
-
-use super::{NlpDocument, NlpTagIndex};
 
 fn doc(id: &str, content: &str, tags: &[&str]) -> NlpDocument {
     NlpDocument::new(
@@ -27,16 +26,8 @@ fn sample_docs() -> Vec<NlpDocument> {
             "Operating system memory management reading notes",
             &["os", "reading"],
         ),
-        doc(
-            "4",
-            "操作系统 内存管理 读书笔记",
-            &["os", "读书"],
-        ),
-        doc(
-            "5",
-            "数据库索引与查询优化实践",
-            &["database", "backend"],
-        ),
+        doc("4", "操作系统 内存管理 读书笔记", &["os", "读书"]),
+        doc("5", "数据库索引与查询优化实践", &["database", "backend"]),
         doc(
             "6",
             "API design, request validation and service boundaries",
@@ -93,11 +84,7 @@ fn suggest_tags_matches_chinese_topics() {
 #[test]
 fn suggest_tags_ignores_markdown_media_noise() {
     let mut index = NlpTagIndex::new();
-    index.build(vec![doc(
-        "1",
-        "hello rust async world",
-        &["rust", "async"],
-    )]);
+    index.build(vec![doc("1", "hello rust async world", &["rust", "async"])]);
 
     let suggestions = index.suggest_tags(
         "![cover](data:image/png;base64,AAAA) rust async data:image/jpeg;base64,BBBB",
@@ -171,8 +158,16 @@ fn remove_reverses_document_contribution() {
 fn cooccurrence_boost_surfaces_related_tag() {
     let mut index = NlpTagIndex::new();
     index.build(vec![
-        doc("1", "tokio runtime future scheduling", &["async", "runtime"]),
-        doc("2", "async task orchestration and queue handling", &["async", "runtime"]),
+        doc(
+            "1",
+            "tokio runtime future scheduling",
+            &["async", "runtime"],
+        ),
+        doc(
+            "2",
+            "async task orchestration and queue handling",
+            &["async", "runtime"],
+        ),
         doc("3", "future combinators and async lifetimes", &["async"]),
     ]);
 
@@ -250,13 +245,11 @@ fn test_suggest_realtime_small() {
 #[test]
 fn suggest_tags_respects_limit_parameter() {
     let mut index = NlpTagIndex::new();
-    index.build(vec![
-        doc(
-            "1",
-            "comprehensive guide to rust tokio async futures memory threading",
-            &["rust", "async", "tokio", "memory", "threading", "guide"],
-        ),
-    ]);
+    index.build(vec![doc(
+        "1",
+        "comprehensive guide to rust tokio async futures memory threading",
+        &["rust", "async", "tokio", "memory", "threading", "guide"],
+    )]);
 
     // 请求限制为 2
     let suggestions_limit_2 = index.suggest_tags("rust tokio async memory", 2);
@@ -295,7 +288,7 @@ fn empty_or_whitespace_query_returns_no_suggestions() {
 
     // 空字符串
     assert!(index.suggest_tags("", 5).is_empty());
-    
+
     // 纯空白字符（空格、制表符、换行）
     assert!(index.suggest_tags("   \n\t  ", 5).is_empty());
 }
@@ -308,7 +301,7 @@ fn remove_non_existent_document_returns_false() {
 
     // 删除不存在的 ID
     let removed = index.remove("non_existent_id_999");
-    
+
     assert!(!removed);
     assert_eq!(index.document_count(), initial_count);
 }
@@ -327,7 +320,7 @@ fn upsert_is_idempotent() {
 
     let suggestions = index.suggest_tags("idempotent rust", 3);
     assert!(!suggestions.is_empty());
-    
+
     // 确保分数不会因为重复插入而被异常放大（如果有绝对分数校验可以在此添加）
     let tags: Vec<&str> = suggestions.iter().map(|item| item.tag.as_str()).collect();
     assert!(tags.contains(&"rust"));
@@ -355,8 +348,16 @@ fn index_handles_special_characters_gracefully() {
     let mut index = NlpTagIndex::new();
     // 包含大量符号、标点、emoji
     index.build(vec![
-        doc("1", "C++ & Rust: 🚀 A match made in heaven! (v1.0.0)", &["cpp", "rust"]),
-        doc("2", "{[\"json\": true]} => regex parsing*", &["json", "regex"]),
+        doc(
+            "1",
+            "C++ & Rust: 🚀 A match made in heaven! (v1.0.0)",
+            &["cpp", "rust"],
+        ),
+        doc(
+            "2",
+            "{[\"json\": true]} => regex parsing*",
+            &["json", "regex"],
+        ),
     ]);
 
     let suggestions1 = index.suggest_tags("C++ 🚀 match", 3);

@@ -6,7 +6,7 @@ use crate::{
     dto::NoteDTO,
     error::NoteError,
     models::{
-        note::{Note, NoteReader},
+        note::{Note, NoteReader, NoteRef},
         tag::TagReader,
     },
 };
@@ -23,6 +23,17 @@ impl<'a, 'b> NoteView<'a, 'b> {
     /// 构造一个视图导航器（零成本，只是借用 Reader）
     pub fn new(reader: &'a NoteReader<'b>, note: Note) -> Self {
         Self { reader, note }
+    }
+
+    pub fn from_ref(reader: &'a NoteReader<'b>, note_ref: NoteRef) -> Result<Self, NoteError> {
+        let note =
+            note_ref
+                .hydrate(reader)
+                .map_err(NoteError::Db)?
+                .ok_or(NoteError::IdNotFound {
+                    id: note_ref.get_id(),
+                })?;
+        Ok(Self::new(reader, note))
     }
 
     /// 从 ID 构造 View
@@ -42,14 +53,14 @@ impl<'a, 'b> NoteView<'a, 'b> {
         Ok(Self::new(reader, note))
     }
 
-    /// UUID 转换为 NoteView（内部方法）
-    fn uuid_to_view(
+    /// UUID 转换为 NoteRef（内部方法）
+    fn uuid_to_ref(
         &'a self,
         iter: impl Iterator<Item = Result<Uuid, NoteError>> + 'a,
-    ) -> impl Iterator<Item = Result<NoteView<'a, 'b>, NoteError>> + 'a {
+    ) -> impl Iterator<Item = Result<NoteRef, NoteError>> + 'a {
         iter.filter_map(move |uuid_res| match uuid_res {
-            Ok(id) => match self.reader.get_by_id(&id) {
-                Ok(Some(note)) if !note.is_deleted() => Some(Ok(NoteView::new(self.reader, note))),
+            Ok(id) => match self.reader.get_ref_by_id(&id) {
+                Ok(Some(note_ref)) if !note_ref.is_deleted() => Some(Ok(note_ref)),
                 Ok(Some(_)) => None, // 过滤已删除
                 Ok(None) => Some(Err(NoteError::IdNotFound { id })),
                 Err(e) => Some(Err(NoteError::Db(e.into()))),
@@ -58,39 +69,46 @@ impl<'a, 'b> NoteView<'a, 'b> {
         })
     }
 
-    /// 向上溯源：返回父节点的迭代器（包含所有版本的父节点）
-    /// 如果遇到已删除的节点，继续向上穿透其 parents
-    pub fn parents(
+    fn note_ref_to_view(
         &'a self,
-    ) -> Result<impl Iterator<Item = Result<NoteView<'a, 'b>, NoteError>> + 'a, NoteError> {
-        let version_ids: Vec<Uuid> = std::iter::once(self.note.get_id())
+        iter: impl Iterator<Item = Result<NoteRef, NoteError>> + 'a,
+    ) -> impl Iterator<Item = Result<NoteView<'a, 'b>, NoteError>> + 'a {
+        iter.filter_map(move |note_ref_res| match note_ref_res {
+            Ok(note_ref) => Some(Self::from_ref(self.reader, note_ref)),
+            Err(e) => Some(Err(e)),
+        })
+    }
+
+    fn version_ids(&self) -> Result<Vec<Uuid>, NoteError> {
+        Ok(std::iter::once(self.note.get_id())
             .chain(
                 self.reader
-                    .all_versions(&self.note)
+                    .all_versions_raw(&self.note.get_id())
                     .map_err(|e| NoteError::Db(e.into()))?
                     .filter_map(Result::ok),
             )
-            .collect();
+            .collect())
+    }
+
+    /// 向上溯源：返回父节点的迭代器（包含所有版本的父节点）
+    /// 如果遇到已删除的节点，继续向上穿透其 parents
+    pub fn parents_refs(
+        &'a self,
+    ) -> Result<impl Iterator<Item = Result<NoteRef, NoteError>> + 'a, NoteError> {
+        let version_ids = self.version_ids()?;
 
         let mut direct_parents = Vec::new();
-        for version_id in version_ids {
+        for version_id in &version_ids {
             let parent_ids = self
                 .reader
-                .parents_raw(&version_id)
+                .parents_raw(version_id)
                 .map_err(|e| NoteError::Db(e.into()))?;
             for parent_res in parent_ids {
                 direct_parents.push(parent_res.map_err(|e| NoteError::Db(e.into()))?);
             }
         }
 
-        let mut seen: HashSet<Uuid> = std::iter::once(self.note.get_id())
-            .chain(
-                self.reader
-                    .all_versions(&self.note)
-                    .map_err(|e| NoteError::Db(e.into()))?
-                    .filter_map(Result::ok),
-            )
-            .collect();
+        let mut seen: HashSet<Uuid> = version_ids.into_iter().collect();
         let mut queue: VecDeque<Uuid> = direct_parents
             .into_iter()
             .filter(|id| seen.insert(*id))
@@ -98,8 +116,8 @@ impl<'a, 'b> NoteView<'a, 'b> {
         let mut result = Vec::new();
 
         while let Some(id) = queue.pop_front() {
-            match self.reader.get_by_id(&id) {
-                Ok(Some(note)) if !note.is_deleted() => result.push(Ok(id)),
+            match self.reader.get_ref_by_id(&id) {
+                Ok(Some(note_ref)) if !note_ref.is_deleted() => result.push(Ok(note_ref)),
                 Ok(Some(_)) => {
                     let parent_ids = self
                         .reader
@@ -117,42 +135,35 @@ impl<'a, 'b> NoteView<'a, 'b> {
             }
         }
 
-        Ok(self.uuid_to_view(result.into_iter()))
+        Ok(result.into_iter())
+    }
+
+    pub fn parents(
+        &'a self,
+    ) -> Result<impl Iterator<Item = Result<NoteView<'a, 'b>, NoteError>> + 'a, NoteError> {
+        let refs = self.parents_refs()?;
+        Ok(self.note_ref_to_view(refs))
     }
 
     /// 向下推演：返回子节点的迭代器（包含所有版本的子节点）
     /// 如果遇到已删除的节点，继续向下穿透其 children
-    pub fn children(
+    pub fn children_refs(
         &'a self,
-    ) -> Result<impl Iterator<Item = Result<NoteView<'a, 'b>, NoteError>> + 'a, NoteError> {
-        let version_ids: Vec<Uuid> = std::iter::once(self.note.get_id())
-            .chain(
-                self.reader
-                    .all_versions(&self.note)
-                    .map_err(|e| NoteError::Db(e.into()))?
-                    .filter_map(Result::ok),
-            )
-            .collect();
+    ) -> Result<impl Iterator<Item = Result<NoteRef, NoteError>> + 'a, NoteError> {
+        let version_ids = self.version_ids()?;
 
         let mut direct_children = Vec::new();
-        for version_id in version_ids {
+        for version_id in &version_ids {
             let child_ids = self
                 .reader
-                .children_raw(&version_id)
+                .children_raw(version_id)
                 .map_err(|e| NoteError::Db(e.into()))?;
             for child_res in child_ids {
                 direct_children.push(child_res.map_err(|e| NoteError::Db(e.into()))?);
             }
         }
 
-        let mut seen: HashSet<Uuid> = std::iter::once(self.note.get_id())
-            .chain(
-                self.reader
-                    .all_versions(&self.note)
-                    .map_err(|e| NoteError::Db(e.into()))?
-                    .filter_map(Result::ok),
-            )
-            .collect();
+        let mut seen: HashSet<Uuid> = version_ids.into_iter().collect();
         let mut queue: VecDeque<Uuid> = direct_children
             .into_iter()
             .filter(|id| seen.insert(*id))
@@ -160,8 +171,8 @@ impl<'a, 'b> NoteView<'a, 'b> {
         let mut result = Vec::new();
 
         while let Some(id) = queue.pop_front() {
-            match self.reader.get_by_id(&id) {
-                Ok(Some(note)) if !note.is_deleted() => result.push(Ok(id)),
+            match self.reader.get_ref_by_id(&id) {
+                Ok(Some(note_ref)) if !note_ref.is_deleted() => result.push(Ok(note_ref)),
                 Ok(Some(_)) => {
                     let child_ids = self
                         .reader
@@ -179,43 +190,71 @@ impl<'a, 'b> NoteView<'a, 'b> {
             }
         }
 
-        Ok(self.uuid_to_view(result.into_iter()))
+        Ok(result.into_iter())
+    }
+
+    pub fn children(
+        &'a self,
+    ) -> Result<impl Iterator<Item = Result<NoteView<'a, 'b>, NoteError>> + 'a, NoteError> {
+        let refs = self.children_refs()?;
+        Ok(self.note_ref_to_view(refs))
     }
 
     /// 获取历史版本沿革（过滤已删除）
+    pub fn history_refs(
+        &'a self,
+    ) -> Result<impl Iterator<Item = Result<NoteRef, NoteError>> + 'a, NoteError> {
+        let iter = self
+            .reader
+            .previous_versions_raw(&self.note.get_id())
+            .map_err(|e| NoteError::Db(e.into()))?;
+        let aligned = iter.map(|res| res.map_err(|e| NoteError::Db(e.into())));
+        Ok(self.uuid_to_ref(aligned))
+    }
+
     pub fn history(
         &'a self,
     ) -> Result<impl Iterator<Item = Result<NoteView<'a, 'b>, NoteError>> + 'a, NoteError> {
-        let iter = self
-            .reader
-            .previous_versions(&self.note)
-            .map_err(|e| NoteError::Db(e.into()))?;
-        let aligned = iter.map(|res| res.map_err(|e| NoteError::Db(e.into())));
-        Ok(self.uuid_to_view(aligned))
+        let refs = self.history_refs()?;
+        Ok(self.note_ref_to_view(refs))
     }
 
     /// 获取下一个版本（过滤已删除）
+    pub fn next_version_refs(
+        &'a self,
+    ) -> Result<impl Iterator<Item = Result<NoteRef, NoteError>> + 'a, NoteError> {
+        let iter = self
+            .reader
+            .next_versions_raw(&self.note.get_id())
+            .map_err(|e| NoteError::Db(e.into()))?;
+        let aligned = iter.map(|res| res.map_err(|e| NoteError::Db(e.into())));
+        Ok(self.uuid_to_ref(aligned))
+    }
+
     pub fn next_version(
         &'a self,
     ) -> Result<impl Iterator<Item = Result<NoteView<'a, 'b>, NoteError>> + 'a, NoteError> {
-        let iter = self
-            .reader
-            .next_versions(&self.note)
-            .map_err(|e| NoteError::Db(e.into()))?;
-        let aligned = iter.map(|res| res.map_err(|e| NoteError::Db(e.into())));
-        Ok(self.uuid_to_view(aligned))
+        let refs = self.next_version_refs()?;
+        Ok(self.note_ref_to_view(refs))
     }
 
     /// 获取当前版本在编辑链上的其他版本（过滤已删除）
+    pub fn other_versions_refs(
+        &'a self,
+    ) -> Result<impl Iterator<Item = Result<NoteRef, NoteError>> + 'a, NoteError> {
+        let iter = self
+            .reader
+            .other_versions_raw(&self.note.get_id())
+            .map_err(|e| NoteError::Db(e.into()))?;
+        let aligned = iter.map(|res| res.map_err(|e| NoteError::Db(e.into())));
+        Ok(self.uuid_to_ref(aligned))
+    }
+
     pub fn other_versions(
         &'a self,
     ) -> Result<impl Iterator<Item = Result<NoteView<'a, 'b>, NoteError>> + 'a, NoteError> {
-        let iter = self
-            .reader
-            .other_versions(&self.note)
-            .map_err(|e| NoteError::Db(e.into()))?;
-        let aligned = iter.map(|res| res.map_err(|e| NoteError::Db(e.into())));
-        Ok(self.uuid_to_view(aligned))
+        let refs = self.other_versions_refs()?;
+        Ok(self.note_ref_to_view(refs))
     }
 
     /// 获取当前节点的标签
@@ -259,6 +298,10 @@ impl<'a, 'b> NoteView<'a, 'b> {
 
     pub fn get_note(&self) -> &Note {
         &self.note
+    }
+
+    pub fn get_note_ref(&self) -> NoteRef {
+        self.note.note_ref()
     }
 }
 

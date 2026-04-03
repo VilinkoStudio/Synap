@@ -5,7 +5,7 @@ use crate::{
     },
     search::types::Searchable,
 };
-use redb::{ReadTransaction, ReadableTable, WriteTransaction};
+use redb::{ReadTransaction, WriteTransaction};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -150,18 +150,7 @@ impl<'a> TagWriter<'a> {
         })?;
         let id = Tag::id_for_normalized_content(&normalized);
 
-        let existing_inner = {
-            let tag_table = self.tx.open_table(TAG_STORE.table_def())?;
-            let existing = tag_table.get(id.as_bytes())?;
-            if let Some(block_guard) = existing {
-                let inner: TagBlock = postcard::from_bytes(block_guard.value()).map_err(|e| {
-                    redb::Error::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-                })?;
-                Some(inner)
-            } else {
-                None
-            }
-        };
+        let existing_inner = TAG_STORE.get_in_write(self.tx, id.as_bytes())?;
 
         if let Some(inner) = existing_inner {
             return Ok(Tag { id, inner });
@@ -193,18 +182,7 @@ impl<'a> TagWriter<'a> {
             )));
         }
 
-        let existing_inner = {
-            let tag_table = self.tx.open_table(TAG_STORE.table_def())?;
-            let existing = tag_table.get(expected_id.as_bytes())?;
-            if let Some(block_guard) = existing {
-                let inner: TagBlock = postcard::from_bytes(block_guard.value()).map_err(|e| {
-                    redb::Error::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-                })?;
-                Some(inner)
-            } else {
-                None
-            }
-        };
+        let existing_inner = TAG_STORE.get_in_write(self.tx, expected_id.as_bytes())?;
 
         if let Some(inner) = existing_inner {
             if inner.content != normalized {

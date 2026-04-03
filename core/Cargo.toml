@@ -17,6 +17,7 @@ tempfile = "3.0"
 
 thiserror = "2.0"
 uuid = { version = "1.22.0", features = ["serde", "v7", "v5", "v4"] }
+zstd = "0.13.3"
 
 [dev-dependencies]
 tempfile = "3.0"

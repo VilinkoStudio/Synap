@@ -87,7 +87,7 @@ val hasReleaseSigning = releaseKeystoreFile?.isFile == true &&
     releaseSigningProperties.hasNonBlank("keyPassword")
 
 android {
-    namespace = "com.fuwaki.synap"
+    namespace = "com.synap.app"
     compileSdk = 36
     if (resolvedAndroidNdkVersion != null) {
         ndkVersion = resolvedAndroidNdkVersion
@@ -105,7 +105,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.fuwaki.synap"
+        applicationId = "com.synap.app"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
