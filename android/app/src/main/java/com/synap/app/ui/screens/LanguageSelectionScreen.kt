@@ -26,7 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.fuwaki.synap.R // 导入 R 文件
+import com.synap.app.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

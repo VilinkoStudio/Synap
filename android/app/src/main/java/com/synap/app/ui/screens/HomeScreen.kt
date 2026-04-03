@@ -1,35 +1,46 @@
 package com.synap.app.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateDpAsState // --- 新增引入 ---
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset // --- 新增引入 ---
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -69,10 +80,13 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.synap.app.R
 import com.synap.app.ui.components.NoteCardItem
 import com.synap.app.ui.model.Note
 import com.synap.app.ui.theme.MyApplicationTheme
@@ -82,10 +96,20 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.util.Calendar
 import kotlin.math.PI
 import kotlin.math.sin
 
-// --- 新增：节日彩蛋列表 ---
+data class EasterEgg(
+    val startMonth: Int,
+    val startDate: Int,
+    val endMonth: Int,
+    val endDate: Int,
+    val emoji: String,
+    val dialogTitle: String,
+    val dialogMessage: String
+)
+
 private val easterEggs = listOf(
     // 愚人节 (4月1日)
     EasterEgg(
@@ -119,7 +143,7 @@ private val easterEggs = listOf(
         dialogTitle = "新年快乐",
         dialogMessage = "新的一年，新的开始！祝你新的一年，所愿皆成真。"
     ),
-    // 元旦 (1月1日)
+    // 国庆 (9月30日 - 10月7日)
     EasterEgg(
         startMonth = Calendar.SEPTEMBER, startDate = 30,
         endMonth = Calendar.OCTOBER, endDate = 7,
@@ -127,7 +151,6 @@ private val easterEggs = listOf(
         dialogTitle = "国庆节快乐",
         dialogMessage = "十一小长假有规划去哪里玩吗？没有的话要不用 Synap 规划一下，嘻嘻。"
     )
-
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -156,19 +179,15 @@ fun HomeScreen(
 
     var pendingDeleteNoteIds by remember { mutableStateOf(setOf<String>()) }
 
-    // --- 核心修改：检测当前日期是否匹配任何彩蛋 ---
     val currentEasterEgg by remember {
         val calendar = Calendar.getInstance()
         val currentMonth = calendar.get(Calendar.MONTH)
         val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
 
-        // 简单的日期范围匹配逻辑
         val matchedEgg = easterEggs.firstOrNull { egg ->
             if (egg.startMonth == egg.endMonth) {
-                // 在同一个月内
                 currentMonth == egg.startMonth && currentDay in egg.startDate..egg.endDate
             } else {
-                // 跨月的情况（较为复杂，目前只处理不跨年的情况）
                 (currentMonth == egg.startMonth && currentDay >= egg.startDate) ||
                         (currentMonth == egg.endMonth && currentDay <= egg.endDate) ||
                         (currentMonth in (egg.startMonth + 1)..<egg.endMonth)
@@ -177,7 +196,6 @@ fun HomeScreen(
         mutableStateOf(matchedEgg)
     }
 
-    // --- 新增：彩蛋弹窗状态 ---
     var showEasterEggDialog by remember { mutableStateOf(false) }
 
     val fabDodgeOffset by animateDpAsState(
@@ -271,7 +289,6 @@ fun HomeScreen(
             }
     }
 
-    // --- 新增：彩蛋弹窗 UI ---
     if (showEasterEggDialog && currentEasterEgg != null) {
         AlertDialog(
             onDismissRequest = { showEasterEggDialog = false },
@@ -298,7 +315,6 @@ fun HomeScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
 
-                            // --- 核心修改：动态显示匹配到的彩蛋 ---
                             AnimatedVisibility(
                                 visible = currentEasterEgg != null,
                                 enter = fadeIn() + scaleIn(),
@@ -306,7 +322,7 @@ fun HomeScreen(
                             ) {
                                 IconButton(
                                     onClick = {
-                                        showEasterEggDialog = true // 触发弹窗
+                                        showEasterEggDialog = true
                                     },
                                     modifier = Modifier
                                         .padding(start = 4.dp)
@@ -407,7 +423,6 @@ fun HomeScreen(
             }
         },
     ) { innerPadding ->
-        // --- 核心修改：移除了 PullToRefreshBox，恢复为普通的 Box ---
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -503,14 +518,14 @@ fun HomeScreen(
                                                 isUntaggedUnselected = false
                                             }
                                         },
-                                        label = { Text("全部") }
+                                        label = { Text(stringResource(R.string.home_tagbar_all)) }
                                     )
 
                                     if (statusFilteredNotes.any { it.tags.isEmpty() }) {
                                         FilterChip(
                                             selected = !isUntaggedUnselected,
                                             onClick = { isUntaggedUnselected = !isUntaggedUnselected },
-                                            label = { Text("无标签") }
+                                            label = { Text(stringResource(R.string.home_tagbar_none)) }
                                         )
                                     }
 
@@ -590,7 +605,7 @@ fun HomeScreen(
                                     onClick = onRefresh,
                                     modifier = Modifier.padding(top = 12.dp),
                                 ) {
-                                    Text("重试")
+                                    Text(stringResource(R.string.retry))
                                 }
                             }
                         }

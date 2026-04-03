@@ -1,4 +1,4 @@
-package com.fuwaki.synap
+package com.synap.app
 
 import android.content.Context
 import android.os.Build
@@ -34,12 +34,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.os.LocaleListCompat
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.fuwaki.synap.ui.data.AppLocale // 引入你新建的数据类
-import com.fuwaki.synap.ui.data.sampleLanguages
-import com.fuwaki.synap.ui.navigation.SynapNavGraph
-import com.fuwaki.synap.ui.theme.MyApplicationTheme
-import com.fuwaki.synap.ui.viewmodel.AppSessionUiState
-import com.fuwaki.synap.ui.viewmodel.AppSessionViewModel
+import com.synap.app.ui.data.AppLocale // 引入你新建的数据类
+import com.synap.app.ui.data.sampleLanguages
+import com.synap.app.ui.navigation.SynapNavGraph
+import com.synap.app.ui.theme.MyApplicationTheme
+import com.synap.app.ui.viewmodel.AppSessionUiState
+import com.synap.app.ui.viewmodel.AppSessionViewModel
 
 // --- 定义专属于笔记正文的 CompositionLocal ---
 val LocalNoteTextSize = compositionLocalOf { 16.sp }

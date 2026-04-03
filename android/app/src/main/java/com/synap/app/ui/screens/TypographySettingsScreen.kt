@@ -1,4 +1,4 @@
-package com.fuwaki.synap.ui.screens
+package com.synap.app.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,7 +42,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.fuwaki.synap.R // 导入 R 文件
+import com.synap.app.R // 导入 R 文件
 
 private val poetryList = listOf(
     "“中国人的性情是总喜欢调和折中的……譬如你说，这屋子太暗，须在这里开一个窗，大家一定不允许的。但如果你主张拆掉屋顶，他们就来调和，愿意开窗了。”" to "—— 鲁迅《无声的中国》",

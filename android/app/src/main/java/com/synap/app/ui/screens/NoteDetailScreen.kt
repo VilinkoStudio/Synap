@@ -49,7 +49,7 @@ import com.synap.app.ui.util.formatNoteTime
 import com.synap.app.ui.viewmodel.DetailUiState
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
-import com.fuwaki.synap.R
+import com.synap.app.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

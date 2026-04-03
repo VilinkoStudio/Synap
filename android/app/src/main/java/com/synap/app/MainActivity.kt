@@ -1,4 +1,4 @@
-package com.fuwaki.synap
+package com.synap.app
 
 import android.content.Intent
 import android.net.Uri

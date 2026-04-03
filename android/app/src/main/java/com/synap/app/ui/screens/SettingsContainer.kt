@@ -1,4 +1,4 @@
-package com.fuwaki.synap.ui.screens
+package com.synap.app.ui.screens
 
 import android.content.Context
 import android.content.Intent
@@ -19,8 +19,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.fuwaki.synap.MainActivity
-import com.fuwaki.synap.ui.viewmodel.SettingsViewModel
+import com.synap.app.MainActivity
+import com.synap.app.ui.viewmodel.SettingsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext

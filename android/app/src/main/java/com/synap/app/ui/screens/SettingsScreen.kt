@@ -53,7 +53,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight // --- 补上了 FontWeight 的导入 ---
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp // --- 补上了 sp 的导入 ---
-import com.fuwaki.synap.R // 导入 R 文件
+import com.synap.app.R // 导入 R 文件
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

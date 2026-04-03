@@ -1,4 +1,4 @@
-package com.fuwaki.synap.ui.navigation
+package com.synap.app.ui.navigation
 
 import android.net.Uri
 import androidx.compose.animation.AnimatedContentTransitionScope
@@ -37,9 +37,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.fuwaki.synap.MainActivity
-import com.fuwaki.synap.ui.screens.*
-import com.fuwaki.synap.ui.viewmodel.*
+import com.synap.app.MainActivity
+import com.synap.app.ui.screens.*
+import com.synap.app.ui.viewmodel.*
 
 fun detailRoute(noteId: String): String = "detail/${Uri.encode(noteId)}"
 

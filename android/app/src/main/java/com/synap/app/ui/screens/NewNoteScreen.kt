@@ -63,7 +63,7 @@ import com.synap.app.ui.viewmodel.EditorMode
 import com.synap.app.ui.viewmodel.EditorUiState
 import kotlinx.coroutines.delay
 import androidx.compose.ui.res.stringResource
-import com.fuwaki.synap.R
+import com.synap.app.R
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
