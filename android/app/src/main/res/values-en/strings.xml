@@ -58,7 +58,7 @@
     <string name="app_desc">A minimalist note-taking app for quick thought capture.</string>
     <string name="version_info">Version Info</string>
     <string name="tutorial">Tutorial</string>
-    <string name="view_project_homepage">View Project Homepage</string>
+    <string name="view_project_homepage">Project Homepage</string>
     <string name="download_latest_version">Download Latest Version</string>
 
     <string name="home_filter_title">Filter</string>
@@ -87,4 +87,6 @@
     <string name="notedetail_previousVersions">Previous Version</string>
     <string name="notedetail_nextVersions">Next Version</string>
     <string name="notedetail_replies">Replies</string>
+    <string name="role_backend">Backend Developer</string>
+    <string name="role_frontend_ui">Frontend &amp; UI Design</string>
 </resources>

@@ -12,8 +12,6 @@
     <string name="search_empty_input_hint">输入关键词开始搜索</string>
     <string name="search_no_results">没有找到匹配的笔记</string>
     <string name="select_language">选择语言</string>
-
-    <!-- 排版与字体设置页 (TypographySettingsScreen) -->
     <string name="note_typography_style">笔记文字样式</string>
     <string name="font_family">字体</string>
     <string name="font_sans_serif">无衬线字体 (默认)</string>
@@ -26,27 +24,22 @@
     <string name="restore_default">恢复默认</string>
     <string name="typography_preview">笔记文字预览</string>
     <string name="switch_preview">切换预览诗词</string>
-
-    <!-- 设置主页 (SettingsScreen) -->
     <string name="settings">设置</string>
     <string name="dark_mode">深色模式</string>
     <string name="theme_system">跟随系统</string>
     <string name="theme_light">浅色模式</string>
     <string name="theme_dark">深色模式</string>
-
     <string name="appearance">外观</string>
     <string name="sync_system_color">同步系统主题色（莫奈取色）</string>
     <string name="monet_unsupported">当前设备不支持，需要 Android 12 及以上</string>
     <string name="monet_enabled">正在使用 Android 系统壁纸取色</string>
     <string name="monet_disabled">已关闭系统取色，可自由调节主题色</string>
     <string name="adjust_theme_color">拖动以调节主题色</string>
-
     <string name="language">语言 (Language)</string>
     <string name="handedness">适人握持</string>
     <string name="handedness_desc">更改浮动按钮和页面出现的位置</string>
     <string name="left_handed">靠左</string>
     <string name="right_handed">靠右</string>
-
     <string name="backup_and_restore">备份与恢复</string>
     <string name="export_backup">导出为备份文件(.redb)</string>
     <string name="export_backup_desc">将完整数据备份到指定位置</string>
@@ -54,14 +47,12 @@
     <string name="export_and_share_desc">将完整数据备份并分享到其他软件或设备</string>
     <string name="import_backup">导入备份文件并覆盖</string>
     <string name="import_backup_desc">此操作会清空当前已有数据，请谨慎操作。导入后需要重启app生效</string>
-
     <string name="about">关于</string>
     <string name="app_desc">一款极简的用于快速思维捕获的笔记软件。</string>
     <string name="version_info">版本信息</string>
     <string name="tutorial">使用教程</string>
     <string name="view_project_homepage">查看项目主页</string>
     <string name="download_latest_version">点击下载最新版</string>
-
     <string name="home_filter_title">筛选</string>
     <string name="home_filter_delete_all">全部</string>
     <string name="home_filter_delete_undelete">正常</string>
@@ -70,7 +61,6 @@
     <string name="trash_restore_hint">这里存放你暂时删掉的笔记，向右轻扫即可恢复。</string>
     <string name="trash_empty">回收站还是空的</string>
     <string name="trash_empty_hint">当你删除笔记后，它会先出现在这里，方便找回。</string>
-
     <string name="edit_title_creat">新建笔记</string>
     <string name="edit_title_reply">回复笔记</string>
     <string name="edit_title_edit">编辑笔记</string>
@@ -79,7 +69,6 @@
     <string name="edit_tag_add">添加标签</string>
     <string name="edit_tag_placeholder">在此输入标签文字</string>
     <string name="edit_tag_check">确认添加</string>
-
     <string name="home_search_title">搜索笔记、标签、片段...</string>
     <string name="home_tagbar_none">无标签</string>
     <string name="home_tagbar_all">全部标签</string>
@@ -92,4 +81,10 @@
     <string name="notedetail_previousVersions">上一版本</string>
     <string name="notedetail_nextVersions">下一版本</string>
     <string name="notedetail_replies">回复</string>
+    <string name="creative_team">创作团队</string>
+    <string name="bilibili">哔哩哔哩</string>
+    <string name="tiktok">抖音</string>
+    <string name="RED">小红书</string>
+    <string name="role_backend">后端开发</string>
+    <string name="role_frontend_ui">前端 &amp; UI 设计</string>
 </resources>

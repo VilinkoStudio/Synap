@@ -43,7 +43,8 @@ fun SettingsContainer(
     databaseActivity: MainActivity?,
     onNavigateToTypographySettings: () -> Unit,
     onNavigateToLanguageSelection: () -> Unit,
-    onNavigateToTutorial: () -> Unit, // --- 加上这个缺失的参数 ---
+    onNavigateToTeam: () -> Unit,
+    onNavigateToTutorial: () -> Unit,
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -172,7 +173,8 @@ fun SettingsContainer(
         },
         onNavigateToTypographySettings = onNavigateToTypographySettings,
         onNavigateToLanguageSelection = onNavigateToLanguageSelection,
-        onNavigateToTutorial = onNavigateToTutorial, // --- 向下传递给 SettingsScreen ---
+        onNavigateToTeam = onNavigateToTeam,
+        onNavigateToTutorial = onNavigateToTutorial,
         onNavigateBack = onNavigateBack,
     )
 }

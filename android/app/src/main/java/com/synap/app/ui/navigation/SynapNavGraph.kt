@@ -191,6 +191,7 @@ fun SynapNavGraph(
                     databaseActivity = databaseActivity,
                     onNavigateToTypographySettings = { navController.navigate("typography_settings") },
                     onNavigateToLanguageSelection = { navController.navigate("language_selection") },
+                    onNavigateToTeam = { navController.navigate("team") }, // --- 加上向团队页跳转的动作 ---
                     onNavigateToTutorial = { navController.navigate("tutorial") },
                     onNavigateBack = { navController.popBackStack() }
                 )
@@ -208,6 +209,13 @@ fun SynapNavGraph(
                     currentFontFamily = currentFontFamily, onFontFamilyChange = onFontFamilyChange,
                     currentFontWeight = currentFontWeight, onFontWeightChange = onFontWeightChange, // --- 传入 ---
                     noteTextSize = noteTextSize, onNoteTextSizeChange = onNoteTextSizeChange,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            // --- 新增：注册团队展示页面的路由 ---
+            composable("team") {
+                TeamScreen(
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
@@ -265,6 +273,7 @@ fun SynapNavGraph(
                     handedness = handedness, onHandednessChange = onHandednessChange, databaseActivity = databaseActivity,
                     onNavigateToTypographySettings = { showSettingsSidebar = false; navController.navigate("typography_settings") },
                     onNavigateToLanguageSelection = { showSettingsSidebar = false; navController.navigate("language_selection") },
+                    onNavigateToTeam = { showSettingsSidebar = false; navController.navigate("team") }, // --- 加上大屏向团队页跳转的动作 ---
                     onNavigateToTutorial = { showSettingsSidebar = false; navController.navigate("tutorial") },
                     onNavigateBack = { showSettingsSidebar = false }
                 )
