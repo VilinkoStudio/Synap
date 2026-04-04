@@ -1,7 +1,7 @@
 //! Integration tests for FFI bindings.
 
 use tempfile::tempdir;
-use uniffi_synap_coreffi::{open, open_memory, FfiError};
+use uniffi_synap_coreffi::{open, open_memory, FfiError, FilteredNoteStatus};
 use uuid::Uuid;
 
 fn sorted_ids(notes: &[uniffi_synap_coreffi::NoteDTO]) -> Vec<String> {
@@ -243,4 +243,47 @@ fn test_search_and_tag_search() {
     let tag_hits = service.search_tags("rust".to_string(), 10).unwrap();
     assert!(tag_hits.iter().any(|tag| tag == "rust"));
     assert!(tag_hits.iter().all(|tag: &String| !tag.is_empty()));
+
+    let all_tags = service.get_all_tags().unwrap();
+    assert_eq!(
+        all_tags,
+        vec![
+            "async".to_string(),
+            "rust".to_string(),
+            "travel".to_string(),
+        ]
+    );
+
+    let tag_page_one = service
+        .get_notes_by_tag("rust".to_string(), None, Some(1))
+        .unwrap();
+    assert_eq!(tag_page_one.len(), 1);
+    assert_eq!(tag_page_one[0].id, created.id);
+
+    let tag_page_two = service
+        .get_notes_by_tag(
+            "rust".to_string(),
+            Some(tag_page_one[0].id.clone()),
+            Some(10),
+        )
+        .unwrap();
+    assert!(tag_page_two.is_empty());
+
+    let missing = service
+        .get_notes_by_tag("missing".to_string(), None, None)
+        .unwrap();
+    assert!(missing.is_empty());
+
+    let filtered = service
+        .get_filtered_notes(
+            vec!["rust".to_string()],
+            false,
+            true,
+            FilteredNoteStatus::Normal,
+            None,
+            Some(10),
+        )
+        .unwrap();
+    assert_eq!(filtered.len(), 1);
+    assert_eq!(filtered[0].id, created.id);
 }

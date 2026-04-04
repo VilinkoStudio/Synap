@@ -293,6 +293,7 @@ impl<'a, 'b> NoteView<'a, 'b> {
             content: self.note.content().to_string(),
             tags,
             created_at: seconds.saturating_mul(1000) + u64::from(nanos / 1_000_000),
+            deleted: self.note.is_deleted(),
         })
     }
 

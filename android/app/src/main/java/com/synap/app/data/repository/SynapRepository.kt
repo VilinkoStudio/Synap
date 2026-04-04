@@ -1,7 +1,10 @@
 package com.synap.app.data.repository
 
+import com.synap.app.data.model.NoteFeedFilter
 import com.synap.app.data.model.NoteRecord
 import com.synap.app.data.model.ReplyItem
+import com.synap.app.data.model.TimelineDirection
+import com.synap.app.data.model.TimelineSessionRecord
 import com.synap.app.data.portal.CursorPortal
 import com.synap.app.data.service.SynapServiceApi
 import javax.inject.Inject
@@ -27,9 +30,18 @@ interface SynapRepository {
 
     fun openRecentPortal(limit: UInt = 20u): CursorPortal<NoteRecord>
 
+    fun openRecentSessionsPortal(limit: UInt = 20u): CursorPortal<TimelineSessionRecord>
+
     fun openRepliesPortal(parentId: String, limit: UInt = 20u): CursorPortal<ReplyItem>
 
     fun openDeletedPortal(limit: UInt = 20u): CursorPortal<NoteRecord>
+
+    fun openTaggedPortal(tag: String, limit: UInt = 20u): CursorPortal<NoteRecord>
+
+    fun openFilteredPortal(
+        filter: NoteFeedFilter,
+        limit: UInt = 20u,
+    ): CursorPortal<NoteRecord>
 
     suspend fun getNote(idOrShortId: String): NoteRecord
 
@@ -44,6 +56,16 @@ interface SynapRepository {
     suspend fun search(query: String, limit: UInt = 50u): List<NoteRecord>
 
     suspend fun searchTags(query: String, limit: UInt = 10u): List<String>
+
+    suspend fun getAllTags(): List<String>
+
+    suspend fun getNotesByTag(tag: String, cursor: String?, limit: UInt? = 20u): List<NoteRecord>
+
+    suspend fun getFilteredNotes(
+        filter: NoteFeedFilter,
+        cursor: String?,
+        limit: UInt? = 20u,
+    ): List<NoteRecord>
 
     suspend fun createNote(content: String, tags: List<String>): NoteRecord
 
@@ -75,9 +97,23 @@ class SynapRepositoryImpl @Inject constructor(
         CursorPortal(
             limit = limit,
             fetchPage = { cursor, pageLimit ->
-                service.getRecentNote(cursor, pageLimit.takeIf { it > 0u }).unwrap()
+                service.getRecentNotesPage(
+                    cursor = cursor,
+                    direction = TimelineDirection.Older,
+                    limit = pageLimit.takeIf { it > 0u },
+                ).unwrap()
             },
-            cursorOf = NoteRecord::id,
+        )
+
+    override fun openRecentSessionsPortal(limit: UInt): CursorPortal<TimelineSessionRecord> =
+        CursorPortal(
+            limit = limit,
+            fetchPage = { cursor, pageLimit ->
+                service.getRecentSessionsPage(
+                    cursor = cursor,
+                    limit = pageLimit.takeIf { it > 0u },
+                ).unwrap()
+            },
         )
 
     override fun openRepliesPortal(parentId: String, limit: UInt): CursorPortal<ReplyItem> =
@@ -100,6 +136,28 @@ class SynapRepositoryImpl @Inject constructor(
             cursorOf = NoteRecord::id,
         )
 
+    override fun openTaggedPortal(tag: String, limit: UInt): CursorPortal<NoteRecord> =
+        CursorPortal(
+            limit = limit,
+            fetchPage = { cursor, pageLimit ->
+                service.getNotesByTag(tag, cursor, pageLimit.takeIf { it > 0u }).unwrap()
+            },
+            cursorOf = NoteRecord::id,
+        )
+
+    override fun openFilteredPortal(filter: NoteFeedFilter, limit: UInt): CursorPortal<NoteRecord> =
+        CursorPortal(
+            limit = limit,
+            fetchPage = { cursor, pageLimit ->
+                service.getFilteredNotesPage(
+                    filter = filter,
+                    cursor = cursor,
+                    direction = TimelineDirection.Older,
+                    limit = pageLimit.takeIf { it > 0u },
+                ).unwrap()
+            },
+        )
+
     override suspend fun getNote(idOrShortId: String): NoteRecord =
         service.getNote(idOrShortId).unwrap()
 
@@ -120,6 +178,18 @@ class SynapRepositoryImpl @Inject constructor(
 
     override suspend fun searchTags(query: String, limit: UInt): List<String> =
         service.searchTags(query, limit).unwrap()
+
+    override suspend fun getAllTags(): List<String> =
+        service.getAllTags().unwrap()
+
+    override suspend fun getNotesByTag(tag: String, cursor: String?, limit: UInt?): List<NoteRecord> =
+        service.getNotesByTag(tag, cursor, limit).unwrap()
+
+    override suspend fun getFilteredNotes(
+        filter: NoteFeedFilter,
+        cursor: String?,
+        limit: UInt?,
+    ): List<NoteRecord> = service.getFilteredNotes(filter, cursor, limit).unwrap()
 
     override suspend fun createNote(content: String, tags: List<String>): NoteRecord {
         val created = service.createNote(content, tags).unwrap()

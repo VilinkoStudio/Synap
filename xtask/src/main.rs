@@ -2,7 +2,7 @@ use std::env;
 
 use anyhow::{bail, Context, Result};
 use camino::Utf8PathBuf;
-use uniffi_bindgen::{generate_bindings, bindings::KotlinBindingGenerator};
+use uniffi_bindgen::{bindings::KotlinBindingGenerator, generate_bindings};
 
 fn main() {
     if let Err(err) = run() {

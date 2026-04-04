@@ -13,9 +13,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
@@ -34,7 +34,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.os.LocaleListCompat
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.synap.app.ui.data.AppLocale // 引入你新建的数据类
 import com.synap.app.ui.data.sampleLanguages
 import com.synap.app.ui.navigation.SynapNavGraph
 import com.synap.app.ui.theme.MyApplicationTheme
@@ -62,6 +61,19 @@ fun SynapApp(activity: MainActivity?) {
     val displayLanguages = remember(baseLanguages) {
         listOf("跟随系统语言设置") + baseLanguages.map { it.displayName }
     }
+    val applyLanguageSelection: (Int) -> Unit = remember(baseLanguages) {
+        { index ->
+            val locales = if (index == 0) {
+                LocaleListCompat.getEmptyLocaleList()
+            } else {
+                baseLanguages
+                    .getOrNull(index - 1)
+                    ?.let { LocaleListCompat.forLanguageTags(it.tag) }
+                    ?: LocaleListCompat.getEmptyLocaleList()
+            }
+            AppCompatDelegate.setApplicationLocales(locales)
+        }
+    }
 
     var noteTextSize by remember { mutableFloatStateOf(prefs.getFloat("noteTextSize", 16f)) }
     var currentFontFamily by remember { mutableStateOf(prefs.getString("fontFamily", "SansSerif") ?: "SansSerif") }
@@ -82,6 +94,10 @@ fun SynapApp(activity: MainActivity?) {
     // 计算当前的字体和字重对象
     val actualFontFamily = if (currentFontFamily == "Serif") FontFamily.Serif else FontFamily.SansSerif
     val actualFontWeight = FontWeight(currentFontWeight)
+
+    LaunchedEffect(selectedLanguageIndex, applyLanguageSelection) {
+        applyLanguageSelection(selectedLanguageIndex)
+    }
 
     CompositionLocalProvider(
         LocalNoteTextSize provides noteTextSize.sp,
@@ -121,7 +137,11 @@ fun SynapApp(activity: MainActivity?) {
                 currentScheme
             }
 
-            MaterialTheme(colorScheme = finalScheme, typography = Typography(), shapes = MaterialTheme.shapes) {
+            MaterialTheme(
+                colorScheme = finalScheme,
+                typography = MaterialTheme.typography,
+                shapes = MaterialTheme.shapes,
+            ) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     when (val state = sessionState) {
                         AppSessionUiState.Initializing -> SessionLoadingScreen()
@@ -137,14 +157,6 @@ fun SynapApp(activity: MainActivity?) {
                             onLanguageSelect = { index ->
                                 selectedLanguageIndex = index
                                 prefs.edit().putInt("selectedLanguage", index).apply()
-
-                                // 根据索引切换语言
-                                if (index == 0) {
-                                    AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
-                                } else {
-                                    val tag = baseLanguages[index - 1].tag
-                                    AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(tag))
-                                }
                             },
                             currentFontFamily = currentFontFamily, onFontFamilyChange = { currentFontFamily = it; prefs.edit().putString("fontFamily", it).apply() },
                             currentFontWeight = currentFontWeight, onFontWeightChange = { currentFontWeight = it; prefs.edit().putInt("fontWeight", it).apply() },

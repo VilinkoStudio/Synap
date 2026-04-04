@@ -32,3 +32,21 @@ fun formatNoteTime(timestamp: Long): String {
         else -> SimpleDateFormat("M月d日", Locale.getDefault()).format(Date(normalizedTimestamp))
     }
 }
+
+fun formatSessionTimeRange(startedAt: Long, endedAt: Long): String {
+    val normalizedStart = normalizeEpochMillis(startedAt)
+    val normalizedEnd = normalizeEpochMillis(endedAt)
+    val startDate = Date(normalizedStart)
+    val endDate = Date(normalizedEnd)
+    val sameDay = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(startDate) ==
+        SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(endDate)
+
+    return if (sameDay) {
+        val startLabel = SimpleDateFormat("M月d日 HH:mm", Locale.getDefault()).format(startDate)
+        val endLabel = SimpleDateFormat("HH:mm", Locale.getDefault()).format(endDate)
+        "$startLabel - $endLabel"
+    } else {
+        val formatter = SimpleDateFormat("M月d日 HH:mm", Locale.getDefault())
+        "${formatter.format(startDate)} - ${formatter.format(endDate)}"
+    }
+}

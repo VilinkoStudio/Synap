@@ -101,8 +101,8 @@ service.add_tag(note_id, "标签名".to_string())?;
 // 删除标签
 service.remove_tag(note_id, "标签名")?;
 
-// 按标签查询
-let notes = service.get_notes_by_tag("rust")?;
+// 按标签查询（支持 cursor + limit）
+let notes = service.get_notes_by_tag("rust", None, Some(20))?;
 
 // 获取所有标签
 let tags = service.get_all_tags()?;
@@ -181,12 +181,12 @@ for (note, depth) in graph {
 
 ```rust
 // 获取所有 Rust 相关的笔记
-let rust_notes = service.get_notes_by_tag("rust").unwrap();
+let rust_notes = service.get_notes_by_tag("rust", None, Some(20)).unwrap();
 
 // 获取所有标签
 let tags = service.get_all_tags().unwrap();
 for tag in tags {
-    let count = service.get_notes_by_tag(&tag).unwrap().len();
+    let count = service.get_notes_by_tag(&tag, None, Some(20)).unwrap().len();
     println!("{}: {} 篇笔记", tag, count);
 }
 ```

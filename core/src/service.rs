@@ -1,16 +1,20 @@
 use std::{collections::HashSet, path::Path};
 
 use crate::{
-    dto::NoteDTO,
+    dto::{NoteDTO, TimelineNotesPageDTO, TimelineSessionDTO, TimelineSessionsPageDTO},
     error::ServiceError,
     models::{
         note::{Note, NoteReader, NoteRef},
         tag::{Tag, TagReader, TagWriter},
     },
     search::searcher::FuzzyIndex,
-    views::{note_view::NoteView, timeline_view::TimelineView},
+    views::{
+        note_view::NoteView,
+        timeline_view::{SessionDetectionConfig, SessionSpan, TimelinePoint, TimelineView},
+    },
 };
 
+use std::ops::Bound;
 use redb::{Database, ReadTransaction, ReadableDatabase, WriteTransaction};
 use tempfile::NamedTempFile;
 use uuid::Uuid;
@@ -20,6 +24,22 @@ pub struct SynapService {
     tag_searcher: FuzzyIndex<Tag>,
     note_searcher: FuzzyIndex<Note>,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilteredNoteStatus {
+    All,
+    Normal,
+    Deleted,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TimelineDirection {
+    Older,
+    Newer,
+}
+
+const DEFAULT_SESSION_DETECTION_CONFIG: SessionDetectionConfig =
+    SessionDetectionConfig::new(5 * 60 * 1000);
 
 impl SynapService {
     /// 封装只读事务的生命周期
@@ -130,6 +150,14 @@ impl SynapService {
         Ok(res)
     }
 
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, ServiceError> {
+        Self::new(Some(path.as_ref().to_string_lossy().into_owned()))
+    }
+
+    pub fn open_memory() -> Result<Self, ServiceError> {
+        Self::new(None)
+    }
+
     fn init_search(&self) -> Result<(), ServiceError> {
         self.note_searcher.clear();
         self.tag_searcher.clear();
@@ -181,6 +209,69 @@ impl SynapService {
             .hydrate(reader)?
             .ok_or(ServiceError::NotFound(note_ref.get_id().to_string()))?;
         self.note_to_dto(note, reader)
+    }
+
+    fn encode_timeline_cursor(note_id: Uuid) -> String {
+        note_id.to_string()
+    }
+
+    fn decode_timeline_cursor(cursor: Option<&str>) -> Result<Option<Uuid>, ServiceError> {
+        cursor.map(Self::parse_id).transpose()
+    }
+
+    fn finalize_note_page(mut notes: Vec<NoteDTO>, limit: usize) -> TimelineNotesPageDTO {
+        let has_more = notes.len() > limit;
+        if has_more {
+            notes.pop();
+        }
+
+        let next_cursor = if has_more {
+            notes.last()
+                .and_then(|note| Self::parse_id(&note.id).ok())
+                .map(Self::encode_timeline_cursor)
+        } else {
+            None
+        };
+
+        TimelineNotesPageDTO { notes, next_cursor }
+    }
+
+    fn timeline_bounds(
+        direction: TimelineDirection,
+        cursor: Option<Uuid>,
+    ) -> (Bound<Uuid>, Bound<Uuid>, bool) {
+        match (direction, cursor) {
+            (TimelineDirection::Older, Some(anchor)) => {
+                (Bound::Unbounded, Bound::Excluded(anchor), true)
+            }
+            (TimelineDirection::Newer, Some(anchor)) => {
+                (Bound::Excluded(anchor), Bound::Unbounded, false)
+            }
+            (TimelineDirection::Older, None) => (Bound::Unbounded, Bound::Unbounded, true),
+            (TimelineDirection::Newer, None) => (Bound::Unbounded, Bound::Unbounded, false),
+        }
+    }
+
+    fn session_span_to_dto(
+        &self,
+        session: &SessionSpan,
+        timeline: &TimelineView<'_>,
+        reader: &NoteReader<'_>,
+    ) -> Result<TimelineSessionDTO, ServiceError> {
+        let notes = timeline
+            .refs_in_session(session)?
+            .map(|res| -> Result<NoteDTO, ServiceError> {
+                let note_ref = res.map_err(ServiceError::from)?;
+                self.note_ref_to_dto(note_ref, reader)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(TimelineSessionDTO {
+            started_at: session.started_at(),
+            ended_at: session.ended_at(),
+            note_count: notes.len() as u32,
+            notes,
+        })
     }
 
     fn require_note_ref(
@@ -239,6 +330,20 @@ impl SynapService {
             .map_err(redb::Error::from)?)
     }
 
+    fn matches_selected_tags(
+        note: &Note,
+        selected_tag_ids: &HashSet<Uuid>,
+        include_untagged: bool,
+    ) -> bool {
+        if note.tags().is_empty() {
+            return include_untagged;
+        }
+
+        note.tags()
+            .iter()
+            .any(|tag_id| selected_tag_ids.contains(tag_id))
+    }
+
     /// 获取单条笔记的完整视图
     pub fn get_note(&self, id_or_short_id: &str) -> Result<NoteDTO, ServiceError> {
         self.with_read(|_tx, reader| {
@@ -291,42 +396,106 @@ impl SynapService {
         })
     }
 
-    pub fn get_recent_note(
+    pub fn get_recent_notes_page(
         &self,
         cursor: Option<&str>,
+        direction: TimelineDirection,
         limit: Option<usize>,
-    ) -> Result<Vec<NoteDTO>, ServiceError> {
+    ) -> Result<TimelineNotesPageDTO, ServiceError> {
         self.with_read(|_tx, reader| {
             let limit = limit.unwrap_or(20);
-            let cursor_uuid = cursor.map(Self::parse_id).transpose()?;
+            let cursor_uuid = Self::decode_timeline_cursor(cursor)?;
             let timeline = TimelineView::new(reader);
-            let recent_iter = timeline.recent_refs()?;
-            let mut cursor_seen = cursor_uuid.is_none();
-            let mut notes = Vec::with_capacity(limit);
+            let mut notes = Vec::with_capacity(limit.saturating_add(1));
+            let note_refs: Box<dyn Iterator<Item = Result<NoteRef, crate::error::NoteError>> + '_> =
+                match (direction, cursor_uuid) {
+                    (TimelineDirection::Older, Some(anchor)) => {
+                        let split = timeline.split_refs_from(TimelinePoint::NoteId(anchor))?;
+                        split.older
+                    }
+                    (TimelineDirection::Newer, Some(anchor)) => {
+                        let split = timeline.split_refs_from(TimelinePoint::NoteId(anchor))?;
+                        split.newer
+                    }
+                    (TimelineDirection::Older, None) => Box::new(timeline.recent_refs()?),
+                    (TimelineDirection::Newer, None) => Box::new(timeline.oldest_refs()?),
+                };
 
-            for res in recent_iter {
+            for res in note_refs {
                 let note_ref = res.map_err(ServiceError::from)?;
                 if !Self::is_latest_version(reader, note_ref)? {
                     continue;
                 }
 
+                notes.push(self.note_ref_to_dto(note_ref, reader)?);
+                if notes.len() > limit {
+                    break;
+                }
+            }
+
+            Ok(Self::finalize_note_page(notes, limit))
+        })
+    }
+
+    pub fn get_recent_note(
+        &self,
+        cursor: Option<&str>,
+        limit: Option<usize>,
+    ) -> Result<Vec<NoteDTO>, ServiceError> {
+        self.get_recent_notes_page(cursor, TimelineDirection::Older, limit)
+            .map(|page| page.notes)
+    }
+
+    pub fn get_recent_sessions(
+        &self,
+        cursor: Option<&str>,
+        limit: Option<usize>,
+    ) -> Result<TimelineSessionsPageDTO, ServiceError> {
+        self.with_read(|_tx, reader| {
+            let limit = limit.unwrap_or(20);
+            let cursor_uuid = cursor.map(Self::parse_id).transpose()?;
+            let timeline = TimelineView::new(reader);
+            let session_iter = timeline.recent_session_spans(DEFAULT_SESSION_DETECTION_CONFIG)?;
+            let mut cursor_seen = cursor_uuid.is_none();
+            let mut spans = Vec::with_capacity(limit.saturating_add(1));
+
+            for session in session_iter {
                 if !cursor_seen {
                     if cursor_uuid
                         .as_ref()
-                        .is_some_and(|target_id| note_ref.get_id() == *target_id)
+                        .is_some_and(|target_id| session.cursor() == *target_id)
                     {
                         cursor_seen = true;
                     }
                     continue;
                 }
 
-                notes.push(self.note_ref_to_dto(note_ref, reader)?);
-                if notes.len() == limit {
+                spans.push(session);
+                if spans.len() > limit {
                     break;
                 }
             }
 
-            Ok(notes)
+            let has_more = spans.len() > limit;
+            if has_more {
+                spans.pop();
+            }
+
+            let next_cursor = if has_more {
+                spans.last().map(|session| session.cursor().to_string())
+            } else {
+                None
+            };
+
+            let sessions = spans
+                .iter()
+                .map(|session| self.session_span_to_dto(session, &timeline, reader))
+                .collect::<Result<Vec<_>, _>>()?;
+
+            Ok(TimelineSessionsPageDTO {
+                sessions,
+                next_cursor,
+            })
         })
     }
 
@@ -467,17 +636,303 @@ impl SynapService {
         })
     }
 
-    pub fn get_notes_by_tag(&self, tag: &str) -> Result<Vec<NoteDTO>, ServiceError> {
+    pub fn get_all_tags(&self) -> Result<Vec<String>, ServiceError> {
+        self.with_read(|tx, _reader| {
+            let tag_reader = TagReader::new(tx)?;
+            let mut tags = tag_reader
+                .all()
+                .map_err(redb::Error::from)?
+                .map(|tag| tag.map(|tag| tag.get_content().to_string()))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(redb::Error::from)?;
+
+            tags.sort();
+            Ok(tags)
+        })
+    }
+
+    /// tag-centric 的便捷查询。
+    ///
+    /// 它复用的是 `tag -> note` 关系，因此更适合标签页、标签搜索结果等
+    /// “从标签出发”的场景；如果需求是首页/时间流那种“全局时间轴 + 游标”
+    /// 过滤，请走 `get_filtered_notes`，不要和这里混用。
+    pub fn get_notes_by_tag(
+        &self,
+        tag: &str,
+        cursor: Option<&str>,
+        limit: Option<usize>,
+    ) -> Result<Vec<NoteDTO>, ServiceError> {
         self.with_read(|tx, reader| {
+            let limit = limit.unwrap_or(20);
+            let cursor_uuid = cursor.map(Self::parse_id).transpose()?;
             let Some(tag) = Self::resolve_tag(tx, tag)? else {
                 return Ok(Vec::new());
             };
 
-            reader
-                .latest_notes_with_tag(&tag)?
-                .map(|note| self.note_to_dto(note?, reader))
-                .collect()
+            let tagged_iter = reader.latest_notes_with_tag(&tag)?;
+            let mut cursor_seen = cursor_uuid.is_none();
+            let mut notes = Vec::with_capacity(limit);
+
+            for note in tagged_iter {
+                let note = note?;
+
+                if !cursor_seen {
+                    if cursor_uuid
+                        .as_ref()
+                        .is_some_and(|target_id| note.get_id() == *target_id)
+                    {
+                        cursor_seen = true;
+                    }
+                    continue;
+                }
+
+                notes.push(self.note_to_dto(note, reader)?);
+                if notes.len() == limit {
+                    break;
+                }
+            }
+
+            Ok(notes)
         })
+    }
+
+    /// 时间轴过滤页。
+    ///
+    /// 新接口返回服务端维护的分页 token，而不是要求调用方自己记最后一条
+    /// note 的 id。对于 normal feed，会优先走时间轴的双向切分能力；
+    /// 对 deleted/all 这类不完全等价于 live timeline 的视图，则退回到
+    /// 基于时间范围的原始扫描。
+    pub fn get_filtered_notes_page(
+        &self,
+        selected_tags: Vec<String>,
+        include_untagged: bool,
+        tag_filter_enabled: bool,
+        status: FilteredNoteStatus,
+        cursor: Option<&str>,
+        direction: TimelineDirection,
+        limit: Option<usize>,
+    ) -> Result<TimelineNotesPageDTO, ServiceError> {
+        let limit = limit.unwrap_or(20);
+
+        if !tag_filter_enabled {
+            return match status {
+                FilteredNoteStatus::Normal => {
+                    self.get_recent_notes_page(cursor, direction, Some(limit))
+                }
+                FilteredNoteStatus::Deleted => self.with_read(|_tx, reader| {
+                    let cursor_uuid = Self::decode_timeline_cursor(cursor)?;
+                    let (start, end, reverse) = Self::timeline_bounds(direction, cursor_uuid);
+                    let deleted_ids: Box<
+                        dyn Iterator<Item = Result<Uuid, redb::StorageError>> + '_,
+                    > = if reverse {
+                        Box::new(
+                            reader
+                                .deleted_note_ids_range(start, end)
+                                .map_err(redb::Error::from)?
+                                .rev(),
+                        )
+                    } else {
+                        Box::new(
+                            reader
+                                .deleted_note_ids_range(start, end)
+                                .map_err(redb::Error::from)?,
+                        )
+                    };
+                    let mut notes = Vec::with_capacity(limit.saturating_add(1));
+
+                    for note_id in deleted_ids {
+                        let note_id = note_id.map_err(redb::Error::from)?;
+                        let note_ref =
+                            Self::require_note_ref(reader, note_id, &note_id.to_string())?;
+                        notes.push(self.note_ref_to_dto(note_ref, reader)?);
+                        if notes.len() > limit {
+                            break;
+                        }
+                    }
+
+                    Ok(Self::finalize_note_page(notes, limit))
+                }),
+                FilteredNoteStatus::All => self.with_read(|_tx, reader| {
+                    let cursor_uuid = Self::decode_timeline_cursor(cursor)?;
+                    let (start, end, reverse) = Self::timeline_bounds(direction, cursor_uuid);
+                    let note_ids: Box<dyn Iterator<Item = Result<Uuid, redb::StorageError>> + '_> =
+                        if reverse {
+                            Box::new(
+                                reader
+                                    .note_by_time_range(start, end)
+                                    .map_err(redb::Error::from)?
+                                    .rev(),
+                            )
+                        } else {
+                            Box::new(
+                                reader
+                                    .note_by_time_range(start, end)
+                                    .map_err(redb::Error::from)?,
+                            )
+                        };
+                    let mut notes = Vec::with_capacity(limit.saturating_add(1));
+
+                    for note_id in note_ids {
+                        let note_id = note_id.map_err(redb::Error::from)?;
+                        let note_ref =
+                            Self::require_note_ref(reader, note_id, &note_id.to_string())?;
+
+                        if !Self::is_latest_version(reader, note_ref)? {
+                            continue;
+                        }
+
+                        notes.push(self.note_ref_to_dto(note_ref, reader)?);
+                        if notes.len() > limit {
+                            break;
+                        }
+                    }
+
+                    Ok(Self::finalize_note_page(notes, limit))
+                }),
+            };
+        }
+
+        let selected_tag_ids = Self::normalize_tag_inputs(selected_tags)
+            .into_iter()
+            .filter_map(|tag| Tag::id_for_content(&tag))
+            .collect::<HashSet<_>>();
+
+        if selected_tag_ids.is_empty() && !include_untagged {
+            return Ok(TimelineNotesPageDTO {
+                notes: Vec::new(),
+                next_cursor: None,
+            });
+        }
+
+        self.with_read(|_tx, reader| {
+            let cursor_uuid = Self::decode_timeline_cursor(cursor)?;
+            let mut notes = Vec::with_capacity(limit.saturating_add(1));
+
+            let mut maybe_push = |note_ref: NoteRef| -> Result<bool, ServiceError> {
+                if !Self::is_latest_version(reader, note_ref)? {
+                    return Ok(false);
+                }
+
+                let note = note_ref
+                    .hydrate(reader)?
+                    .ok_or(ServiceError::NotFound(note_ref.get_id().to_string()))?;
+
+                if !Self::matches_selected_tags(&note, &selected_tag_ids, include_untagged) {
+                    return Ok(false);
+                }
+
+                notes.push(self.note_to_dto(note, reader)?);
+                Ok(notes.len() > limit)
+            };
+
+            match status {
+                FilteredNoteStatus::Normal => {
+                    let timeline = TimelineView::new(reader);
+                    let note_refs: Box<
+                        dyn Iterator<Item = Result<NoteRef, crate::error::NoteError>> + '_,
+                    > = match (direction, cursor_uuid) {
+                        (TimelineDirection::Older, Some(anchor)) => {
+                            let split = timeline.split_refs_from(TimelinePoint::NoteId(anchor))?;
+                            split.older
+                        }
+                        (TimelineDirection::Newer, Some(anchor)) => {
+                            let split = timeline.split_refs_from(TimelinePoint::NoteId(anchor))?;
+                            split.newer
+                        }
+                        (TimelineDirection::Older, None) => Box::new(timeline.recent_refs()?),
+                        (TimelineDirection::Newer, None) => Box::new(timeline.oldest_refs()?),
+                    };
+
+                    for note_ref in note_refs {
+                        if maybe_push(note_ref.map_err(ServiceError::from)?)? {
+                            break;
+                        }
+                    }
+                }
+                FilteredNoteStatus::Deleted => {
+                    let (start, end, reverse) = Self::timeline_bounds(direction, cursor_uuid);
+                    let deleted_ids: Box<
+                        dyn Iterator<Item = Result<Uuid, redb::StorageError>> + '_,
+                    > = if reverse {
+                        Box::new(
+                            reader
+                                .deleted_note_ids_range(start, end)
+                                .map_err(redb::Error::from)?
+                                .rev(),
+                        )
+                    } else {
+                        Box::new(
+                            reader
+                                .deleted_note_ids_range(start, end)
+                                .map_err(redb::Error::from)?,
+                        )
+                    };
+
+                    for note_id in deleted_ids {
+                        let note_id = note_id.map_err(redb::Error::from)?;
+                        let note_ref =
+                            Self::require_note_ref(reader, note_id, &note_id.to_string())?;
+                        if maybe_push(note_ref)? {
+                            break;
+                        }
+                    }
+                }
+                FilteredNoteStatus::All => {
+                    let (start, end, reverse) = Self::timeline_bounds(direction, cursor_uuid);
+                    let note_ids: Box<dyn Iterator<Item = Result<Uuid, redb::StorageError>> + '_> =
+                        if reverse {
+                            Box::new(
+                                reader
+                                    .note_by_time_range(start, end)
+                                    .map_err(redb::Error::from)?
+                                    .rev(),
+                            )
+                        } else {
+                            Box::new(
+                                reader
+                                    .note_by_time_range(start, end)
+                                    .map_err(redb::Error::from)?,
+                            )
+                        };
+
+                    for note_id in note_ids {
+                        let note_id = note_id.map_err(redb::Error::from)?;
+                        let note_ref =
+                            Self::require_note_ref(reader, note_id, &note_id.to_string())?;
+                        if maybe_push(note_ref)? {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            Ok(Self::finalize_note_page(notes, limit))
+        })
+    }
+
+    /// 时间轴过滤的唯一入口。
+    ///
+    /// 兼容旧的“只向旧内容翻页”调用；新的分页 token 入口请走
+    /// `get_filtered_notes_page`。
+    pub fn get_filtered_notes(
+        &self,
+        selected_tags: Vec<String>,
+        include_untagged: bool,
+        tag_filter_enabled: bool,
+        status: FilteredNoteStatus,
+        cursor: Option<&str>,
+        limit: Option<usize>,
+    ) -> Result<Vec<NoteDTO>, ServiceError> {
+        self.get_filtered_notes_page(
+            selected_tags,
+            include_untagged,
+            tag_filter_enabled,
+            status,
+            cursor,
+            TimelineDirection::Older,
+            limit,
+        )
+        .map(|page| page.notes)
     }
 
     // ------------------------------------------
@@ -604,6 +1059,35 @@ mod tests {
     }
 
     #[test]
+    fn test_get_all_tags_returns_sorted_contents() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("synap.redb");
+        let service = SynapService::new(Some(db_path.to_string_lossy().into_owned())).unwrap();
+
+        service
+            .create_note(
+                "tagged".to_string(),
+                vec![
+                    " rust ".into(),
+                    "async".into(),
+                    "python".into(),
+                    "rust".into(),
+                ],
+            )
+            .unwrap();
+
+        let tags = service.get_all_tags().unwrap();
+        assert_eq!(
+            tags,
+            vec![
+                "async".to_string(),
+                "python".to_string(),
+                "rust".to_string(),
+            ]
+        );
+    }
+
+    #[test]
     fn test_get_notes_by_tag_returns_only_live_latest_matches() {
         let dir = tempdir().unwrap();
         let db_path = dir.path().join("synap.redb");
@@ -625,11 +1109,146 @@ mod tests {
             .create_note("keep rust".to_string(), vec!["rust".into()])
             .unwrap();
 
-        let rust_notes = service.get_notes_by_tag(" rust ").unwrap();
+        let rust_notes = service.get_notes_by_tag(" rust ", None, None).unwrap();
         assert_eq!(rust_notes.len(), 1);
         assert_eq!(rust_notes[0].id, live.id);
 
-        assert!(service.get_notes_by_tag("missing").unwrap().is_empty());
+        assert!(service
+            .get_notes_by_tag("missing", None, None)
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn test_get_notes_by_tag_uses_cursor_pagination() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("synap.redb");
+        let service = SynapService::new(Some(db_path.to_string_lossy().into_owned())).unwrap();
+
+        let first = service
+            .create_note("rust first".to_string(), vec!["rust".into()])
+            .unwrap();
+        let second = service
+            .create_note("rust second".to_string(), vec!["rust".into()])
+            .unwrap();
+        let third = service
+            .create_note("rust third".to_string(), vec!["rust".into()])
+            .unwrap();
+
+        let page_one = service.get_notes_by_tag("rust", None, Some(2)).unwrap();
+        assert_eq!(page_one.len(), 2);
+        assert_eq!(page_one[0].id, first.id);
+        assert_eq!(page_one[1].id, second.id);
+
+        let page_two = service
+            .get_notes_by_tag("rust", Some(&page_one[1].id), Some(2))
+            .unwrap();
+        assert_eq!(page_two.len(), 1);
+        assert_eq!(page_two[0].id, third.id);
+    }
+
+    #[test]
+    fn test_get_filtered_notes_keeps_global_time_order() {
+        let service = SynapService::new(None).unwrap();
+
+        let first = service.create_note("first".to_string(), vec![]).unwrap();
+        let second = service.create_note("second".to_string(), vec![]).unwrap();
+        let third = service.create_note("third".to_string(), vec![]).unwrap();
+        let fourth = service.create_note("fourth".to_string(), vec![]).unwrap();
+
+        service.delete_note(&second.id).unwrap();
+        service.delete_note(&fourth.id).unwrap();
+
+        let filtered = service
+            .get_filtered_notes(vec![], true, false, FilteredNoteStatus::All, None, Some(10))
+            .unwrap();
+
+        assert_eq!(
+            filtered
+                .iter()
+                .map(|note| note.id.clone())
+                .collect::<Vec<_>>(),
+            vec![fourth.id, third.id, second.id, first.id]
+        );
+    }
+
+    #[test]
+    fn test_get_filtered_notes_supports_mixed_tags_and_untagged() {
+        let service = SynapService::new(None).unwrap();
+
+        let rust = service
+            .create_note("rust".to_string(), vec!["rust".into()])
+            .unwrap();
+        let untagged = service.create_note("untagged".to_string(), vec![]).unwrap();
+        let travel = service
+            .create_note("travel".to_string(), vec!["travel".into()])
+            .unwrap();
+        let rust_work = service
+            .create_note("rust work".to_string(), vec!["rust".into(), "work".into()])
+            .unwrap();
+
+        let filtered = service
+            .get_filtered_notes(
+                vec!["rust".into(), "travel".into()],
+                true,
+                true,
+                FilteredNoteStatus::Normal,
+                None,
+                Some(10),
+            )
+            .unwrap();
+
+        assert_eq!(
+            filtered
+                .iter()
+                .map(|note| note.id.clone())
+                .collect::<Vec<_>>(),
+            vec![rust_work.id, travel.id, untagged.id, rust.id]
+        );
+    }
+
+    #[test]
+    fn test_get_filtered_notes_uses_cursor_after_filtering() {
+        let service = SynapService::new(None).unwrap();
+
+        let rust = service
+            .create_note("rust".to_string(), vec!["rust".into()])
+            .unwrap();
+        let untagged = service.create_note("untagged".to_string(), vec![]).unwrap();
+        let travel = service
+            .create_note("travel".to_string(), vec!["travel".into()])
+            .unwrap();
+        let rust_work = service
+            .create_note("rust work".to_string(), vec!["rust".into(), "work".into()])
+            .unwrap();
+
+        let page_one = service
+            .get_filtered_notes(
+                vec!["rust".into(), "travel".into()],
+                true,
+                true,
+                FilteredNoteStatus::Normal,
+                None,
+                Some(2),
+            )
+            .unwrap();
+        assert_eq!(page_one.len(), 2);
+        assert_eq!(page_one[0].id, rust_work.id);
+        assert_eq!(page_one[1].id, travel.id);
+
+        let page_two = service
+            .get_filtered_notes(
+                vec!["rust".into(), "travel".into()],
+                true,
+                true,
+                FilteredNoteStatus::Normal,
+                Some(&page_one[1].id),
+                Some(2),
+            )
+            .unwrap();
+        assert_eq!(page_two.len(), 2);
+        assert_eq!(page_two[0].id, untagged.id);
+        assert_eq!(page_two[1].id, rust.id);
     }
 
     #[test]
@@ -733,6 +1352,147 @@ mod tests {
             .unwrap();
         assert_eq!(page_two.len(), 1);
         assert_eq!(page_two[0].id, first.id);
+    }
+
+    #[test]
+    fn test_get_recent_notes_page_returns_service_cursor() {
+        let service = SynapService::new(None).unwrap();
+
+        let first = service.create_note("first".to_string(), vec![]).unwrap();
+        let second = service.create_note("second".to_string(), vec![]).unwrap();
+        let third = service.create_note("third".to_string(), vec![]).unwrap();
+
+        let page_one = service
+            .get_recent_notes_page(None, TimelineDirection::Older, Some(2))
+            .unwrap();
+
+        assert_eq!(
+            page_one
+                .notes
+                .iter()
+                .map(|note| note.id.clone())
+                .collect::<Vec<_>>(),
+            vec![third.id.clone(), second.id.clone()]
+        );
+        assert_eq!(page_one.next_cursor.as_deref(), Some(second.id.as_str()));
+
+        let page_two = service
+            .get_recent_notes_page(
+                page_one.next_cursor.as_deref(),
+                TimelineDirection::Older,
+                Some(2),
+            )
+            .unwrap();
+
+        assert_eq!(page_two.notes.len(), 1);
+        assert_eq!(page_two.notes[0].id, first.id);
+        assert!(page_two.next_cursor.is_none());
+    }
+
+    #[test]
+    fn test_get_filtered_notes_page_uses_service_cursor_after_filtering() {
+        let service = SynapService::new(None).unwrap();
+
+        let rust = service
+            .create_note("rust".to_string(), vec!["rust".into()])
+            .unwrap();
+        let untagged = service.create_note("untagged".to_string(), vec![]).unwrap();
+        let travel = service
+            .create_note("travel".to_string(), vec!["travel".into()])
+            .unwrap();
+        let rust_work = service
+            .create_note("rust work".to_string(), vec!["rust".into(), "work".into()])
+            .unwrap();
+
+        let page_one = service
+            .get_filtered_notes_page(
+                vec!["rust".into(), "travel".into()],
+                true,
+                true,
+                FilteredNoteStatus::Normal,
+                None,
+                TimelineDirection::Older,
+                Some(2),
+            )
+            .unwrap();
+
+        assert_eq!(
+            page_one
+                .notes
+                .iter()
+                .map(|note| note.id.clone())
+                .collect::<Vec<_>>(),
+            vec![rust_work.id.clone(), travel.id.clone()]
+        );
+        assert_eq!(page_one.next_cursor.as_deref(), Some(travel.id.as_str()));
+
+        let page_two = service
+            .get_filtered_notes_page(
+                vec!["rust".into(), "travel".into()],
+                true,
+                true,
+                FilteredNoteStatus::Normal,
+                page_one.next_cursor.as_deref(),
+                TimelineDirection::Older,
+                Some(2),
+            )
+            .unwrap();
+
+        assert_eq!(
+            page_two
+                .notes
+                .iter()
+                .map(|note| note.id.clone())
+                .collect::<Vec<_>>(),
+            vec![untagged.id, rust.id]
+        );
+        assert!(page_two.next_cursor.is_none());
+    }
+
+    #[test]
+    fn test_get_recent_sessions_returns_hydrated_notes() {
+        let service = SynapService::new(None).unwrap();
+
+        let first = service.create_note("first".to_string(), vec![]).unwrap();
+        let second = service.create_note("second".to_string(), vec![]).unwrap();
+        let third = service.create_note("third".to_string(), vec![]).unwrap();
+
+        let page = service.get_recent_sessions(None, Some(10)).unwrap();
+
+        assert!(page.next_cursor.is_none());
+        assert_eq!(page.sessions.len(), 1);
+        assert_eq!(page.sessions[0].note_count, 3);
+        assert_eq!(
+            page.sessions[0]
+                .notes
+                .iter()
+                .map(|note| note.id.clone())
+                .collect::<Vec<_>>(),
+            vec![third.id, second.id, first.id]
+        );
+    }
+
+    #[test]
+    fn test_get_recent_sessions_filters_deleted_and_superseded_notes() {
+        let service = SynapService::new(None).unwrap();
+
+        let original = service.create_note("draft".to_string(), vec![]).unwrap();
+        let edited = service
+            .edit_note(&original.id, "published".to_string(), vec![])
+            .unwrap();
+        let deleted = service.create_note("deleted".to_string(), vec![]).unwrap();
+        service.delete_note(&deleted.id).unwrap();
+        let live = service.create_note("live".to_string(), vec![]).unwrap();
+
+        let page = service.get_recent_sessions(None, Some(10)).unwrap();
+        let notes = &page.sessions[0].notes;
+
+        assert_eq!(page.sessions.len(), 1);
+        assert_eq!(page.sessions[0].note_count, 2);
+        assert!(notes.iter().any(|note| note.id == edited.id));
+        assert!(notes.iter().any(|note| note.id == live.id));
+        assert!(!notes.iter().any(|note| note.id == original.id));
+        assert!(!notes.iter().any(|note| note.id == deleted.id));
     }
 
     #[test]

@@ -200,7 +200,7 @@ service.add_tag(note2.id, "python".to_string())?;
 service.add_tag(note3.id, "rust".to_string())?;
 
 // 按标签查询
-let rust_notes = service.get_notes_by_tag("rust")?;
+let rust_notes = service.get_notes_by_tag("rust", None, Some(20))?;
 println!("Rust 相关笔记:");
 for note in rust_notes {
     println!("  - {}", note.content);
@@ -210,7 +210,7 @@ for note in rust_notes {
 let all_tags = service.get_all_tags()?;
 println!("\n所有标签:");
 for tag in all_tags {
-    let count = service.get_notes_by_tag(&tag).unwrap().len();
+    let count = service.get_notes_by_tag(&tag, None, Some(20)).unwrap().len();
     println!("  - {} ({} 篇)", tag, count);
 }
 ```
@@ -311,7 +311,7 @@ for topic in &["rust", "python", "javascript"] {
 }
 
 // 查询带"教程"标签的笔记
-let tutorial_notes = service.get_notes_by_tag("教程")?;
+let tutorial_notes = service.get_notes_by_tag("教程", None, Some(20))?;
 
 // 在这些笔记中搜索特定内容
 let results: Vec<_> = tutorial_notes
@@ -394,7 +394,7 @@ fn main() -> Result<()> {
     println!("\n=== 按标签浏览 ===\n");
     let tags = service.get_all_tags()?;
     for tag in tags {
-        let notes = service.get_notes_by_tag(&tag)?;
+        let notes = service.get_notes_by_tag(&tag, None, Some(20))?;
         println!("{} ({} 篇):", tag, notes.len());
         for note in notes {
             println!("  - {}", note.content);
@@ -461,7 +461,7 @@ impl NoteApp {
     // 搜索并过滤
     fn search(&self, query: &str, tag_filter: Option<&str>) -> Result<Vec<Note>> {
         let mut notes = if let Some(tag) = tag_filter {
-            self.service.get_notes_by_tag(tag)?
+            self.service.get_notes_by_tag(tag, None, Some(20))?
         } else {
             self.service.list_notes()?
         };

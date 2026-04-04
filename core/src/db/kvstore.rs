@@ -137,6 +137,16 @@ impl<K: redb::Key + 'static, V: DeserializeOwned> KvReader<K, V> {
         let range = self.table.range::<K>(..)?;
         Ok(KvKeyIter { inner: range })
     }
+
+    /// 只遍历指定范围内的 key，不反序列化 value
+    pub fn keys_range<'a, R>(&'a self, range: R) -> Result<KvKeyIter<'a, K>, redb::StorageError>
+    where
+        K: std::borrow::Borrow<K::SelfType<'a>>,
+        R: std::ops::RangeBounds<K>,
+    {
+        let range = self.table.range(range)?;
+        Ok(KvKeyIter { inner: range })
+    }
 }
 
 /// KvStore 的迭代器，自动反序列化值
@@ -479,6 +489,38 @@ mod tests {
             .collect();
 
         assert_eq!(keys, vec![4, 9]);
+    }
+
+    #[test]
+    fn test_keys_range_reads_only_requested_span() {
+        let db = temp_db();
+        let store: KvStore<BlockId, Block> = KvStore::new("keys_range_span");
+
+        let wtx = db.begin_write().unwrap();
+        for n in 1u8..=5 {
+            store
+                .put(
+                    &wtx,
+                    &id(n),
+                    &Block {
+                        content: format!("block_{n}"),
+                        version: n as u32,
+                    },
+                )
+                .unwrap();
+        }
+        wtx.commit().unwrap();
+
+        let rtx = db.begin_read().unwrap();
+        let reader = store.reader(&rtx).unwrap();
+
+        let keys: Vec<u8> = reader
+            .keys_range(&id(2)..=&id(4))
+            .unwrap()
+            .map(|item| item.unwrap().value()[15])
+            .collect();
+
+        assert_eq!(keys, vec![2, 3, 4]);
     }
 
     #[test]

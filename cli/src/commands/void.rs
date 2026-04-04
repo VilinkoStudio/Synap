@@ -1,25 +1,18 @@
-//! Void command implementation - abandon thoughts.
+//! Void command implementation - logical deletion.
 
 use colored::Colorize;
 use synap_core::SynapService;
 
-/// Abandon: Add tombstone pointer, remove the block from view.
-///
-/// # Example
-/// ```bash
-/// synap void A3F
-/// [-] Declare death: TOMBSTONE ──[abandon]─> (A3F)
-/// ```
-pub fn execute(short_id: &str, service: &SynapService) -> Result<(), Box<dyn std::error::Error>> {
-    let note = service.get_note_by_short_id(short_id)?;
-    let short_id_display = &note.id.to_string()[..12];
+use crate::support::resolve_note_prefix;
 
-    service.abandon_thought(note.id)?;
+pub fn execute(id_prefix: &str, service: &SynapService) -> Result<(), Box<dyn std::error::Error>> {
+    let note = resolve_note_prefix(service, id_prefix)?;
+    service.delete_note(&note.id)?;
 
     println!(
         "{} 宣告死亡: TOMBSTONE ──[废弃]─> ({})",
         "[-]".red(),
-        format!("{}...", short_id_display).red()
+        note.id[..8].red()
     );
 
     Ok(())
@@ -32,14 +25,13 @@ mod tests {
     #[test]
     fn test_execute_success() {
         let service = SynapService::open_memory().unwrap();
-        let note = service.add_thought("Test".to_string()).unwrap();
-        let short_id = &note.id.to_string()[..12];
+        let note = service.create_note("Test".to_string(), vec![]).unwrap();
+        let short_id = &note.id[..8];
 
         let result = execute(short_id, &service);
         assert!(result.is_ok());
 
-        // Verify note is abandoned
-        let notes = service.list_thoughts().unwrap();
-        assert_eq!(notes.len(), 0);
+        let notes = service.get_recent_note(None, Some(10)).unwrap();
+        assert!(notes.is_empty());
     }
 }

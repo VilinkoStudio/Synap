@@ -124,8 +124,13 @@ fun SynapNavGraph(
                     onReplyToNote = { noteId, summary -> navController.navigate(editorRoute(parentId = noteId, parentSummary = summary)) },
                     onToggleDeleted = viewModel::toggleDeleted,
                     onOpenSearch = { navController.navigate("search") },
+                    onOpenTrash = { navController.navigate("trash") },
                     onLoadMore = viewModel::loadMore,
                     onRefresh = viewModel::refresh,
+                    onSetFilterPanelOpen = viewModel::setFilterPanelOpen,
+                    onToggleTagFilter = viewModel::toggleTag,
+                    onToggleUntaggedFilter = viewModel::toggleUntagged,
+                    onToggleAllTags = viewModel::toggleAllTags,
                 )
             }
 
@@ -140,6 +145,19 @@ fun SynapNavGraph(
                     onNavigateBack = { navController.popBackStack() },
                     onOpenNote = { noteId -> navController.navigate(detailRoute(noteId)) },
                     onToggleDeleted = viewModel::toggleDeleted
+                )
+            }
+
+            composable("trash") {
+                val viewModel: TrashViewModel = hiltViewModel()
+                val uiState by viewModel.uiState.collectAsState()
+
+                TrashScreen(
+                    uiState = uiState,
+                    onNavigateBack = { navController.popBackStack() },
+                    onRestoreNote = viewModel::restoreNote,
+                    onLoadMore = viewModel::loadMore,
+                    onRefresh = viewModel::refresh,
                 )
             }
 

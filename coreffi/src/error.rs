@@ -24,9 +24,9 @@ pub enum FfiError {
 impl From<ServiceError> for FfiError {
     fn from(err: ServiceError) -> Self {
         match err {
-            ServiceError::Db(_)
-            | ServiceError::TransactionErr(_)
-            | ServiceError::CommitErr(_) => FfiError::Database,
+            ServiceError::Db(_) | ServiceError::TransactionErr(_) | ServiceError::CommitErr(_) => {
+                FfiError::Database
+            }
             ServiceError::NotFound(_) => FfiError::NotFound,
             ServiceError::InvalidId | ServiceError::UuidErr(_) | ServiceError::SliceErr(_) => {
                 FfiError::InvalidId

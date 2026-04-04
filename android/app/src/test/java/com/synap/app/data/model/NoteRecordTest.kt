@@ -12,6 +12,7 @@ class NoteRecordTest {
             content = "hello",
             tags = listOf("rust", "android"),
             createdAt = 1234L,
+            deleted = true,
         )
 
         val note = NoteRecord.fromDto(dto)
@@ -20,5 +21,6 @@ class NoteRecordTest {
         assertEquals(dto.content, note.content)
         assertEquals(dto.tags, note.tags)
         assertEquals(dto.createdAt, note.createdAt)
+        assertEquals(dto.deleted, note.deleted)
     }
 }

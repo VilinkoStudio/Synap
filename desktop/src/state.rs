@@ -70,7 +70,7 @@ impl AppState {
         self.detail_content = note.content.clone();
         self.detail_tags = note.tags.join(", ");
         self.selected_replies = ServiceWrapper::replies(id, None, 20)?;
-        self.selected_origins = ServiceWrapper::origins(id, 4)?;
+        self.selected_origins = ServiceWrapper::origins(id)?;
         self.selected_versions = ServiceWrapper::other_versions(id)?;
         self.selected_note = Some(note);
         Ok(())

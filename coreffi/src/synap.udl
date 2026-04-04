@@ -13,11 +13,40 @@ enum FfiError {
     "Other",
 };
 
+enum FilteredNoteStatus {
+    "All",
+    "Normal",
+    "Deleted",
+};
+
+enum TimelineDirection {
+    "Older",
+    "Newer",
+};
+
 dictionary NoteDTO {
     string id;
     string content;
     sequence<string> tags;
     i64 created_at;
+    boolean deleted;
+};
+
+dictionary TimelineNotesPageDTO {
+    sequence<NoteDTO> notes;
+    string? next_cursor;
+};
+
+dictionary TimelineSessionDTO {
+    i64 started_at;
+    i64 ended_at;
+    u32 note_count;
+    sequence<NoteDTO> notes;
+};
+
+dictionary TimelineSessionsPageDTO {
+    sequence<TimelineSessionDTO> sessions;
+    string? next_cursor;
 };
 
 dictionary BuildInfo {
@@ -33,6 +62,15 @@ interface SynapService {
     [Throws=FfiError] NoteDTO get_note(string id_or_short_id);
     [Throws=FfiError] sequence<NoteDTO> get_replies(string parent_id, string? cursor, u32 limit);
     [Throws=FfiError] sequence<NoteDTO> get_recent_note(string? cursor, u32? limit);
+    [Throws=FfiError] TimelineNotesPageDTO get_recent_notes_page(
+        string? cursor,
+        TimelineDirection direction,
+        u32? limit
+    );
+    [Throws=FfiError] TimelineSessionsPageDTO get_recent_sessions_page(
+        string? cursor,
+        u32? limit
+    );
     [Throws=FfiError] sequence<NoteDTO> get_origins(string child_id);
     [Throws=FfiError] sequence<NoteDTO> get_previous_versions(string note_id);
     [Throws=FfiError] sequence<NoteDTO> get_next_versions(string note_id);
@@ -40,6 +78,25 @@ interface SynapService {
     [Throws=FfiError] sequence<NoteDTO> get_deleted_notes(string? cursor, u32? limit);
     [Throws=FfiError] sequence<NoteDTO> search(string query, u32 limit);
     [Throws=FfiError] sequence<string> search_tags(string query, u32 limit);
+    [Throws=FfiError] sequence<string> get_all_tags();
+    [Throws=FfiError] sequence<NoteDTO> get_notes_by_tag(string tag, string? cursor, u32? limit);
+    [Throws=FfiError] sequence<NoteDTO> get_filtered_notes(
+        sequence<string> selected_tags,
+        boolean include_untagged,
+        boolean tag_filter_enabled,
+        FilteredNoteStatus status,
+        string? cursor,
+        u32? limit
+    );
+    [Throws=FfiError] TimelineNotesPageDTO get_filtered_notes_page(
+        sequence<string> selected_tags,
+        boolean include_untagged,
+        boolean tag_filter_enabled,
+        FilteredNoteStatus status,
+        string? cursor,
+        TimelineDirection direction,
+        u32? limit
+    );
     [Throws=FfiError] NoteDTO create_note(string content, sequence<string> tags);
     [Throws=FfiError] NoteDTO reply_note(string parent_id, string content, sequence<string> tags);
     [Throws=FfiError] NoteDTO edit_note(string target_id, string new_content, sequence<string> tags);

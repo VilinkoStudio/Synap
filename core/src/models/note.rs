@@ -1,4 +1,7 @@
-use std::collections::{HashSet, VecDeque};
+use std::{
+    collections::{HashSet, VecDeque},
+    ops::Bound,
+};
 
 use redb::{ReadTransaction, WriteTransaction};
 use serde::{Deserialize, Serialize};
@@ -381,7 +384,20 @@ impl<'a> NoteReader<'a> {
         impl DoubleEndedIterator<Item = Result<Uuid, redb::StorageError>> + '_,
         redb::StorageError,
     > {
-        let id_iter = self.note_table.keys()?;
+        self.note_by_time_range(Bound::Unbounded, Bound::Unbounded)
+    }
+
+    pub fn note_by_time_range(
+        &self,
+        start: Bound<Uuid>,
+        end: Bound<Uuid>,
+    ) -> Result<
+        impl DoubleEndedIterator<Item = Result<Uuid, redb::StorageError>> + '_,
+        redb::StorageError,
+    > {
+        let id_iter = self
+            .note_table
+            .keys_range((uuid_bound_to_block_id(start), uuid_bound_to_block_id(end)))?;
         Ok(id_iter.map(|item| item.map(|key_guard| Uuid::from_bytes(key_guard.value()))))
     }
 
@@ -442,7 +458,20 @@ impl<'a> NoteReader<'a> {
         impl DoubleEndedIterator<Item = Result<Uuid, redb::StorageError>> + '_,
         redb::StorageError,
     > {
-        let iter = self.del_set.iter()?;
+        self.deleted_note_ids_range(Bound::Unbounded, Bound::Unbounded)
+    }
+
+    pub fn deleted_note_ids_range(
+        &self,
+        start: Bound<Uuid>,
+        end: Bound<Uuid>,
+    ) -> Result<
+        impl DoubleEndedIterator<Item = Result<Uuid, redb::StorageError>> + '_,
+        redb::StorageError,
+    > {
+        let iter = self
+            .del_set
+            .range((uuid_bound_to_block_id(start), uuid_bound_to_block_id(end)))?;
         Ok(iter.map(|item| item.map(|(guard, _)| Uuid::from_bytes(guard.value()))))
     }
 
@@ -604,12 +633,21 @@ impl<'a> NoteReader<'a> {
     }
 }
 
+fn uuid_bound_to_block_id(bound: Bound<Uuid>) -> Bound<BlockId> {
+    match bound {
+        Bound::Included(uuid) => Bound::Included(uuid.into_bytes()),
+        Bound::Excluded(uuid) => Bound::Excluded(uuid.into_bytes()),
+        Bound::Unbounded => Bound::Unbounded,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::models::tag::TagWriter;
     use redb::Database;
     use redb::ReadableDatabase;
+    use std::{thread::sleep, time::Duration};
     use tempfile::NamedTempFile;
     // 假设你有 Tag 的 mock 构建方法，这里用空 Vec 代替方便测试
 
@@ -957,6 +995,44 @@ mod tests {
             .map(|res| res.unwrap())
             .collect();
         assert!(deleted_ids.is_empty());
+    }
+
+    #[test]
+    fn test_note_by_time_range_respects_uuid_bounds() {
+        let db = create_temp_db();
+
+        let write_txn = db.begin_write().unwrap();
+        let first = Note::create(&write_txn, "first".to_string(), vec![]).unwrap();
+        sleep(Duration::from_millis(2));
+        let second = Note::create(&write_txn, "second".to_string(), vec![]).unwrap();
+        sleep(Duration::from_millis(2));
+        let third = Note::create(&write_txn, "third".to_string(), vec![]).unwrap();
+        sleep(Duration::from_millis(2));
+        let fourth = Note::create(&write_txn, "fourth".to_string(), vec![]).unwrap();
+        write_txn.commit().unwrap();
+
+        let read_txn = db.begin_read().unwrap();
+        let reader = NoteReader::new(&read_txn).unwrap();
+
+        let ids: Vec<Uuid> = reader
+            .note_by_time_range(
+                Bound::Included(second.get_id()),
+                Bound::Excluded(fourth.get_id()),
+            )
+            .unwrap()
+            .map(|res| res.unwrap())
+            .collect();
+
+        assert_eq!(ids, vec![second.get_id(), third.get_id()]);
+
+        let tail_ids: Vec<Uuid> = reader
+            .note_by_time_range(Bound::Excluded(second.get_id()), Bound::Unbounded)
+            .unwrap()
+            .map(|res| res.unwrap())
+            .collect();
+
+        assert_eq!(tail_ids, vec![third.get_id(), fourth.get_id()]);
+        assert!(!tail_ids.contains(&first.get_id()));
     }
 
     #[test]

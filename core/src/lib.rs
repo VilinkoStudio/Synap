@@ -15,4 +15,7 @@ pub mod views;
 /// Version information
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+pub use dto::{NoteDTO, TimelineNotesPageDTO, TimelineSessionDTO, TimelineSessionsPageDTO};
+pub use error::{NoteError, ServiceError};
+pub use service::{SynapService, TimelineDirection};
 pub use version::{build_info, version_string, BuildInfo};

@@ -1,7 +1,6 @@
 package com.synap.app.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -13,13 +12,9 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,37 +24,30 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -80,15 +68,17 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.synap.app.R
-import com.synap.app.ui.components.NoteCardItem
+import com.synap.app.ui.components.HomeFilterBar
+import com.synap.app.ui.components.HomeNoteFeed
+import com.synap.app.ui.components.HomeSessionFeed
 import com.synap.app.ui.model.Note
+import com.synap.app.ui.model.TimelineSessionGroup
 import com.synap.app.ui.theme.MyApplicationTheme
 import com.synap.app.ui.viewmodel.HomeUiState
 import kotlinx.coroutines.delay
@@ -153,7 +143,7 @@ private val easterEggs = listOf(
     )
 )
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     uiState: HomeUiState,
@@ -163,21 +153,38 @@ fun HomeScreen(
     onReplyToNote: (String, String) -> Unit,
     onToggleDeleted: (Note) -> Unit,
     onOpenSearch: () -> Unit,
+    onOpenTrash: () -> Unit,
     onLoadMore: () -> Unit,
     onRefresh: () -> Unit,
+    onSetFilterPanelOpen: (Boolean) -> Unit,
+    onToggleTagFilter: (String) -> Unit,
+    onToggleUntaggedFilter: () -> Unit,
+    onToggleAllTags: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val gridState = rememberLazyStaggeredGridState()
+    val noteGridState = rememberLazyStaggeredGridState()
+    val sessionListState = rememberLazyListState()
     val scope = rememberCoroutineScope()
-
-    var showFilterSheet by remember { mutableStateOf(false) }
-    var currentFilter by rememberSaveable { mutableStateOf("全部") }
 
     var deletedNoteToUndo by remember { mutableStateOf<Note?>(null) }
     var undoProgress by remember { mutableFloatStateOf(1f) }
     var timeLeftSeconds by remember { mutableIntStateOf(3) }
 
     var pendingDeleteNoteIds by remember { mutableStateOf(setOf<String>()) }
+
+    fun finalizePendingDelete(note: Note) {
+        if (note.id in pendingDeleteNoteIds) {
+            pendingDeleteNoteIds = pendingDeleteNoteIds - note.id
+            onToggleDeleted(note)
+        }
+    }
+
+    fun showUndoForDeletedNote(note: Note) {
+        deletedNoteToUndo?.takeIf { it.id != note.id }?.let(::finalizePendingDelete)
+        pendingDeleteNoteIds = pendingDeleteNoteIds + note.id
+        deletedNoteToUndo = note
+        undoProgress = 1f
+        timeLeftSeconds = 3
+    }
 
     val currentEasterEgg by remember {
         val calendar = Calendar.getInstance()
@@ -206,6 +213,8 @@ fun HomeScreen(
     LaunchedEffect(deletedNoteToUndo) {
         val note = deletedNoteToUndo
         if (note != null) {
+            undoProgress = 1f
+            timeLeftSeconds = 3
             var timeLeft = 3000L
             val interval = 16L
             while (timeLeft > 0) {
@@ -214,71 +223,100 @@ fun HomeScreen(
                 undoProgress = timeLeft.toFloat() / 3000f
                 timeLeftSeconds = kotlin.math.ceil(timeLeft / 1000f).toInt()
             }
-            if (note.id in pendingDeleteNoteIds) {
-                pendingDeleteNoteIds = pendingDeleteNoteIds - note.id
-                onToggleDeleted(note)
-            }
+            finalizePendingDelete(note)
             deletedNoteToUndo = null
         }
     }
 
-    val isScrolledDown by remember {
+    val isShowingSessionFeed = uiState.showSessionFeed && !uiState.isSearchMode
+
+    val isScrolledDown by remember(noteGridState, sessionListState, isShowingSessionFeed) {
         derivedStateOf {
-            gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 100
-        }
-    }
-
-    val isAtTop by remember {
-        derivedStateOf {
-            gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset <= 10
-        }
-    }
-
-    val shouldLoadMore by remember(uiState.notes, uiState.hasMore, uiState.isLoading) {
-        derivedStateOf {
-            val lastVisible = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            uiState.hasMore &&
-                    !uiState.isLoading &&
-                    uiState.notes.isNotEmpty() &&
-                    lastVisible >= uiState.notes.lastIndex - 4
-        }
-    }
-
-    var unselectedTags by rememberSaveable { mutableStateOf(emptySet<String>()) }
-    var isUntaggedUnselected by rememberSaveable { mutableStateOf(false) }
-    var isTagsExpanded by rememberSaveable { mutableStateOf(false) }
-
-    val statusFilteredNotes = remember(uiState.notes, currentFilter, pendingDeleteNoteIds) {
-        val uniqueNotes = uiState.notes.distinctBy { it.id }
-        val visibleNotes = uniqueNotes.filter { it.id !in pendingDeleteNoteIds }
-
-        val sorted = visibleNotes.sortedBy { it.isDeleted }
-        when (currentFilter) {
-            "正常" -> sorted.filter { !it.isDeleted }
-            "已删除" -> sorted.filter { it.isDeleted }
-            else -> sorted
-        }
-    }
-
-    val allTags = remember(statusFilteredNotes) {
-        statusFilteredNotes.flatMap { it.tags }.distinct().sorted()
-    }
-
-    val isAllSelected = remember(allTags, unselectedTags, isUntaggedUnselected) {
-        allTags.none { it in unselectedTags } && !isUntaggedUnselected
-    }
-
-    val displayNotes = remember(statusFilteredNotes, unselectedTags, isUntaggedUnselected) {
-        statusFilteredNotes.filter { note ->
-            if (note.tags.isEmpty()) {
-                !isUntaggedUnselected
+            if (isShowingSessionFeed) {
+                sessionListState.firstVisibleItemIndex > 0 || sessionListState.firstVisibleItemScrollOffset > 100
             } else {
-                note.tags.any { it !in unselectedTags }
+                noteGridState.firstVisibleItemIndex > 0 || noteGridState.firstVisibleItemScrollOffset > 100
             }
         }
     }
 
-    LaunchedEffect(gridState, uiState.hasMore, uiState.isLoading, uiState.isSearchMode) {
+    val isAtTop by remember(noteGridState, sessionListState, isShowingSessionFeed) {
+        derivedStateOf {
+            if (isShowingSessionFeed) {
+                sessionListState.firstVisibleItemIndex == 0 && sessionListState.firstVisibleItemScrollOffset <= 10
+            } else {
+                noteGridState.firstVisibleItemIndex == 0 && noteGridState.firstVisibleItemScrollOffset <= 10
+            }
+        }
+    }
+
+    var isTagsExpanded by rememberSaveable { mutableStateOf(false) }
+
+    val displayNotes = remember(uiState.notes, pendingDeleteNoteIds) {
+        uiState.notes
+            .distinctBy { it.id }
+            .filter { it.id !in pendingDeleteNoteIds }
+    }
+
+    val displaySessionGroups = remember(uiState.sessionGroups, pendingDeleteNoteIds) {
+        uiState.sessionGroups
+            .mapNotNull { session ->
+                val notes = session.notes
+                    .distinctBy { it.id }
+                    .filter { it.id !in pendingDeleteNoteIds }
+                if (notes.isEmpty()) {
+                    null
+                } else {
+                    session.copy(
+                        noteCount = notes.size,
+                        notes = notes,
+                    )
+                }
+            }
+    }
+
+    val shouldLoadMore by remember(
+        noteGridState,
+        sessionListState,
+        displayNotes,
+        displaySessionGroups,
+        uiState.hasMore,
+        uiState.isLoading,
+        isShowingSessionFeed,
+    ) {
+        derivedStateOf {
+            if (isShowingSessionFeed) {
+                val lastVisible = sessionListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                val triggerIndex = (displaySessionGroups.lastIndex - 1).coerceAtLeast(0)
+                uiState.hasMore &&
+                    !uiState.isLoading &&
+                    displaySessionGroups.isNotEmpty() &&
+                    lastVisible >= triggerIndex
+            } else {
+                val lastVisible = noteGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                uiState.hasMore &&
+                    !uiState.isLoading &&
+                    displayNotes.isNotEmpty() &&
+                    lastVisible >= displayNotes.lastIndex - 4
+            }
+        }
+    }
+
+    val allTags = uiState.availableTags
+    val isActiveFeedEmpty = if (isShowingSessionFeed) {
+        displaySessionGroups.isEmpty()
+    } else {
+        displayNotes.isEmpty()
+    }
+
+    LaunchedEffect(
+        noteGridState,
+        sessionListState,
+        uiState.hasMore,
+        uiState.isLoading,
+        uiState.isSearchMode,
+        isShowingSessionFeed,
+    ) {
         snapshotFlow { shouldLoadMore }
             .map { it && !uiState.isSearchMode }
             .distinctUntilChanged()
@@ -344,8 +382,8 @@ fun HomeScreen(
                             }
                         }
 
-                        IconButton(onClick = { showFilterSheet = true }) {
-                            Icon(Icons.Filled.FilterList, contentDescription = "筛选")
+                        IconButton(onClick = onOpenTrash) {
+                            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.trash_title))
                         }
 
                         IconButton(onClick = onOpenSettings) {
@@ -407,7 +445,11 @@ fun HomeScreen(
                     ExtendedFloatingActionButton(
                         onClick = {
                             scope.launch {
-                                gridState.animateScrollToItem(0)
+                                if (isShowingSessionFeed) {
+                                    sessionListState.animateScrollToItem(0)
+                                } else {
+                                    noteGridState.animateScrollToItem(0)
+                                }
                             }
                         },
                         icon = { Icon(Icons.Filled.ArrowUpward, contentDescription = null) },
@@ -431,151 +473,21 @@ fun HomeScreen(
             Column(
                 modifier = Modifier.fillMaxSize(),
             ) {
-                AnimatedVisibility(
-                    visible = allTags.isNotEmpty() || statusFilteredNotes.any { it.tags.isEmpty() },
-                    enter = expandVertically() + fadeIn(),
-                    exit = shrinkVertically() + fadeOut()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .animateContentSize(),
-                        verticalAlignment = if (isTagsExpanded) Alignment.Top else Alignment.CenterVertically
-                    ) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            if (isTagsExpanded) {
-                                FlowRow(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    FilterChip(
-                                        selected = isAllSelected,
-                                        onClick = {
-                                            if (isAllSelected) {
-                                                unselectedTags = allTags.toSet()
-                                                isUntaggedUnselected = true
-                                            } else {
-                                                unselectedTags = emptySet()
-                                                isUntaggedUnselected = false
-                                            }
-                                        },
-                                        label = { Text(stringResource(R.string.home_tagbar_all)) }
-                                    )
-
-                                    if (statusFilteredNotes.any { it.tags.isEmpty() }) {
-                                        FilterChip(
-                                            selected = !isUntaggedUnselected,
-                                            onClick = { isUntaggedUnselected = !isUntaggedUnselected },
-                                            label = { Text(stringResource(R.string.home_tagbar_none)) }
-                                        )
-                                    }
-
-                                    if (allTags.isNotEmpty()) {
-                                        Box(
-                                            modifier = Modifier.height(32.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            VerticalDivider(
-                                                modifier = Modifier.height(24.dp).padding(horizontal = 4.dp),
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
-                                            )
-                                        }
-                                    }
-
-                                    allTags.forEach { tag ->
-                                        val isSelected = tag !in unselectedTags
-                                        FilterChip(
-                                            selected = isSelected,
-                                            onClick = {
-                                                unselectedTags = if (isSelected) {
-                                                    unselectedTags + tag
-                                                } else {
-                                                    unselectedTags - tag
-                                                }
-                                            },
-                                            label = { Text(tag) }
-                                        )
-                                    }
-                                }
-                            } else {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState()),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    FilterChip(
-                                        selected = isAllSelected,
-                                        onClick = {
-                                            if (isAllSelected) {
-                                                unselectedTags = allTags.toSet()
-                                                isUntaggedUnselected = true
-                                            } else {
-                                                unselectedTags = emptySet()
-                                                isUntaggedUnselected = false
-                                            }
-                                        },
-                                        label = { Text(stringResource(R.string.home_tagbar_all)) }
-                                    )
-
-                                    if (statusFilteredNotes.any { it.tags.isEmpty() }) {
-                                        FilterChip(
-                                            selected = !isUntaggedUnselected,
-                                            onClick = { isUntaggedUnselected = !isUntaggedUnselected },
-                                            label = { Text(stringResource(R.string.home_tagbar_none)) }
-                                        )
-                                    }
-
-                                    if (allTags.isNotEmpty()) {
-                                        Box(
-                                            modifier = Modifier.height(32.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            VerticalDivider(
-                                                modifier = Modifier.height(24.dp).padding(horizontal = 4.dp),
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
-                                            )
-                                        }
-                                    }
-
-                                    allTags.forEach { tag ->
-                                        val isSelected = tag !in unselectedTags
-                                        FilterChip(
-                                            selected = isSelected,
-                                            onClick = {
-                                                unselectedTags = if (isSelected) {
-                                                    unselectedTags + tag
-                                                } else {
-                                                    unselectedTags - tag
-                                                }
-                                            },
-                                            label = { Text(tag) }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        IconButton(
-                            onClick = { isTagsExpanded = !isTagsExpanded },
-                            modifier = Modifier
-                                .padding(start = 4.dp)
-                                .size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (isTagsExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                                contentDescription = if (isTagsExpanded) "收起" else "展开",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
+                HomeFilterBar(
+                    isFilterPanelOpen = uiState.isFilterPanelOpen,
+                    isTagsExpanded = isTagsExpanded,
+                    allTags = allTags,
+                    unselectedTags = uiState.unselectedTags,
+                    isUntaggedUnselected = uiState.isUntaggedUnselected,
+                    onToggleFilterPanel = onSetFilterPanelOpen,
+                    onToggleTagsExpanded = { isTagsExpanded = !isTagsExpanded },
+                    onToggleAllTags = onToggleAllTags,
+                    onToggleUntaggedFilter = onToggleUntaggedFilter,
+                    onToggleTagFilter = onToggleTagFilter,
+                )
 
                 when {
-                    uiState.isLoading && uiState.notes.isEmpty() -> {
+                    uiState.isLoading && isActiveFeedEmpty -> {
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -587,7 +499,7 @@ fun HomeScreen(
                         }
                     }
 
-                    uiState.errorMessage != null && uiState.notes.isEmpty() -> {
+                    uiState.errorMessage != null && isActiveFeedEmpty -> {
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -611,7 +523,7 @@ fun HomeScreen(
                         }
                     }
 
-                    displayNotes.isEmpty() -> {
+                    isActiveFeedEmpty -> {
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -627,36 +539,38 @@ fun HomeScreen(
                     }
 
                     else -> {
-                        LazyVerticalStaggeredGrid(
-                            columns = StaggeredGridCells.Adaptive(minSize = 240.dp),
-                            state = gridState,
+                        Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxWidth(),
-                            contentPadding = PaddingValues(
-                                start = 16.dp,
-                                top = 8.dp,
-                                end = 16.dp,
-                                bottom = 96.dp
-                            ),
-                            verticalItemSpacing = 16.dp,
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
-                            itemsIndexed(displayNotes, key = { _, note -> "${note.id}_${note.isDeleted}" }) { index, note ->
-                                NoteCardItem(
-                                    note = note,
-                                    onClick = { onOpenNote(note.id) },
-                                    onToggleDeleted = {
+                            if (isShowingSessionFeed) {
+                                HomeSessionFeed(
+                                    sessions = displaySessionGroups,
+                                    state = sessionListState,
+                                    onOpenNote = onOpenNote,
+                                    onToggleDeleted = { note ->
                                         if (!note.isDeleted) {
-                                            pendingDeleteNoteIds = pendingDeleteNoteIds + note.id
-                                            deletedNoteToUndo = note
-                                            undoProgress = 1f
+                                            showUndoForDeletedNote(note)
                                         } else {
                                             onToggleDeleted(note)
                                         }
                                     },
-                                    onReply = { onReplyToNote(note.id, note.content) },
-                                    animationDelayMillis = (index.coerceAtMost(6)) * 45,
+                                    onReplyToNote = onReplyToNote,
+                                )
+                            } else {
+                                HomeNoteFeed(
+                                    notes = displayNotes,
+                                    state = noteGridState,
+                                    onOpenNote = onOpenNote,
+                                    onToggleDeleted = { note ->
+                                        if (!note.isDeleted) {
+                                            showUndoForDeletedNote(note)
+                                        } else {
+                                            onToggleDeleted(note)
+                                        }
+                                    },
+                                    onReplyToNote = onReplyToNote,
                                 )
                             }
                         }
@@ -725,53 +639,6 @@ fun HomeScreen(
         }
     }
 
-    if (showFilterSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showFilterSheet = false }
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = 48.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.home_filter_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    FilterChip(
-                        selected = currentFilter == "全部",
-                        onClick = {
-                            currentFilter = "全部"
-                            showFilterSheet = false
-                        },
-                        label = { Text(stringResource(R.string.home_filter_delete_all)) }
-                    )
-                    FilterChip(
-                        selected = currentFilter == "正常",
-                        onClick = {
-                            currentFilter = "正常"
-                            showFilterSheet = false
-                        },
-                        label = { Text(stringResource(R.string.home_filter_delete_undelete)) }
-                    )
-                    FilterChip(
-                        selected = currentFilter == "已删除",
-                        onClick = {
-                            currentFilter = "已删除"
-                            showFilterSheet = false
-                        },
-                        label = { Text(stringResource(R.string.home_filter_delete_delete)) }
-                    )
-                }
-            }
-        }
-    }
 }
 
 @Composable
@@ -841,6 +708,21 @@ private val sampleNotes = listOf(
     ),
 )
 
+private val sampleSessionGroups = listOf(
+    TimelineSessionGroup(
+        startedAt = 1700000000000,
+        endedAt = 1700003600000,
+        noteCount = 2,
+        notes = sampleNotes.take(2),
+    ),
+    TimelineSessionGroup(
+        startedAt = 1699900000000,
+        endedAt = 1699901800000,
+        noteCount = 2,
+        notes = sampleNotes.drop(2),
+    ),
+)
+
 @Preview(name = "With data", showBackground = true)
 @Composable
 private fun HomeScreenPreview() {
@@ -849,6 +731,7 @@ private fun HomeScreenPreview() {
             uiState = HomeUiState(
                 isLoading = false,
                 notes = sampleNotes,
+                sessionGroups = sampleSessionGroups,
                 hasMore = true,
             ),
             onOpenSettings = {},
@@ -857,8 +740,13 @@ private fun HomeScreenPreview() {
             onReplyToNote = { _, _ -> },
             onToggleDeleted = {},
             onOpenSearch = {},
+            onOpenTrash = {},
             onLoadMore = {},
             onRefresh = {},
+            onSetFilterPanelOpen = {},
+            onToggleTagFilter = {},
+            onToggleUntaggedFilter = {},
+            onToggleAllTags = {},
         )
     }
 }
@@ -875,8 +763,13 @@ private fun HomeScreenEmptyPreview() {
             onReplyToNote = { _, _ -> },
             onToggleDeleted = {},
             onOpenSearch = {},
+            onOpenTrash = {},
             onLoadMore = {},
             onRefresh = {},
+            onSetFilterPanelOpen = {},
+            onToggleTagFilter = {},
+            onToggleUntaggedFilter = {},
+            onToggleAllTags = {},
         )
     }
 }
@@ -893,8 +786,13 @@ private fun HomeScreenLoadingPreview() {
             onReplyToNote = { _, _ -> },
             onToggleDeleted = {},
             onOpenSearch = {},
+            onOpenTrash = {},
             onLoadMore = {},
             onRefresh = {},
+            onSetFilterPanelOpen = {},
+            onToggleTagFilter = {},
+            onToggleUntaggedFilter = {},
+            onToggleAllTags = {},
         )
     }
 }

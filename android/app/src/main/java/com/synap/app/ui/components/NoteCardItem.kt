@@ -48,6 +48,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun NoteCardItem(
     note: Note,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
     onToggleDeleted: () -> Unit,
     onReply: () -> Unit,
@@ -127,7 +128,7 @@ fun NoteCardItem(
         },
     ) {
         Card(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxWidth()
                 .clickable(
                     enabled = !note.isDeleted,

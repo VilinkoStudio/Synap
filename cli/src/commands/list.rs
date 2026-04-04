@@ -2,18 +2,22 @@
 
 use synap_core::SynapService;
 
-/// Execute the list command.
-///
-/// Lists all notes, optionally filtered by tag.
-pub fn execute(service: &SynapService, tag_filter: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+use crate::{
+    output,
+    support::{fetch_all_notes_by_tag, fetch_all_recent},
+};
+
+pub fn execute(
+    service: &SynapService,
+    tag_filter: Option<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let notes = if let Some(tag) = tag_filter {
-        service.get_notes_by_tag(&tag)?
+        fetch_all_notes_by_tag(service, &tag)?
     } else {
-        service.list_notes()?
+        fetch_all_recent(service)?
     };
 
-    crate::output::format_note_list(notes);
-
+    output::format_note_list(&notes);
     Ok(())
 }
 

@@ -16,10 +16,14 @@ data class PortalState<T>(
     val error: SynapError? = null,
 )
 
+data class CursorPage<T>(
+    val items: List<T>,
+    val nextCursor: String?,
+)
+
 class CursorPortal<T>(
     private val limit: UInt,
-    private val fetchPage: suspend (cursor: String?, limit: UInt) -> List<T>,
-    private val cursorOf: (T) -> String,
+    private val fetchPage: suspend (cursor: String?, limit: UInt) -> CursorPage<T>,
 ) {
     private val mutex = Mutex()
     private var cursor: String? = null
@@ -54,14 +58,14 @@ class CursorPortal<T>(
 
         try {
             val page = fetchPage(requestCursor, limit)
-            val mergedItems = if (reset) page else current.items + page
-            cursor = page.lastOrNull()?.let(cursorOf)
+            val mergedItems = if (reset) page.items else current.items + page.items
+            cursor = page.nextCursor
             seeded = true
 
             _state.value = PortalState(
                 items = mergedItems,
                 isLoading = false,
-                hasMore = page.isNotEmpty() && page.size == limit.toInt(),
+                hasMore = page.nextCursor != null,
                 isStale = false,
                 error = null,
             )
@@ -84,4 +88,23 @@ class CursorPortal<T>(
             }
         }
     }
+
+    constructor(
+        limit: UInt,
+        fetchPage: suspend (cursor: String?, limit: UInt) -> List<T>,
+        cursorOf: (T) -> String,
+    ) : this(
+        limit = limit,
+        fetchPage = { cursor, pageLimit ->
+            val items = fetchPage(cursor, pageLimit)
+            CursorPage(
+                items = items,
+                nextCursor = if (items.size == pageLimit.toInt()) {
+                    items.lastOrNull()?.let(cursorOf)
+                } else {
+                    null
+                },
+            )
+        },
+    )
 }

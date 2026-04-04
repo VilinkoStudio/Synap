@@ -4,7 +4,7 @@ import com.synap.app.data.model.NoteRecord
 import com.synap.app.data.model.ReplyItem
 
 fun NoteRecord.toUiNote(
-    isDeleted: Boolean = false,
+    isDeleted: Boolean = deleted,
     parentSummary: String? = null,
 ): Note = Note(
     id = id,

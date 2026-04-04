@@ -1,4 +1,4 @@
-use std::{borrow::Cow, io, io::Cursor};
+use std::{borrow::Cow, io};
 
 use serde::{de::DeserializeOwned, Serialize};
 use thiserror::Error;
@@ -12,7 +12,6 @@ const ENVELOPE_HEADER_LEN: usize = 24;
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ValueCodecConfig {
     pub(crate) compression_threshold_bytes: usize,
-    pub(crate) zstd_level: i32,
     pub(crate) max_decompressed_bytes: usize,
     pub(crate) max_envelope_depth: usize,
 }
@@ -20,7 +19,6 @@ pub(crate) struct ValueCodecConfig {
 impl ValueCodecConfig {
     pub(crate) const DEFAULT: Self = Self {
         compression_threshold_bytes: 256,
-        zstd_level: 3,
         max_decompressed_bytes: 64 * 1024 * 1024,
         max_envelope_depth: 4,
     };
@@ -30,7 +28,7 @@ impl ValueCodecConfig {
 #[repr(u8)]
 enum EnvelopeKind {
     Plain = 0,
-    Zstd = 1,
+    Lz4 = 1,
 }
 
 impl TryFrom<u8> for EnvelopeKind {
@@ -39,7 +37,7 @@ impl TryFrom<u8> for EnvelopeKind {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(Self::Plain),
-            1 => Ok(Self::Zstd),
+            1 => Ok(Self::Lz4),
             other => Err(ValueCodecError::UnknownEnvelopeKind(other)),
         }
     }
@@ -74,11 +72,8 @@ pub(crate) enum ValueCodecError {
     #[error("envelope nesting exceeds limit {0}")]
     EnvelopeDepthExceeded(usize),
 
-    #[error("zstd compression failed: {0}")]
-    Compress(io::Error),
-
-    #[error("zstd decompression failed: {0}")]
-    Decompress(io::Error),
+    #[error("lz4 decompression failed: {0}")]
+    Decompress(lz4_flex::block::DecompressError),
 }
 
 impl From<ValueCodecError> for io::Error {
@@ -118,14 +113,13 @@ fn encode_default_bytes(plain_payload: &[u8]) -> Result<Vec<u8>, ValueCodecError
         return Ok(plain_layer);
     }
 
-    let compressed = zstd::stream::encode_all(Cursor::new(&plain_layer), config.zstd_level)
-        .map_err(ValueCodecError::Compress)?;
+    let compressed = lz4_flex::block::compress(&plain_layer);
 
     if compressed.len() + ENVELOPE_HEADER_LEN >= plain_layer.len() {
         return Ok(plain_layer);
     }
 
-    encode_envelope_layer(EnvelopeKind::Zstd, &compressed, plain_layer.len())
+    encode_envelope_layer(EnvelopeKind::Lz4, &compressed, plain_layer.len())
 }
 
 fn decode_envelope_bytes<'a>(
@@ -143,7 +137,7 @@ fn decode_envelope_bytes<'a>(
 
     match header.kind {
         EnvelopeKind::Plain => Ok(Cow::Borrowed(payload)),
-        EnvelopeKind::Zstd => {
+        EnvelopeKind::Lz4 => {
             let expected_len = usize::try_from(header.raw_len)
                 .map_err(|_| ValueCodecError::InvalidEnvelope("raw length does not fit usize"))?;
             if expected_len > config.max_decompressed_bytes {
@@ -153,7 +147,7 @@ fn decode_envelope_bytes<'a>(
                 });
             }
 
-            let decompressed = zstd::stream::decode_all(Cursor::new(payload))
+            let decompressed = lz4_flex::block::decompress(payload, expected_len)
                 .map_err(ValueCodecError::Decompress)?;
             if decompressed.len() != expected_len {
                 return Err(ValueCodecError::InvalidEnvelope(
@@ -207,7 +201,7 @@ fn parse_envelope(bytes: &[u8]) -> Result<(EnvelopeHeader, &[u8]), ValueCodecErr
                 "plain envelope raw length mismatch",
             ));
         }
-        EnvelopeKind::Zstd if raw_len == 0 => {
+        EnvelopeKind::Lz4 if raw_len == 0 => {
             return Err(ValueCodecError::InvalidEnvelope(
                 "compressed envelope raw length cannot be zero",
             ));

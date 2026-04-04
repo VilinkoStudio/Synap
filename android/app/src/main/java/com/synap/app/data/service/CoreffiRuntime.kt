@@ -3,13 +3,22 @@ package com.synap.app.data.service
 import android.content.Context
 import android.util.Log
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.FfiException
+import com.fuwaki.synap.bindings.uniffi.synap_coreffi.FilteredNoteStatus as FfiFilteredNoteStatus
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.SynapService as FfiSynapService
+import com.fuwaki.synap.bindings.uniffi.synap_coreffi.TimelineDirection as FfiTimelineDirection
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.open
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.openMemory
 import com.synap.app.data.error.SynapError
+import com.synap.app.data.model.NoteFeedFilter
+import com.synap.app.data.model.NoteFeedStatus
 import com.synap.app.data.model.NoteRecord
+import com.synap.app.data.model.TimelineDirection
+import com.synap.app.data.model.TimelineSessionRecord
+import com.synap.app.data.model.toCursorPage
 import com.synap.app.data.model.toNoteRecord
 import com.synap.app.data.model.toNoteRecords
+import com.synap.app.data.model.toCursorPage as toSessionCursorPage
+import com.synap.app.data.portal.CursorPage
 import com.synap.app.di.IoDispatcher
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -168,6 +177,23 @@ class CoreffiRuntime @Inject constructor(
     override suspend fun getRecentNote(cursor: String?, limit: UInt?): Result<List<NoteRecord>> =
         withService { service -> service.getRecentNote(cursor, limit).toNoteRecords() }
 
+    override suspend fun getRecentNotesPage(
+        cursor: String?,
+        direction: TimelineDirection,
+        limit: UInt?,
+    ): Result<CursorPage<NoteRecord>> =
+        withService { service ->
+            service.getRecentNotesPage(cursor, direction.toFfiDirection(), limit).toCursorPage()
+        }
+
+    override suspend fun getRecentSessionsPage(
+        cursor: String?,
+        limit: UInt?,
+    ): Result<CursorPage<TimelineSessionRecord>> =
+        withService { service ->
+            service.getRecentSessionsPage(cursor, limit).toSessionCursorPage()
+        }
+
     override suspend fun getOrigins(childId: String): Result<List<NoteRecord>> =
         withService { service -> service.getOrigins(childId).toNoteRecords() }
 
@@ -188,6 +214,50 @@ class CoreffiRuntime @Inject constructor(
 
     override suspend fun searchTags(query: String, limit: UInt): Result<List<String>> =
         withService { service -> service.searchTags(query, limit) }
+
+    override suspend fun getAllTags(): Result<List<String>> =
+        withService { service -> service.getAllTags() }
+
+    override suspend fun getNotesByTag(
+        tag: String,
+        cursor: String?,
+        limit: UInt?,
+    ): Result<List<NoteRecord>> =
+        withService { service -> service.getNotesByTag(tag, cursor, limit).toNoteRecords() }
+
+    override suspend fun getFilteredNotes(
+        filter: NoteFeedFilter,
+        cursor: String?,
+        limit: UInt?,
+    ): Result<List<NoteRecord>> =
+        withService { service ->
+            service.getFilteredNotes(
+                filter.selectedTags,
+                filter.includeUntagged,
+                filter.tagFilterEnabled,
+                filter.status.toFfiStatus(),
+                cursor,
+                limit,
+            ).toNoteRecords()
+        }
+
+    override suspend fun getFilteredNotesPage(
+        filter: NoteFeedFilter,
+        cursor: String?,
+        direction: TimelineDirection,
+        limit: UInt?,
+    ): Result<CursorPage<NoteRecord>> =
+        withService { service ->
+            service.getFilteredNotesPage(
+                filter.selectedTags,
+                filter.includeUntagged,
+                filter.tagFilterEnabled,
+                filter.status.toFfiStatus(),
+                cursor,
+                direction.toFfiDirection(),
+                limit,
+            ).toCursorPage()
+        }
 
     override suspend fun createNote(content: String, tags: List<String>): Result<NoteRecord> =
         withService { service -> service.createNote(content, tags).toNoteRecord() }
@@ -231,6 +301,17 @@ class CoreffiRuntime @Inject constructor(
         }
 
     private fun databaseFile(): File = context.getDatabasePath("synap.redb")
+
+    private fun NoteFeedStatus.toFfiStatus(): FfiFilteredNoteStatus = when (this) {
+        NoteFeedStatus.All -> FfiFilteredNoteStatus.ALL
+        NoteFeedStatus.Normal -> FfiFilteredNoteStatus.NORMAL
+        NoteFeedStatus.Deleted -> FfiFilteredNoteStatus.DELETED
+    }
+
+    private fun TimelineDirection.toFfiDirection(): FfiTimelineDirection = when (this) {
+        TimelineDirection.Older -> FfiTimelineDirection.OLDER
+        TimelineDirection.Newer -> FfiTimelineDirection.NEWER
+    }
 
     private fun Throwable.toSynapError(): SynapError = when (this) {
         is SynapError -> this

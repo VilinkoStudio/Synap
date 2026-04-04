@@ -3,49 +3,24 @@
 use colored::Colorize;
 use synap_core::SynapService;
 
-/// Thought extension: Derive new ideas based on a specified block.
-///
-/// # Example
-/// ```bash
-/// synap @A3F "But in this case, the traversal depth during garbage collection might become a performance bottleneck, need to limit with BFS"
-/// ```
+use crate::support::{extract_tags, resolve_note_prefix};
+
 pub fn execute(
-    target_short_id: &str,
+    target_id_prefix: &str,
     content: &str,
     service: &SynapService,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Parse short ID
-    let parent = service.get_note_by_short_id(target_short_id)?;
-
-    // Create reply
-    let child = service.reply_thought(parent.id, content.to_string())?;
-
-    // Auto-extract and add tags
-    let tags = extract_tags(content);
-    for tag in tags {
-        let _ = service.add_tag(child.id, tag);
-    }
-
-    let parent_short = &parent.id.to_string()[..12];
-    let child_short = &child.id.to_string()[..12];
+    let parent = resolve_note_prefix(service, target_id_prefix)?;
+    let child = service.reply_note(&parent.id, content.to_string(), extract_tags(content))?;
 
     println!(
         "{} 思维延伸: ({}) ──[回复]─> ({})",
         "[+]".green(),
-        format!("{}...", child_short).cyan(),
-        format!("{}...", parent_short).dimmed()
+        child.id[..8].cyan(),
+        parent.id[..8].dimmed()
     );
 
     Ok(())
-}
-
-/// Extract #tag format tags from content.
-fn extract_tags(content: &str) -> Vec<String> {
-    content
-        .split_whitespace()
-        .filter(|s| s.starts_with('#'))
-        .map(|s| s[1..].to_string())
-        .collect()
 }
 
 #[cfg(test)]
