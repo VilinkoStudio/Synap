@@ -56,9 +56,9 @@
     <string name="home_filter_delete_undelete">正常</string>
     <string name="home_filter_delete_delete">已删除</string>
     <string name="trash_title">回收站</string>
-    <string name="trash_restore_hint">这里存放你暂时删掉的笔记，向右轻扫即可恢复。</string>
-    <string name="trash_empty">回收站还是空的</string>
-    <string name="trash_empty_hint">当你删除笔记后，它会先出现在这里，方便找回。</string>
+    <string name="trash_restore_hint">这里存放你已经删掉的笔记，向右轻扫即可恢复。</string>
+    <string name="trash_empty">回收站为空</string>
+    <string name="trash_empty_hint">当你删除笔记后，被删掉的笔记会出现在这里。</string>
     <string name="edit_title_creat">新建笔记</string>
     <string name="edit_title_reply">回复笔记</string>
     <string name="edit_title_edit">编辑笔记</string>

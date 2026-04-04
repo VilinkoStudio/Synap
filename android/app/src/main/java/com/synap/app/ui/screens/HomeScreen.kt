@@ -5,10 +5,10 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,6 +25,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,13 +35,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -57,7 +61,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -72,7 +75,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.synap.app.R
 import com.synap.app.ui.components.HomeFilterBar
 import com.synap.app.ui.components.HomeNoteFeed
@@ -86,62 +88,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import java.util.Calendar
 import kotlin.math.PI
 import kotlin.math.sin
-
-data class EasterEgg(
-    val startMonth: Int,
-    val startDate: Int,
-    val endMonth: Int,
-    val endDate: Int,
-    val emoji: String,
-    val dialogTitle: String,
-    val dialogMessage: String
-)
-
-private val easterEggs = listOf(
-    // 愚人节 (4月1日)
-    EasterEgg(
-        startMonth = Calendar.APRIL, startDate = 1,
-        endMonth = Calendar.APRIL, endDate = 1,
-        emoji = "🤡",
-        dialogTitle = "愚人节彩蛋",
-        dialogMessage = "你被骗了！愚人节快乐！"
-    ),
-    // 清明节 (4月2日 - 4月5日)
-    EasterEgg(
-        startMonth = Calendar.APRIL, startDate = 2,
-        endMonth = Calendar.APRIL, endDate = 5,
-        emoji = "🌱",
-        dialogTitle = "清明节彩蛋",
-        dialogMessage = "“清明时节雨纷纷，路上行人欲断魂。”——杜牧《清明》。注意休息，踏青愉快。"
-    ),
-    // 劳动节 (5月1日)
-    EasterEgg(
-        startMonth = Calendar.MAY, startDate = 1,
-        endMonth = Calendar.MAY, endDate = 5,
-        emoji = "🛠️",
-        dialogTitle = "劳动节彩蛋",
-        dialogMessage = "劳动节快乐，感谢你的辛勤付出！劳动节小长假记得出门开开风景。"
-    ),
-    // 元旦 (1月1日)
-    EasterEgg(
-        startMonth = Calendar.JANUARY, startDate = 1,
-        endMonth = Calendar.JANUARY, endDate = 1,
-        emoji = "🎉",
-        dialogTitle = "新年快乐",
-        dialogMessage = "新的一年，新的开始！祝你新的一年，所愿皆成真。"
-    ),
-    // 国庆 (9月30日 - 10月7日)
-    EasterEgg(
-        startMonth = Calendar.SEPTEMBER, startDate = 30,
-        endMonth = Calendar.OCTOBER, endDate = 7,
-        emoji = "🎉",
-        dialogTitle = "国庆节快乐",
-        dialogMessage = "十一小长假有规划去哪里玩吗？没有的话要不用 Synap 规划一下，嘻嘻。"
-    )
-)
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -185,25 +134,6 @@ fun HomeScreen(
         undoProgress = 1f
         timeLeftSeconds = 3
     }
-
-    val currentEasterEgg by remember {
-        val calendar = Calendar.getInstance()
-        val currentMonth = calendar.get(Calendar.MONTH)
-        val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
-
-        val matchedEgg = easterEggs.firstOrNull { egg ->
-            if (egg.startMonth == egg.endMonth) {
-                currentMonth == egg.startMonth && currentDay in egg.startDate..egg.endDate
-            } else {
-                (currentMonth == egg.startMonth && currentDay >= egg.startDate) ||
-                        (currentMonth == egg.endMonth && currentDay <= egg.endDate) ||
-                        (currentMonth in (egg.startMonth + 1)..<egg.endMonth)
-            }
-        }
-        mutableStateOf(matchedEgg)
-    }
-
-    var showEasterEggDialog by remember { mutableStateOf(false) }
 
     val fabDodgeOffset by animateDpAsState(
         targetValue = if (deletedNoteToUndo != null) (-96).dp else 0.dp,
@@ -289,20 +219,19 @@ fun HomeScreen(
                 val lastVisible = sessionListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
                 val triggerIndex = (displaySessionGroups.lastIndex - 1).coerceAtLeast(0)
                 uiState.hasMore &&
-                    !uiState.isLoading &&
-                    displaySessionGroups.isNotEmpty() &&
-                    lastVisible >= triggerIndex
+                        !uiState.isLoading &&
+                        displaySessionGroups.isNotEmpty() &&
+                        lastVisible >= triggerIndex
             } else {
                 val lastVisible = noteGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
                 uiState.hasMore &&
-                    !uiState.isLoading &&
-                    displayNotes.isNotEmpty() &&
-                    lastVisible >= displayNotes.lastIndex - 4
+                        !uiState.isLoading &&
+                        displayNotes.isNotEmpty() &&
+                        lastVisible >= displayNotes.lastIndex - 4
             }
         }
     }
 
-    val allTags = uiState.availableTags
     val isActiveFeedEmpty = if (isShowingSessionFeed) {
         displaySessionGroups.isEmpty()
     } else {
@@ -327,19 +256,6 @@ fun HomeScreen(
             }
     }
 
-    if (showEasterEggDialog && currentEasterEgg != null) {
-        AlertDialog(
-            onDismissRequest = { showEasterEggDialog = false },
-            title = { Text(currentEasterEgg!!.dialogTitle) },
-            text = { Text(currentEasterEgg!!.dialogMessage) },
-            confirmButton = {
-                TextButton(onClick = { showEasterEggDialog = false }) {
-                    Text("好的")
-                }
-            }
-        )
-    }
-
     Scaffold(
         topBar = {
             Column {
@@ -352,23 +268,6 @@ fun HomeScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
                             )
-
-                            AnimatedVisibility(
-                                visible = currentEasterEgg != null,
-                                enter = fadeIn() + scaleIn(),
-                                exit = fadeOut() + scaleOut()
-                            ) {
-                                IconButton(
-                                    onClick = {
-                                        showEasterEggDialog = true
-                                    },
-                                    modifier = Modifier
-                                        .padding(start = 4.dp)
-                                        .size(36.dp)
-                                ) {
-                                    Text(currentEasterEgg?.emoji ?: "", fontSize = 22.sp)
-                                }
-                            }
                         }
                     },
                     actions = {
@@ -383,7 +282,7 @@ fun HomeScreen(
                         }
 
                         IconButton(onClick = onOpenTrash) {
-                            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.trash_title))
+                            Icon(Icons.Filled.DeleteSweep, contentDescription = stringResource(R.string.trash_title))
                         }
 
                         IconButton(onClick = onOpenSettings) {
@@ -459,8 +358,108 @@ fun HomeScreen(
                     )
                 }
 
-                FloatingActionButton(onClick = onComposeNote) {
-                    Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.home_creatnote))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    AnimatedVisibility(
+                        visible = !uiState.isSearchMode,
+                        enter = fadeIn() + slideInHorizontally { it / 2 },
+                        exit = fadeOut() + slideOutHorizontally { it / 2 }
+                    ) {
+                        // isFeed 为 true 代表瀑布流模式
+                        val isFeed = !uiState.showSessionFeed
+
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            shadowElevation = 6.dp,
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.height(56.dp)
+                        ) {
+                            Row {
+                                // 瀑布流按钮
+                                Surface(
+                                    onClick = {
+                                        // 传 true 开启筛选面板（即瀑布流模式），同时自动滚动到顶部
+                                        onSetFilterPanelOpen(true)
+                                        scope.launch { noteGridState.animateScrollToItem(0) }
+                                    },
+                                    shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp),
+                                    color = if (isFeed) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                    modifier = Modifier.fillMaxHeight()
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center,
+                                        modifier = Modifier.padding(horizontal = 16.dp)
+                                    ) {
+                                        AnimatedVisibility(visible = isFeed) {
+                                            Row {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Check,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(18.dp),
+                                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                            }
+                                        }
+                                        Text(
+                                            text = "瀑布流",
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = if (isFeed) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                // 时间组按钮
+                                Surface(
+                                    onClick = {
+                                        // 传 false 关闭筛选面板（即时间组模式），同时自动滚动到顶部
+                                        onSetFilterPanelOpen(false)
+                                        scope.launch { sessionListState.animateScrollToItem(0) }
+                                    },
+                                    shape = RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp),
+                                    color = if (!isFeed) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                    modifier = Modifier.fillMaxHeight()
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center,
+                                        modifier = Modifier.padding(horizontal = 16.dp)
+                                    ) {
+                                        AnimatedVisibility(visible = !isFeed) {
+                                            Row {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Check,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(18.dp),
+                                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                            }
+                                        }
+                                        Text(
+                                            text = "时间组",
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = if (!isFeed) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    FloatingActionButton(
+                        onClick = onComposeNote,
+                        modifier = Modifier.size(56.dp)
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.home_creatnote))
+                    }
                 }
             }
         },
@@ -473,18 +472,42 @@ fun HomeScreen(
             Column(
                 modifier = Modifier.fillMaxSize(),
             ) {
-                HomeFilterBar(
-                    isFilterPanelOpen = uiState.isFilterPanelOpen,
-                    isTagsExpanded = isTagsExpanded,
-                    allTags = allTags,
-                    unselectedTags = uiState.unselectedTags,
-                    isUntaggedUnselected = uiState.isUntaggedUnselected,
-                    onToggleFilterPanel = onSetFilterPanelOpen,
-                    onToggleTagsExpanded = { isTagsExpanded = !isTagsExpanded },
-                    onToggleAllTags = onToggleAllTags,
-                    onToggleUntaggedFilter = onToggleUntaggedFilter,
-                    onToggleTagFilter = onToggleTagFilter,
-                )
+                // --- 全新纯净版：可横向滑动的标签栏（仅在瀑布流模式下显示） ---
+                AnimatedVisibility(
+                    visible = !isShowingSessionFeed && !uiState.isSearchMode,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        item {
+                            val isAllSelected = uiState.unselectedTags.isEmpty() && !uiState.isUntaggedUnselected
+                            FilterChip(
+                                selected = isAllSelected,
+                                onClick = onToggleAllTags,
+                                label = { Text("全部") }
+                            )
+                        }
+                        item {
+                            FilterChip(
+                                selected = !uiState.isUntaggedUnselected,
+                                onClick = onToggleUntaggedFilter,
+                                label = { Text("未分类") }
+                            )
+                        }
+                        items(uiState.availableTags) { tag ->
+                            FilterChip(
+                                selected = tag !in uiState.unselectedTags,
+                                onClick = { onToggleTagFilter(tag) },
+                                label = { Text(tag) }
+                            )
+                        }
+                    }
+                }
 
                 when {
                     uiState.isLoading && isActiveFeedEmpty -> {

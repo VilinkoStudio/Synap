@@ -59,6 +59,7 @@ private data class HomeFilterState(
         )
     }
 
+    // 核心逻辑：只要筛选面板打开，就显示瀑布流；关闭则显示时间组
     fun shouldShowSessionFeed(): Boolean = !isFilterPanelOpen
 }
 
