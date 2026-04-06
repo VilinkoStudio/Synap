@@ -24,8 +24,18 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.FormatSize
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -75,7 +85,7 @@ fun SettingsScreen(
     onImportDatabase: () -> Unit,
     onNavigateToTypographySettings: () -> Unit,
     onNavigateToLanguageSelection: () -> Unit,
-    onNavigateToTeam: () -> Unit, // --- 新增：跳转到创作团队 ---
+    onNavigateToTeam: () -> Unit,
     onNavigateToTutorial: () -> Unit,
     onNavigateBack: () -> Unit,
 ) {
@@ -164,6 +174,12 @@ fun SettingsScreen(
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Icon(
+                        imageVector = Icons.Filled.Palette,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 16.dp)
+                    )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = stringResource(R.string.sync_system_color),
@@ -199,11 +215,19 @@ fun SettingsScreen(
                             modifier = Modifier.padding(horizontal = 16.dp),
                         )
                         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                            Text(
-                                text = stringResource(R.string.adjust_theme_color),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Filled.Tune,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(end = 16.dp)
+                                )
+                                Text(
+                                    text = stringResource(R.string.adjust_theme_color),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                             Spacer(modifier = Modifier.height(8.dp))
 
                             val currentPureColor = Color.hsv(customThemeHue, 1f, 1f)
@@ -233,6 +257,12 @@ fun SettingsScreen(
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Icon(
+                        imageVector = Icons.Filled.FormatSize,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 16.dp)
+                    )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = stringResource(R.string.note_typography_style),
@@ -259,6 +289,12 @@ fun SettingsScreen(
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Icon(
+                        imageVector = Icons.Filled.Language,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 16.dp)
+                    )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = stringResource(R.string.language),
@@ -287,6 +323,12 @@ fun SettingsScreen(
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        Icon(
+                            imageVector = Icons.Filled.TouchApp,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 16.dp)
+                        )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = stringResource(R.string.handedness),
@@ -350,6 +392,12 @@ fun SettingsScreen(
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Icon(
+                        imageVector = Icons.Filled.Save,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 16.dp)
+                    )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = stringResource(R.string.export_backup),
@@ -376,6 +424,12 @@ fun SettingsScreen(
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Icon(
+                        imageVector = Icons.Filled.Share,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 16.dp)
+                    )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = stringResource(R.string.export_and_share),
@@ -402,6 +456,12 @@ fun SettingsScreen(
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Icon(
+                        imageVector = Icons.Filled.Restore,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 16.dp)
+                    )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = stringResource(R.string.import_backup),
@@ -473,7 +533,6 @@ fun SettingsScreen(
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
 
-                // --- 新增：创作团队 ---
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -481,6 +540,12 @@ fun SettingsScreen(
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Icon(
+                        imageVector = Icons.Filled.Group,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 16.dp)
+                    )
                     Text(stringResource(R.string.creative_team), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                     Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -497,6 +562,12 @@ fun SettingsScreen(
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Icon(
+                        imageVector = Icons.Filled.MenuBook,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 16.dp)
+                    )
                     Text(stringResource(R.string.tutorial), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                     Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
