@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::models::{note::NoteSyncRecord, tag::TagSyncRecord};
+use crate::{envelope, models::note::NoteRecord};
 
 pub const PROTOCOL_VERSION: u8 = 1;
 const MAX_FRAME_SIZE: usize = 16 * 1024 * 1024;
@@ -45,54 +45,35 @@ pub struct SyncStats {
     pub duration_ms: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum RecordKey {
-    Tag(Uuid),
-    Note(Uuid),
-    ReplyLink { parent_id: Uuid, child_id: Uuid },
-    EditLink { previous_id: Uuid, next_id: Uuid },
-    NoteTombstone(Uuid),
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct SyncRecordId(pub Uuid);
+
+impl SyncRecordId {
+    pub fn for_record(record: &NoteRecord) -> Result<Self, postcard::Error> {
+        Ok(Self(record.sync_id()?))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum SyncRecord {
-    Tag(TagSyncRecord),
-    Note(NoteSyncRecord),
-    ReplyLink { parent_id: Uuid, child_id: Uuid },
-    EditLink { previous_id: Uuid, next_id: Uuid },
-    NoteTombstone { note_id: Uuid },
+pub struct SyncBucketSummary {
+    pub bucket: u8,
+    pub record_count: usize,
+    pub digest: Uuid,
 }
 
-impl SyncRecord {
-    pub fn key(&self) -> RecordKey {
-        match self {
-            Self::Tag(record) => RecordKey::Tag(record.id),
-            Self::Note(record) => RecordKey::Note(record.id),
-            Self::ReplyLink {
-                parent_id,
-                child_id,
-            } => RecordKey::ReplyLink {
-                parent_id: *parent_id,
-                child_id: *child_id,
-            },
-            Self::EditLink {
-                previous_id,
-                next_id,
-            } => RecordKey::EditLink {
-                previous_id: *previous_id,
-                next_id: *next_id,
-            },
-            Self::NoteTombstone { note_id } => RecordKey::NoteTombstone(*note_id),
-        }
-    }
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct SyncBucketEntry {
+    pub bucket: u8,
+    pub record_id: SyncRecordId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SyncMessage {
     Hello { version: u8 },
-    Manifest { keys: Vec<RecordKey> },
-    Need { keys: Vec<RecordKey> },
-    Records { records: Vec<SyncRecord> },
+    Manifest { buckets: Vec<SyncBucketSummary> },
+    BucketEntries { entries: Vec<SyncBucketEntry> },
+    BucketEntriesDone,
+    Records { records: Vec<NoteRecord> },
     RecordsDone,
     Done,
 }
@@ -114,6 +95,9 @@ pub enum SyncError {
     #[error("service error: {0}")]
     Service(#[from] crate::error::ServiceError),
 
+    #[error("record encoding error: {0}")]
+    Encode(#[from] postcard::Error),
+
     #[error("protocol version mismatch: local={local}, remote={remote}")]
     ProtocolVersionMismatch { local: u8, remote: u8 },
 
@@ -122,6 +106,21 @@ pub enum SyncError {
         expected: &'static str,
         got: SyncMessage,
     },
+
+    #[error("sync record id collision: {record_id:?}")]
+    RecordIdCollision { record_id: SyncRecordId },
+
+    #[error("received unexpected sync record: {record_id:?}")]
+    UnexpectedRecord { record_id: SyncRecordId },
+
+    #[error("received unexpected sync bucket: {bucket}")]
+    UnexpectedBucket { bucket: u8 },
+
+    #[error("invalid sync manifest: {0}")]
+    InvalidManifest(String),
+
+    #[error("sync bucket entry does not match bucket prefix: bucket={bucket}, record_id={record_id:?}")]
+    BucketEntryMismatch { bucket: u8, record_id: SyncRecordId },
 }
 
 pub(crate) struct FrameCodec;
@@ -131,8 +130,7 @@ impl FrameCodec {
         channel: &mut impl SyncChannel,
         message: &SyncMessage,
     ) -> Result<usize, SyncError> {
-        let payload = postcard::to_allocvec(message)
-            .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+        let payload = envelope::encode_postcard(message).map_err(io::Error::from)?;
 
         if payload.len() > MAX_FRAME_SIZE {
             return Err(SyncError::Io(io::Error::new(
@@ -164,9 +162,47 @@ impl FrameCodec {
 
         let mut payload = vec![0_u8; len];
         channel.read_exact(&mut payload)?;
-        let message = postcard::from_bytes(&payload)
-            .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+        let message = envelope::decode_postcard(&payload).map_err(io::Error::from)?;
 
         Ok((message, len + 4))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+
+    use super::*;
+
+    #[test]
+    fn write_message_wraps_payload_in_envelope() {
+        let mut channel = Cursor::new(Vec::new());
+        let written = FrameCodec::write_message(
+            &mut channel,
+            &SyncMessage::Hello {
+                version: PROTOCOL_VERSION,
+            },
+        )
+        .unwrap();
+        let bytes = channel.into_inner();
+
+        assert_eq!(written, bytes.len());
+        assert!(envelope::has_envelope_magic(&bytes[4..]));
+    }
+
+    #[test]
+    fn read_message_accepts_legacy_plain_payload() {
+        let message = SyncMessage::Done;
+        let payload = postcard::to_allocvec(&message).unwrap();
+
+        let mut bytes = Vec::with_capacity(4 + payload.len());
+        bytes.extend_from_slice(&(payload.len() as u32).to_be_bytes());
+        bytes.extend_from_slice(&payload);
+
+        let mut channel = Cursor::new(bytes);
+        let (decoded, read) = FrameCodec::read_message(&mut channel).unwrap();
+
+        assert_eq!(decoded, message);
+        assert_eq!(read, payload.len() + 4);
     }
 }

@@ -195,7 +195,10 @@ impl<'a> TimelineView<'a> {
         config: SessionDetectionConfig,
     ) -> Result<Vec<SessionSpan>, redb::Error> {
         let samples = self.visible_timeline_samples()?;
-        Ok(detect_session_spans_from_samples(samples.into_iter(), config))
+        Ok(detect_session_spans_from_samples(
+            samples.into_iter(),
+            config,
+        ))
     }
 
     pub fn recent_session_spans(
@@ -285,7 +288,10 @@ impl<'a> TimelineView<'a> {
                 continue;
             };
 
-            samples.push(TimelineSample { id: uuid, timestamp_ms });
+            samples.push(TimelineSample {
+                id: uuid,
+                timestamp_ms,
+            });
         }
 
         Ok(samples)
@@ -425,7 +431,9 @@ fn detect_sessions_from_timestamps(
 }
 
 fn split_session_spans(spans: Vec<SessionSpan>, point: TimelinePoint) -> SessionSpanSplit {
-    let current_index = spans.iter().position(|session| session.contains_point(point));
+    let current_index = spans
+        .iter()
+        .position(|session| session.contains_point(point));
 
     let (current, older, newer) = match current_index {
         Some(index) => (
@@ -453,7 +461,7 @@ fn split_session_spans(spans: Vec<SessionSpan>, point: TimelinePoint) -> Session
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::note::NoteSyncRecord;
+    use crate::models::note::NoteVersionRecord;
     use std::{thread::sleep, time::Duration};
 
     fn ts_ms(seconds: u64) -> u64 {
@@ -494,9 +502,9 @@ mod tests {
         let mut random = [seed; 10];
         random[9] = seed.wrapping_mul(7).wrapping_add(1);
 
-        Note::import(
+        Note::import_version(
             wtx,
-            NoteSyncRecord {
+            NoteVersionRecord {
                 id: Builder::from_unix_timestamp_millis(timestamp_ms, &random).into_uuid(),
                 content: format!("note-{seed}"),
                 short_id: [seed; 8],

@@ -55,4 +55,10 @@ pub enum ServiceError {
 
     #[error(transparent)]
     Other(#[from] anyhow::Error),
+
+    #[error("share protocol error: {0}")]
+    ShareProtocol(String),
+
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
 }

@@ -31,9 +31,11 @@ impl From<ServiceError> for FfiError {
             ServiceError::InvalidId | ServiceError::UuidErr(_) | ServiceError::SliceErr(_) => {
                 FfiError::InvalidId
             }
-            ServiceError::TempfileIO(()) => FfiError::Io,
+            ServiceError::TempfileIO(()) | ServiceError::Io(_) => FfiError::Io,
             ServiceError::NoteErr(err) => err.into(),
-            ServiceError::Err(()) | ServiceError::Other(_) => FfiError::Other,
+            ServiceError::Err(()) | ServiceError::Other(_) | ServiceError::ShareProtocol(_) => {
+                FfiError::Other
+            }
         }
     }
 }
@@ -62,6 +64,18 @@ mod tests {
     fn test_error_from_service_error() {
         let err: FfiError = ServiceError::NotFound("missing".to_string()).into();
         assert!(matches!(err, FfiError::NotFound));
+    }
+
+    #[test]
+    fn test_error_from_service_io_error() {
+        let err: FfiError = ServiceError::Io(std::io::Error::other("disk failed")).into();
+        assert!(matches!(err, FfiError::Io));
+    }
+
+    #[test]
+    fn test_error_from_service_share_protocol_error() {
+        let err: FfiError = ServiceError::ShareProtocol("bad payload".to_string()).into();
+        assert!(matches!(err, FfiError::Other));
     }
 
     #[test]

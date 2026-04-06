@@ -2,6 +2,7 @@ mod db;
 mod text;
 
 // Public API modules
+pub mod envelope;
 pub mod models;
 pub mod nlp;
 pub mod service;

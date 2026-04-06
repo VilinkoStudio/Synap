@@ -39,7 +39,8 @@
 //!    写路径则应在局部作用域中“打开 table -> 操作 -> 立即释放”，
 //!    因此写操作天然更适合留在 `Store` 本体上。
 //! 5. 给 codec / envelope 留一个稳定的落点。
-//!    现在 `KvStore` 的 value 编解码统一放在 `db::codec`，
+//!    现在 `KvStore` 的 value 编解码统一走 `db::codec`，
+//!    底层 envelope 格式则提升到了 `crate::envelope` 供 db / sync 共享。
 //!    上层模型不应该再私自对底层 bytes 做 `postcard` 读写。
 //!
 //! ## 使用规范

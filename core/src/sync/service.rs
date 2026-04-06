@@ -1,49 +1,200 @@
-use std::{collections::HashSet, time::Instant};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    time::Instant,
+};
 
 use uuid::Uuid;
 
 use crate::{
-    error::ServiceError,
-    models::{
-        note::{Note, NoteSyncRecord},
-        tag::{TagReader, TagSyncRecord, TagWriter},
-    },
+    models::note::{Note, NoteRecord},
     service::SynapService,
 };
 
 use super::protocol::{
-    FrameCodec, RecordKey, SyncChannel, SyncConfig, SyncError, SyncMessage, SyncRecord, SyncStats,
-    PROTOCOL_VERSION,
+    FrameCodec, SyncBucketEntry, SyncBucketSummary, SyncChannel, SyncConfig, SyncError,
+    SyncMessage, SyncRecordId, SyncStats, PROTOCOL_VERSION,
 };
 
+const SYNC_BUCKET_COUNT: usize = (u8::MAX as usize) + 1;
+
+fn record_bucket(record_id: SyncRecordId) -> u8 {
+    record_id.0.as_bytes()[0]
+}
+
+fn bucket_digest(record_ids: &[SyncRecordId]) -> Result<Uuid, SyncError> {
+    let namespace = Uuid::new_v5(&Uuid::NAMESPACE_OID, b"synap.sync.bucket");
+    let payload = postcard::to_allocvec(record_ids)?;
+    Ok(Uuid::new_v5(&namespace, &payload))
+}
+
+fn validate_manifest(buckets: &[SyncBucketSummary]) -> Result<(), SyncError> {
+    if buckets.len() != SYNC_BUCKET_COUNT {
+        return Err(SyncError::InvalidManifest(format!(
+            "expected {} buckets, got {}",
+            SYNC_BUCKET_COUNT,
+            buckets.len()
+        )));
+    }
+
+    for (expected_bucket, summary) in buckets.iter().enumerate() {
+        if summary.bucket != expected_bucket as u8 {
+            return Err(SyncError::InvalidManifest(format!(
+                "expected bucket {} at position {}, got {}",
+                expected_bucket, expected_bucket, summary.bucket
+            )));
+        }
+    }
+
+    Ok(())
+}
+
 struct LocalArchive {
-    records: Vec<SyncRecord>,
-    keys: HashSet<RecordKey>,
+    records_by_id: BTreeMap<SyncRecordId, NoteRecord>,
+    bucket_record_ids: Vec<Vec<SyncRecordId>>,
+    manifest: Vec<SyncBucketSummary>,
 }
 
 impl LocalArchive {
-    fn new(mut records: Vec<SyncRecord>) -> Self {
-        records.sort_by_key(|record| record.key());
-        let keys = records.iter().map(SyncRecord::key).collect();
-        Self { records, keys }
+    fn new(records: Vec<NoteRecord>) -> Result<Self, SyncError> {
+        let mut records_by_id = BTreeMap::new();
+
+        for record in records {
+            let record_id = SyncRecordId::for_record(&record)?;
+            match records_by_id.entry(record_id) {
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    entry.insert(record);
+                }
+                std::collections::btree_map::Entry::Occupied(entry)
+                    if entry.get() != &record =>
+                {
+                    return Err(SyncError::RecordIdCollision { record_id });
+                }
+                std::collections::btree_map::Entry::Occupied(_) => {}
+            }
+        }
+
+        let mut bucket_record_ids = vec![Vec::new(); SYNC_BUCKET_COUNT];
+        for record_id in records_by_id.keys().copied() {
+            bucket_record_ids[record_bucket(record_id) as usize].push(record_id);
+        }
+
+        let manifest = bucket_record_ids
+            .iter()
+            .enumerate()
+            .map(|(bucket, record_ids)| {
+                Ok(SyncBucketSummary {
+                    bucket: bucket as u8,
+                    record_count: record_ids.len(),
+                    digest: bucket_digest(record_ids)?,
+                })
+            })
+            .collect::<Result<Vec<_>, SyncError>>()?;
+
+        Ok(Self {
+            records_by_id,
+            bucket_record_ids,
+            manifest,
+        })
     }
 
-    fn missing_from(&self, remote_keys: &[RecordKey]) -> Vec<RecordKey> {
-        remote_keys
+    fn manifest(&self) -> Vec<SyncBucketSummary> {
+        self.manifest.clone()
+    }
+
+    fn mismatched_buckets(&self, remote_manifest: &[SyncBucketSummary]) -> BTreeSet<u8> {
+        self.manifest
             .iter()
-            .filter(|key| !self.keys.contains(*key))
-            .cloned()
+            .zip(remote_manifest)
+            .filter_map(|(local, remote)| (local != remote).then_some(local.bucket))
             .collect()
     }
 
-    fn records_for(&self, keys: &[RecordKey]) -> Vec<SyncRecord> {
-        let wanted: HashSet<_> = keys.iter().cloned().collect();
-        self.records
+    fn bucket_entries(&self, buckets: &BTreeSet<u8>) -> Vec<SyncBucketEntry> {
+        buckets
             .iter()
-            .filter(|record| wanted.contains(&record.key()))
-            .cloned()
+            .flat_map(|bucket| {
+                self.bucket_record_ids[*bucket as usize]
+                    .iter()
+                    .copied()
+                    .map(|record_id| SyncBucketEntry {
+                        bucket: *bucket,
+                        record_id,
+                    })
+            })
             .collect()
     }
+
+    fn records_for(&self, record_ids: &[SyncRecordId]) -> Vec<NoteRecord> {
+        let mut seen = BTreeSet::new();
+
+        record_ids
+            .iter()
+            .filter(|record_id| seen.insert(**record_id))
+            .filter_map(|record_id| self.records_by_id.get(record_id).cloned())
+            .collect()
+    }
+
+    fn diff_against(
+        &self,
+        remote_inventory: &RemoteBucketInventory,
+        mismatched_buckets: &BTreeSet<u8>,
+    ) -> (Vec<SyncRecordId>, Vec<SyncRecordId>) {
+        let mut need_from_remote = Vec::new();
+        let mut need_from_local = Vec::new();
+
+        for bucket in mismatched_buckets {
+            let local_ids = &self.bucket_record_ids[*bucket as usize];
+            let remote_ids = remote_inventory.ids_in_bucket(*bucket);
+
+            for remote_id in remote_ids {
+                if !self.records_by_id.contains_key(remote_id) {
+                    need_from_remote.push(*remote_id);
+                }
+            }
+
+            for local_id in local_ids {
+                if !remote_ids.contains(local_id) {
+                    need_from_local.push(*local_id);
+                }
+            }
+        }
+
+        (need_from_remote, need_from_local)
+    }
+}
+
+struct RemoteBucketInventory {
+    bucket_record_ids: Vec<BTreeSet<SyncRecordId>>,
+}
+
+impl RemoteBucketInventory {
+    fn new() -> Self {
+        Self {
+            bucket_record_ids: vec![BTreeSet::new(); SYNC_BUCKET_COUNT],
+        }
+    }
+
+    fn insert(&mut self, entry: SyncBucketEntry) -> Result<(), SyncError> {
+        let expected_bucket = record_bucket(entry.record_id);
+        if expected_bucket != entry.bucket {
+            return Err(SyncError::BucketEntryMismatch {
+                bucket: entry.bucket,
+                record_id: entry.record_id,
+            });
+        }
+
+        self.bucket_record_ids[entry.bucket as usize].insert(entry.record_id);
+        Ok(())
+    }
+
+    fn ids_in_bucket(&self, bucket: u8) -> &BTreeSet<SyncRecordId> {
+        &self.bucket_record_ids[bucket as usize]
+    }
+}
+
+struct ReceivedRecord {
+    id: SyncRecordId,
+    record: NoteRecord,
 }
 
 /// Transport-agnostic synchronization service for append-only Synap ledgers.
@@ -71,13 +222,18 @@ impl<'a> SyncService<'a> {
         self.send_manifest(channel, &local, &mut stats)?;
         let remote_manifest = self.receive_manifest(channel, &mut stats)?;
 
-        let need_from_remote = local.missing_from(&remote_manifest);
-        self.send_need(channel, &need_from_remote, &mut stats)?;
-        let remote_need = self.receive_need(channel, &mut stats)?;
+        let mismatched_buckets = local.mismatched_buckets(&remote_manifest);
+        self.send_bucket_entries(channel, &local, &mismatched_buckets, &mut stats)?;
+        let remote_inventory =
+            self.receive_bucket_entries(channel, &mismatched_buckets, &mut stats)?;
 
-        let outgoing = local.records_for(&remote_need);
+        let (need_from_remote, need_from_local) =
+            local.diff_against(&remote_inventory, &mismatched_buckets);
+        let expected_from_remote: BTreeSet<_> = need_from_remote.iter().copied().collect();
+        let outgoing = local.records_for(&need_from_local);
+
         self.send_records(channel, &outgoing, &mut stats)?;
-        let incoming = self.receive_records(channel, &mut stats)?;
+        let incoming = self.receive_records(channel, &expected_from_remote, &mut stats)?;
 
         let (applied, skipped) = self.apply_remote_records(incoming)?;
         stats.records_applied += applied;
@@ -115,12 +271,17 @@ impl<'a> SyncService<'a> {
         let remote_manifest = self.receive_manifest(channel, &mut stats)?;
         self.send_manifest(channel, &local, &mut stats)?;
 
-        let need_from_remote = local.missing_from(&remote_manifest);
-        let remote_need = self.receive_need(channel, &mut stats)?;
-        self.send_need(channel, &need_from_remote, &mut stats)?;
+        let mismatched_buckets = local.mismatched_buckets(&remote_manifest);
+        let remote_inventory =
+            self.receive_bucket_entries(channel, &mismatched_buckets, &mut stats)?;
+        self.send_bucket_entries(channel, &local, &mismatched_buckets, &mut stats)?;
 
-        let incoming = self.receive_records(channel, &mut stats)?;
-        let outgoing = local.records_for(&remote_need);
+        let (need_from_remote, need_from_local) =
+            local.diff_against(&remote_inventory, &mismatched_buckets);
+        let expected_from_remote: BTreeSet<_> = need_from_remote.iter().copied().collect();
+        let outgoing = local.records_for(&need_from_local);
+
+        let incoming = self.receive_records(channel, &expected_from_remote, &mut stats)?;
         self.send_records(channel, &outgoing, &mut stats)?;
 
         let (applied, skipped) = self.apply_remote_records(incoming)?;
@@ -146,138 +307,48 @@ impl<'a> SyncService<'a> {
     }
 
     fn collect_local_archive(&self) -> Result<LocalArchive, SyncError> {
-        self.core
-            .with_read(|tx, reader| {
-                let mut records = Vec::new();
+        let records = self.core.with_read(|_tx, reader| {
+            let note_ids = reader
+                .note_by_time()
+                .map_err(redb::Error::from)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(redb::Error::from)?;
 
-                let tag_reader = TagReader::new(tx)?;
-                let tags = tag_reader
-                    .all()
-                    .map_err(redb::Error::from)?
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(redb::Error::from)?;
-                records.extend(
-                    tags.into_iter()
-                        .map(|tag| SyncRecord::Tag(tag.to_sync_record())),
-                );
+            reader.export_records(&note_ids).map_err(Into::into)
+        })?;
 
-                let note_ids = reader
-                    .note_by_time()
-                    .map_err(redb::Error::from)?
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(redb::Error::from)?;
-
-                let notes = note_ids
-                    .iter()
-                    .map(|id| {
-                        reader
-                            .get_by_id(id)?
-                            .ok_or_else(|| ServiceError::NotFound(id.to_string()))
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-
-                for note in &notes {
-                    records.push(SyncRecord::Note(note.to_sync_record()));
-
-                    let children = reader
-                        .children(note)
-                        .map_err(redb::Error::from)?
-                        .collect::<Result<Vec<_>, _>>()
-                        .map_err(redb::Error::from)?;
-                    records.extend(children.into_iter().map(|child_id| SyncRecord::ReplyLink {
-                        parent_id: note.get_id(),
-                        child_id,
-                    }));
-
-                    let next_versions = reader
-                        .next_versions(note)
-                        .map_err(redb::Error::from)?
-                        .collect::<Result<Vec<_>, _>>()
-                        .map_err(redb::Error::from)?;
-                    records.extend(
-                        next_versions
-                            .into_iter()
-                            .map(|next_id| SyncRecord::EditLink {
-                                previous_id: note.get_id(),
-                                next_id,
-                            }),
-                    );
-                }
-
-                let tombstones = reader
-                    .deleted_note_ids()
-                    .map_err(redb::Error::from)?
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(redb::Error::from)?;
-                records.extend(
-                    tombstones
-                        .into_iter()
-                        .map(|note_id| SyncRecord::NoteTombstone { note_id }),
-                );
-
-                Ok(LocalArchive::new(records))
-            })
-            .map_err(Into::into)
+        LocalArchive::new(records)
     }
 
-    fn apply_remote_records(&self, records: Vec<SyncRecord>) -> Result<(usize, usize), SyncError> {
-        let mut unique = HashSet::new();
-        let mut tags = Vec::<TagSyncRecord>::new();
-        let mut notes = Vec::<NoteSyncRecord>::new();
-        let mut reply_links = Vec::<(Uuid, Uuid)>::new();
-        let mut edit_links = Vec::<(Uuid, Uuid)>::new();
-        let mut tombstones = Vec::<Uuid>::new();
+    fn apply_remote_records(
+        &self,
+        records: Vec<ReceivedRecord>,
+    ) -> Result<(usize, usize), SyncError> {
+        let mut unique_ids = BTreeSet::new();
+        let mut unique_records = Vec::new();
         let mut skipped = 0;
 
-        for record in records {
-            if !unique.insert(record.key()) {
+        for received in records {
+            if unique_ids.insert(received.id) {
+                unique_records.push(received.record);
+            } else {
                 skipped += 1;
-                continue;
-            }
-
-            match record {
-                SyncRecord::Tag(record) => tags.push(record),
-                SyncRecord::Note(record) => notes.push(record),
-                SyncRecord::ReplyLink {
-                    parent_id,
-                    child_id,
-                } => reply_links.push((parent_id, child_id)),
-                SyncRecord::EditLink {
-                    previous_id,
-                    next_id,
-                } => edit_links.push((previous_id, next_id)),
-                SyncRecord::NoteTombstone { note_id } => tombstones.push(note_id),
             }
         }
 
-        if unique.is_empty() {
+        if unique_records.is_empty() {
             return Ok((0, skipped));
         }
 
-        self.core.with_write(|tx| {
-            let tag_writer = TagWriter::new(tx);
+        let applied = self
+            .core
+            .with_write(|tx| Note::import_records(tx, unique_records).map_err(Into::into))?;
 
-            for record in tags {
-                tag_writer.import(record)?;
-            }
-            for record in notes {
-                Note::import(tx, record)?;
-            }
-            for (parent_id, child_id) in reply_links {
-                Note::import_reply_link(tx, &parent_id, &child_id)?;
-            }
-            for (previous_id, next_id) in edit_links {
-                Note::import_edit_link(tx, &previous_id, &next_id)?;
-            }
-            for note_id in tombstones {
-                Note::import_tombstone(tx, &note_id)?;
-            }
+        if applied > 0 {
+            self.core.refresh_search_indexes()?;
+        }
 
-            Ok(())
-        })?;
-        self.core.refresh_search_indexes()?;
-
-        Ok((unique.len(), skipped))
+        Ok((applied, skipped))
     }
 
     fn send_hello<C: SyncChannel>(
@@ -321,8 +392,12 @@ impl<'a> SyncService<'a> {
         local: &LocalArchive,
         stats: &mut SyncStats,
     ) -> Result<(), SyncError> {
-        let keys = local.keys.iter().cloned().collect();
-        stats.bytes_sent += FrameCodec::write_message(channel, &SyncMessage::Manifest { keys })?;
+        stats.bytes_sent += FrameCodec::write_message(
+            channel,
+            &SyncMessage::Manifest {
+                buckets: local.manifest(),
+            },
+        )?;
         Ok(())
     }
 
@@ -330,12 +405,15 @@ impl<'a> SyncService<'a> {
         &self,
         channel: &mut C,
         stats: &mut SyncStats,
-    ) -> Result<Vec<RecordKey>, SyncError> {
+    ) -> Result<Vec<SyncBucketSummary>, SyncError> {
         let (message, bytes) = FrameCodec::read_message(channel)?;
         stats.bytes_received += bytes;
 
         match message {
-            SyncMessage::Manifest { keys } => Ok(keys),
+            SyncMessage::Manifest { buckets } => {
+                validate_manifest(&buckets)?;
+                Ok(buckets)
+            }
             other => Err(SyncError::UnexpectedMessage {
                 expected: "Manifest",
                 got: other,
@@ -343,42 +421,68 @@ impl<'a> SyncService<'a> {
         }
     }
 
-    fn send_need<C: SyncChannel>(
+    fn send_bucket_entries<C: SyncChannel>(
         &self,
         channel: &mut C,
-        keys: &[RecordKey],
+        local: &LocalArchive,
+        buckets: &BTreeSet<u8>,
         stats: &mut SyncStats,
     ) -> Result<(), SyncError> {
-        stats.bytes_sent += FrameCodec::write_message(
-            channel,
-            &SyncMessage::Need {
-                keys: keys.to_vec(),
-            },
-        )?;
+        let entries = local.bucket_entries(buckets);
+
+        for batch in entries.chunks(self.config.max_records_per_message.max(1)) {
+            stats.bytes_sent += FrameCodec::write_message(
+                channel,
+                &SyncMessage::BucketEntries {
+                    entries: batch.to_vec(),
+                },
+            )?;
+        }
+
+        stats.bytes_sent += FrameCodec::write_message(channel, &SyncMessage::BucketEntriesDone)?;
         Ok(())
     }
 
-    fn receive_need<C: SyncChannel>(
+    fn receive_bucket_entries<C: SyncChannel>(
         &self,
         channel: &mut C,
+        expected_buckets: &BTreeSet<u8>,
         stats: &mut SyncStats,
-    ) -> Result<Vec<RecordKey>, SyncError> {
-        let (message, bytes) = FrameCodec::read_message(channel)?;
-        stats.bytes_received += bytes;
+    ) -> Result<RemoteBucketInventory, SyncError> {
+        let mut inventory = RemoteBucketInventory::new();
 
-        match message {
-            SyncMessage::Need { keys } => Ok(keys),
-            other => Err(SyncError::UnexpectedMessage {
-                expected: "Need",
-                got: other,
-            }),
+        loop {
+            let (message, bytes) = FrameCodec::read_message(channel)?;
+            stats.bytes_received += bytes;
+
+            match message {
+                SyncMessage::BucketEntries { entries } => {
+                    for entry in entries {
+                        if !expected_buckets.contains(&entry.bucket) {
+                            return Err(SyncError::UnexpectedBucket {
+                                bucket: entry.bucket,
+                            });
+                        }
+                        inventory.insert(entry)?;
+                    }
+                }
+                SyncMessage::BucketEntriesDone => break,
+                other => {
+                    return Err(SyncError::UnexpectedMessage {
+                        expected: "BucketEntries or BucketEntriesDone",
+                        got: other,
+                    });
+                }
+            }
         }
+
+        Ok(inventory)
     }
 
     fn send_records<C: SyncChannel>(
         &self,
         channel: &mut C,
-        records: &[SyncRecord],
+        records: &[NoteRecord],
         stats: &mut SyncStats,
     ) -> Result<(), SyncError> {
         for batch in records.chunks(self.config.max_records_per_message.max(1)) {
@@ -398,8 +502,9 @@ impl<'a> SyncService<'a> {
     fn receive_records<C: SyncChannel>(
         &self,
         channel: &mut C,
+        expected_record_ids: &BTreeSet<SyncRecordId>,
         stats: &mut SyncStats,
-    ) -> Result<Vec<SyncRecord>, SyncError> {
+    ) -> Result<Vec<ReceivedRecord>, SyncError> {
         let mut records = Vec::new();
 
         loop {
@@ -409,7 +514,18 @@ impl<'a> SyncService<'a> {
             match message {
                 SyncMessage::Records { records: batch } => {
                     stats.records_received += batch.len();
-                    records.extend(batch);
+
+                    for record in batch {
+                        let record_id = SyncRecordId::for_record(&record)?;
+                        if !expected_record_ids.contains(&record_id) {
+                            return Err(SyncError::UnexpectedRecord { record_id });
+                        }
+
+                        records.push(ReceivedRecord {
+                            id: record_id,
+                            record,
+                        });
+                    }
                 }
                 SyncMessage::RecordsDone => break,
                 other => {

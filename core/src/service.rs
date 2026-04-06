@@ -14,14 +14,16 @@ use crate::{
     },
 };
 
-use std::ops::Bound;
 use redb::{Database, ReadTransaction, ReadableDatabase, WriteTransaction};
+use std::ops::Bound;
 use tempfile::NamedTempFile;
 use uuid::Uuid;
 
 pub struct SynapService {
     db: redb::Database,
+    #[allow(dead_code)]
     tag_searcher: FuzzyIndex<Tag>,
+    #[allow(dead_code)]
     note_searcher: FuzzyIndex<Note>,
 }
 
@@ -226,7 +228,8 @@ impl SynapService {
         }
 
         let next_cursor = if has_more {
-            notes.last()
+            notes
+                .last()
                 .and_then(|note| Self::parse_id(&note.id).ok())
                 .map(Self::encode_timeline_cursor)
         } else {
