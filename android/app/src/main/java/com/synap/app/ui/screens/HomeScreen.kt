@@ -27,7 +27,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
@@ -111,7 +111,7 @@ fun HomeScreen(
     onToggleAllTags: () -> Unit,
 ) {
     val noteGridState = rememberLazyStaggeredGridState()
-    val sessionListState = rememberLazyListState()
+    val sessionGridState = rememberLazyStaggeredGridState()
     val scope = rememberCoroutineScope()
 
     var deletedNoteToUndo by remember { mutableStateOf<Note?>(null) }
@@ -160,20 +160,20 @@ fun HomeScreen(
 
     val isShowingSessionFeed = uiState.showSessionFeed && !uiState.isSearchMode
 
-    val isScrolledDown by remember(noteGridState, sessionListState, isShowingSessionFeed) {
+    val isScrolledDown by remember(noteGridState, sessionGridState, isShowingSessionFeed) {
         derivedStateOf {
             if (isShowingSessionFeed) {
-                sessionListState.firstVisibleItemIndex > 0 || sessionListState.firstVisibleItemScrollOffset > 100
+                sessionGridState.firstVisibleItemIndex > 0 || sessionGridState.firstVisibleItemScrollOffset > 100
             } else {
                 noteGridState.firstVisibleItemIndex > 0 || noteGridState.firstVisibleItemScrollOffset > 100
             }
         }
     }
 
-    val isAtTop by remember(noteGridState, sessionListState, isShowingSessionFeed) {
+    val isAtTop by remember(noteGridState, sessionGridState, isShowingSessionFeed) {
         derivedStateOf {
             if (isShowingSessionFeed) {
-                sessionListState.firstVisibleItemIndex == 0 && sessionListState.firstVisibleItemScrollOffset <= 10
+                sessionGridState.firstVisibleItemIndex == 0 && sessionGridState.firstVisibleItemScrollOffset <= 10
             } else {
                 noteGridState.firstVisibleItemIndex == 0 && noteGridState.firstVisibleItemScrollOffset <= 10
             }
@@ -207,7 +207,7 @@ fun HomeScreen(
 
     val shouldLoadMore by remember(
         noteGridState,
-        sessionListState,
+        sessionGridState,
         displayNotes,
         displaySessionGroups,
         uiState.hasMore,
@@ -216,7 +216,7 @@ fun HomeScreen(
     ) {
         derivedStateOf {
             if (isShowingSessionFeed) {
-                val lastVisible = sessionListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                val lastVisible = sessionGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
                 val triggerIndex = (displaySessionGroups.lastIndex - 1).coerceAtLeast(0)
                 uiState.hasMore &&
                         !uiState.isLoading &&
@@ -240,7 +240,7 @@ fun HomeScreen(
 
     LaunchedEffect(
         noteGridState,
-        sessionListState,
+        sessionGridState,
         uiState.hasMore,
         uiState.isLoading,
         uiState.isSearchMode,
@@ -345,7 +345,7 @@ fun HomeScreen(
                         onClick = {
                             scope.launch {
                                 if (isShowingSessionFeed) {
-                                    sessionListState.animateScrollToItem(0)
+                                    sessionGridState.animateScrollToItem(0)
                                 } else {
                                     noteGridState.animateScrollToItem(0)
                                 }
@@ -419,7 +419,7 @@ fun HomeScreen(
                                     onClick = {
                                         // 传 false 关闭筛选面板（即时间组模式），同时自动滚动到顶部
                                         onSetFilterPanelOpen(false)
-                                        scope.launch { sessionListState.animateScrollToItem(0) }
+                                        scope.launch { sessionGridState.animateScrollToItem(0) }
                                     },
                                     shape = RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp),
                                     color = if (!isFeed) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
@@ -570,7 +570,7 @@ fun HomeScreen(
                             if (isShowingSessionFeed) {
                                 HomeSessionFeed(
                                     sessions = displaySessionGroups,
-                                    state = sessionListState,
+                                    state = sessionGridState,
                                     onOpenNote = onOpenNote,
                                     onToggleDeleted = { note ->
                                         if (!note.isDeleted) {
