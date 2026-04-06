@@ -1,4 +1,4 @@
-use std::{collections::HashSet, path::Path};
+use std::{collections::HashSet, path::Path, sync::Mutex};
 
 use crate::{
     dto::{NoteDTO, TimelineNotesPageDTO, TimelineSessionDTO, TimelineSessionsPageDTO},
@@ -7,6 +7,7 @@ use crate::{
         note::{Note, NoteReader, NoteRef},
         tag::{Tag, TagReader, TagWriter},
     },
+    nlp::{NlpDocument, NlpTagIndex},
     search::searcher::FuzzyIndex,
     views::{
         note_view::NoteView,
@@ -19,12 +20,32 @@ use std::ops::Bound;
 use tempfile::NamedTempFile;
 use uuid::Uuid;
 
+#[derive(Debug, Default)]
+struct ServiceTagRecommender {
+    index: Mutex<NlpTagIndex>,
+}
+
+impl ServiceTagRecommender {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn rebuild(&self, docs: Vec<NlpDocument>) {
+        self.index.lock().unwrap().build(docs);
+    }
+
+    fn recommend_tag(&self, content: &str, limit: usize) -> Vec<String> {
+        self.index.lock().unwrap().recommend_tag(content, limit)
+    }
+}
+
 pub struct SynapService {
     db: redb::Database,
     #[allow(dead_code)]
     tag_searcher: FuzzyIndex<Tag>,
     #[allow(dead_code)]
     note_searcher: FuzzyIndex<Note>,
+    tag_recommender: ServiceTagRecommender,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,6 +137,63 @@ impl SynapService {
         })
     }
 
+    fn note_to_nlp_document(
+        note: Note,
+        reader: &NoteReader<'_>,
+    ) -> Result<Option<NlpDocument>, ServiceError> {
+        if note.is_deleted() {
+            return Ok(None);
+        }
+
+        let id = note.get_id().to_string();
+        let content = note.content().to_string();
+        let tags = NoteView::new(reader, note)
+            .tags()?
+            .into_iter()
+            .map(|tag| tag.get_content().to_string())
+            .collect::<Vec<_>>();
+
+        if tags.is_empty() {
+            return Ok(None);
+        }
+
+        Ok(Some(NlpDocument::new(id, content, tags)))
+    }
+
+    fn collect_tag_recommendation_docs(&self) -> Result<Vec<NlpDocument>, ServiceError> {
+        self.with_read(|_tx, reader| {
+            let timeline = TimelineView::new(reader);
+            let mut docs = Vec::new();
+
+            for note_ref_res in timeline.recent_refs()? {
+                let note_ref = note_ref_res.map_err(ServiceError::from)?;
+                if !Self::is_latest_version(reader, note_ref)? {
+                    continue;
+                }
+
+                let note = note_ref
+                    .hydrate(reader)?
+                    .ok_or(ServiceError::NotFound(note_ref.get_id().to_string()))?;
+                if let Some(doc) = Self::note_to_nlp_document(note, reader)? {
+                    docs.push(doc);
+                }
+            }
+
+            Ok(docs)
+        })
+    }
+
+    fn rebuild_tag_recommender(&self) -> Result<(), ServiceError> {
+        let docs = self.collect_tag_recommendation_docs()?;
+        self.tag_recommender.rebuild(docs);
+        Ok(())
+    }
+
+    fn refresh_tag_indexes(&self) -> Result<(), ServiceError> {
+        self.rebuild_tag_search()?;
+        self.rebuild_tag_recommender()
+    }
+
     //传None代表临时文件
     pub fn new(db_path: Option<String>) -> Result<Self, ServiceError> {
         let db = db_path.map_or_else(
@@ -142,13 +220,15 @@ impl SynapService {
 
         let tag_searcher = FuzzyIndex::<Tag>::new();
         let note_searcher = FuzzyIndex::<Note>::new();
+        let tag_recommender = ServiceTagRecommender::new();
 
         let res = Self {
             db,
             tag_searcher,
             note_searcher,
+            tag_recommender,
         };
-        res.init_search()?;
+        res.refresh_search_indexes()?;
         Ok(res)
     }
 
@@ -193,7 +273,8 @@ impl SynapService {
     }
 
     pub(crate) fn refresh_search_indexes(&self) -> Result<(), ServiceError> {
-        self.init_search()
+        self.init_search()?;
+        self.rebuild_tag_recommender()
     }
 
     // 读操作 (Queries) - 纯惰性组装，返回 DTO
@@ -639,6 +720,10 @@ impl SynapService {
         })
     }
 
+    pub fn recommend_tag(&self, content: &str, limit: usize) -> Result<Vec<String>, ServiceError> {
+        Ok(self.tag_recommender.recommend_tag(content, limit))
+    }
+
     pub fn get_all_tags(&self) -> Result<Vec<String>, ServiceError> {
         self.with_read(|tx, _reader| {
             let tag_reader = TagReader::new(tx)?;
@@ -949,7 +1034,7 @@ impl SynapService {
         })?;
 
         self.note_searcher.insert(note.clone());
-        self.rebuild_tag_search()?;
+        self.refresh_tag_indexes()?;
 
         self.with_read(|_tx, reader| self.note_to_dto(note.clone(), reader))
     }
@@ -973,7 +1058,7 @@ impl SynapService {
         })?;
 
         self.note_searcher.insert(child.clone());
-        self.rebuild_tag_search()?;
+        self.refresh_tag_indexes()?;
 
         self.with_read(|_tx, reader| self.note_to_dto(child.clone(), reader))
     }
@@ -996,7 +1081,6 @@ impl SynapService {
         })?;
 
         self.refresh_search_indexes()?;
-        self.rebuild_tag_search()?;
 
         self.with_read(|_tx, reader| self.note_to_dto(edited.clone(), reader))
     }
@@ -1059,6 +1143,68 @@ mod tests {
         assert!(results.iter().any(|tag| tag == "rust"));
         assert!(results.iter().any(|tag| tag == "async-rust"));
         assert!(!results.iter().any(|tag| tag == "python"));
+    }
+
+    #[test]
+    fn test_recommend_tag_returns_related_tags() {
+        let service = SynapService::new(None).unwrap();
+
+        service
+            .create_note(
+                "Rust ownership and lifetimes for async services".to_string(),
+                vec!["rust".into(), "async".into(), "backend".into()],
+            )
+            .unwrap();
+        service
+            .create_note(
+                "Tokio runtime, future polling and async scheduling".to_string(),
+                vec!["rust".into(), "async".into()],
+            )
+            .unwrap();
+        service
+            .create_note(
+                "数据库索引与查询优化实践".to_string(),
+                vec!["database".into(), "backend".into()],
+            )
+            .unwrap();
+
+        let tags = service.recommend_tag("tokio async ownership", 3).unwrap();
+        assert!(tags.iter().any(|tag| tag == "rust"));
+        assert!(tags.iter().any(|tag| tag == "async"));
+    }
+
+    #[test]
+    fn test_recommend_tag_tracks_note_lifecycle() {
+        let service = SynapService::new(None).unwrap();
+
+        let original = service
+            .create_note("tokio future runtime".to_string(), vec!["async".into()])
+            .unwrap();
+
+        let initial = service.recommend_tag("tokio runtime", 3).unwrap();
+        assert!(initial.iter().any(|tag| tag == "async"));
+
+        let edited = service
+            .edit_note(
+                &original.id,
+                "sql index join planner".to_string(),
+                vec!["database".into()],
+            )
+            .unwrap();
+
+        let updated = service.recommend_tag("sql planner", 3).unwrap();
+        assert!(updated.iter().any(|tag| tag == "database"));
+
+        let old_query = service.recommend_tag("tokio runtime", 3).unwrap();
+        assert!(!old_query.iter().any(|tag| tag == "async"));
+
+        service.delete_note(&edited.id).unwrap();
+        let after_delete = service.recommend_tag("sql planner", 3).unwrap();
+        assert!(!after_delete.iter().any(|tag| tag == "database"));
+
+        service.restore_note(&edited.id).unwrap();
+        let after_restore = service.recommend_tag("sql planner", 3).unwrap();
+        assert!(after_restore.iter().any(|tag| tag == "database"));
     }
 
     #[test]

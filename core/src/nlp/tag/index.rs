@@ -165,6 +165,13 @@ impl NlpTagIndex {
         suggestions
     }
 
+    pub fn recommend_tag(&self, content: &str, limit: usize) -> Vec<String> {
+        self.suggest_tags(content, limit)
+            .into_iter()
+            .map(|suggestion| suggestion.tag)
+            .collect()
+    }
+
     pub fn document_count(&self) -> usize {
         self.documents.len()
     }

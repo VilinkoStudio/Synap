@@ -145,6 +145,12 @@ impl SynapService {
             .map_err(Into::into)
     }
 
+    pub fn recommend_tag(&self, content: String, limit: u32) -> Result<Vec<String>, FfiError> {
+        self.inner
+            .recommend_tag(&content, limit as usize)
+            .map_err(Into::into)
+    }
+
     pub fn get_all_tags(&self) -> Result<Vec<String>, FfiError> {
         self.inner.get_all_tags().map_err(Into::into)
     }

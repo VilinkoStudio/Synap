@@ -70,6 +70,17 @@ fn suggest_tags_matches_english_topics() {
 }
 
 #[test]
+fn recommend_tag_returns_tag_names_only() {
+    let mut index = NlpTagIndex::new();
+    index.build(sample_docs());
+
+    let tags = index.recommend_tag("tokio async ownership", 3);
+
+    assert!(tags.iter().any(|tag| tag == "rust"));
+    assert!(tags.iter().any(|tag| tag == "async"));
+}
+
+#[test]
 fn suggest_tags_matches_chinese_topics() {
     let mut index = NlpTagIndex::new();
     index.build(sample_docs());

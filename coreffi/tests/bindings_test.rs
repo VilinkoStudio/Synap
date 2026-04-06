@@ -220,6 +220,34 @@ fn test_recent_note_cursor_skips_superseded_versions() {
 }
 
 #[test]
+fn test_recommend_tag_is_exposed() {
+    let service = open_memory().unwrap();
+
+    service
+        .create_note(
+            "Rust ownership and lifetimes for async services".to_string(),
+            vec![
+                "rust".to_string(),
+                "async".to_string(),
+                "backend".to_string(),
+            ],
+        )
+        .unwrap();
+    service
+        .create_note(
+            "Tokio runtime, future polling and async scheduling".to_string(),
+            vec!["rust".to_string(), "async".to_string()],
+        )
+        .unwrap();
+
+    let tags = service
+        .recommend_tag("tokio async ownership".to_string(), 3)
+        .unwrap();
+    assert!(tags.iter().any(|tag| tag == "rust"));
+    assert!(tags.iter().any(|tag| tag == "async"));
+}
+
+#[test]
 fn test_search_and_tag_search() {
     let service = open_memory().unwrap();
 

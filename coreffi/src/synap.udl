@@ -78,6 +78,7 @@ interface SynapService {
     [Throws=FfiError] sequence<NoteDTO> get_deleted_notes(string? cursor, u32? limit);
     [Throws=FfiError] sequence<NoteDTO> search(string query, u32 limit);
     [Throws=FfiError] sequence<string> search_tags(string query, u32 limit);
+    [Throws=FfiError] sequence<string> recommend_tag(string content, u32 limit);
     [Throws=FfiError] sequence<string> get_all_tags();
     [Throws=FfiError] sequence<NoteDTO> get_notes_by_tag(string tag, string? cursor, u32? limit);
     [Throws=FfiError] sequence<NoteDTO> get_filtered_notes(
