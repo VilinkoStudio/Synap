@@ -1,6 +1,6 @@
 use super::*;
 
-pub struct NoteReader<'a> {
+pub(crate) struct NoteReader<'a> {
     tx: &'a ReadTransaction,
     note_table: KvReader<BlockId, NoteBlock>,
     alias_table: KvReader<[u8; 8], BlockId>,
@@ -311,7 +311,7 @@ impl<'a> NoteReader<'a> {
         Ok(next_versions.next().transpose()?.is_some())
     }
 
-    pub fn export_record(&self, id: &Uuid) -> Result<Option<NoteRecord>, redb::Error> {
+    pub(crate) fn export_record(&self, id: &Uuid) -> Result<Option<NoteRecord>, redb::Error> {
         if self.get_ref_by_id(id)?.is_none() {
             return Ok(None);
         }
@@ -390,7 +390,7 @@ impl<'a> NoteReader<'a> {
         }))
     }
 
-    pub fn export_records(&self, note_ids: &[Uuid]) -> Result<Vec<NoteRecord>, redb::Error> {
+    pub(crate) fn export_records(&self, note_ids: &[Uuid]) -> Result<Vec<NoteRecord>, redb::Error> {
         let mut seen = HashSet::new();
         let mut records = Vec::new();
 

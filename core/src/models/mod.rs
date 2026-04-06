@@ -1,7 +1,7 @@
 //! Data models for Synap.
 
-pub mod note;
-pub mod tag;
+pub(crate) mod note;
+pub(crate) mod tag;
 mod util;
 // mod note_view;
 // mod pointer;

@@ -409,6 +409,45 @@ fn test_export_record_sync_id_is_stable_across_versions() {
 }
 
 #[test]
+fn test_export_record_sync_id_survives_cross_peer_round_trip() {
+    let source_db = create_temp_db();
+
+    let source_write_txn = source_db.begin_write().unwrap();
+    let rust = TagWriter::new(&source_write_txn)
+        .find_or_create("rust")
+        .unwrap();
+    let root = Note::create(
+        &source_write_txn,
+        "Version 1".to_string(),
+        vec![rust.clone()],
+    )
+    .unwrap();
+    let root_id = root.get_id();
+    root.edit(&source_write_txn, "Version 2".to_string(), vec![rust])
+        .unwrap();
+    source_write_txn.commit().unwrap();
+
+    let source_read_txn = source_db.begin_read().unwrap();
+    let source_reader = NoteReader::new(&source_read_txn).unwrap();
+    let exported = source_reader.export_record(&root_id).unwrap().unwrap();
+
+    let target_db = create_temp_db();
+    let target_write_txn = target_db.begin_write().unwrap();
+    Note::import_record(&target_write_txn, exported.clone()).unwrap();
+    target_write_txn.commit().unwrap();
+
+    let target_read_txn = target_db.begin_read().unwrap();
+    let target_reader = NoteReader::new(&target_read_txn).unwrap();
+    let round_tripped = target_reader.export_record(&root_id).unwrap().unwrap();
+
+    assert_eq!(exported, round_tripped);
+    assert_eq!(
+        exported.sync_id().unwrap(),
+        round_tripped.sync_id().unwrap()
+    );
+}
+
+#[test]
 fn test_import_records_restores_cross_component_topology() {
     let source_db = create_temp_db();
 
@@ -506,6 +545,122 @@ fn test_import_records_restores_cross_component_topology() {
             .get_content(),
         "thread"
     );
+}
+
+#[test]
+fn test_import_records_skip_reply_link_until_remote_endpoint_exists_locally() {
+    let source_db = create_temp_db();
+
+    let source_write_txn = source_db.begin_write().unwrap();
+    let root = Note::create(&source_write_txn, "root".to_string(), vec![]).unwrap();
+    let root_id = root.get_id();
+    let reply = Note::create(&source_write_txn, "reply".to_string(), vec![]).unwrap();
+    let reply_id = reply.get_id();
+    root.reply(&source_write_txn, &reply).unwrap();
+    source_write_txn.commit().unwrap();
+
+    let source_read_txn = source_db.begin_read().unwrap();
+    let source_reader = NoteReader::new(&source_read_txn).unwrap();
+    let root_record = source_reader.export_record(&root_id).unwrap().unwrap();
+    let reply_record = source_reader.export_record(&reply_id).unwrap().unwrap();
+
+    assert!(root_record.reply_links.contains(&ReplyLinkRecord {
+        parent_id: root_id,
+        child_id: reply_id,
+    }));
+    assert!(reply_record.reply_links.contains(&ReplyLinkRecord {
+        parent_id: root_id,
+        child_id: reply_id,
+    }));
+
+    let target_db = create_temp_db();
+
+    let target_write_txn = target_db.begin_write().unwrap();
+    Note::import_record(&target_write_txn, root_record).unwrap();
+    target_write_txn.commit().unwrap();
+
+    let target_read_txn = target_db.begin_read().unwrap();
+    let target_reader = NoteReader::new(&target_read_txn).unwrap();
+    let imported_root = target_reader.get_by_id(&root_id).unwrap().unwrap();
+    let children: Vec<Uuid> = target_reader
+        .children(&imported_root)
+        .unwrap()
+        .map(|res| res.unwrap())
+        .collect();
+    assert!(children.is_empty());
+
+    drop(target_reader);
+    drop(target_read_txn);
+
+    let target_write_txn = target_db.begin_write().unwrap();
+    Note::import_record(&target_write_txn, reply_record).unwrap();
+    target_write_txn.commit().unwrap();
+
+    let target_read_txn = target_db.begin_read().unwrap();
+    let target_reader = NoteReader::new(&target_read_txn).unwrap();
+    let imported_root = target_reader.get_by_id(&root_id).unwrap().unwrap();
+    let children: Vec<Uuid> = target_reader
+        .children(&imported_root)
+        .unwrap()
+        .map(|res| res.unwrap())
+        .collect();
+    assert_eq!(children, vec![reply_id]);
+}
+
+#[test]
+fn test_reply_link_rejects_cycle_on_local_write() {
+    let db = create_temp_db();
+
+    let write_txn = db.begin_write().unwrap();
+    let a = Note::create(&write_txn, "a".to_string(), vec![]).unwrap();
+    let b = Note::create(&write_txn, "b".to_string(), vec![]).unwrap();
+
+    a.reply(&write_txn, &b).unwrap();
+    let err = b.reply(&write_txn, &a).unwrap_err();
+    assert!(matches!(err, redb::Error::Io(_)));
+}
+
+#[test]
+fn test_import_records_reject_edit_cycles() {
+    let db = create_temp_db();
+
+    let write_txn = db.begin_write().unwrap();
+    let a_id = Uuid::from_u128(1);
+    let b_id = Uuid::from_u128(2);
+    let err = Note::import_record(
+        &write_txn,
+        NoteRecord {
+            id: a_id,
+            notes: vec![
+                NoteVersionRecord {
+                    id: a_id,
+                    content: "a".to_string(),
+                    tags: vec![],
+                },
+                NoteVersionRecord {
+                    id: b_id,
+                    content: "b".to_string(),
+                    tags: vec![],
+                },
+            ],
+            tags: vec![],
+            reply_links: vec![],
+            edit_links: vec![
+                EditLinkRecord {
+                    previous_id: a_id,
+                    next_id: b_id,
+                },
+                EditLinkRecord {
+                    previous_id: b_id,
+                    next_id: a_id,
+                },
+            ],
+            tombstones: vec![],
+        },
+    )
+    .unwrap_err();
+
+    assert!(matches!(err, redb::Error::Io(_)));
 }
 
 #[test]

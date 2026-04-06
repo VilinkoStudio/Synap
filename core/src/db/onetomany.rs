@@ -13,6 +13,10 @@ impl<K: redb::Key + 'static, V: redb::Key + 'static> OneToMany<K, V> {
         }
     }
 
+    pub const fn table_def(&self) -> MultimapTableDefinition<'static, K, V> {
+        self.def
+    }
+
     // ==========================================
     // 写操作 (Create, Update, Delete)
     // 使用 impl Borrow<K::SelfType> 是 redb 官方推荐的泛型传参解法

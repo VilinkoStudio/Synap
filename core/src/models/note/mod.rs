@@ -33,9 +33,9 @@ mod record;
 #[cfg(test)]
 mod tests;
 
-pub use entity::{Note, NoteRef};
-pub use reader::NoteReader;
-pub use record::{EditLinkRecord, NoteRecord, NoteVersionRecord, ReplyLinkRecord};
+pub(crate) use entity::{Note, NoteRef};
+pub(crate) use reader::NoteReader;
+pub(crate) use record::{EditLinkRecord, NoteRecord, NoteVersionRecord, ReplyLinkRecord};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct NoteBlock {

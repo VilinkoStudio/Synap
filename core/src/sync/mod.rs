@@ -1,7 +1,7 @@
 mod frame;
 mod protocol;
 mod service;
-pub mod share;
+mod share;
 mod share_service;
 
 #[cfg(test)]
@@ -11,5 +11,5 @@ mod tests;
 
 pub use protocol::{SyncChannel, SyncConfig, SyncError, SyncStats, PROTOCOL_VERSION};
 pub use service::SyncService;
-pub use share::{SharePackage, ShareStats, SHARE_VERSION};
+pub use share::{ShareStats, SHARE_VERSION};
 pub use share_service::ShareService;

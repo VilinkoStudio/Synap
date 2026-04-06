@@ -3,27 +3,27 @@ use thiserror::Error;
 
 use crate::{envelope, models::note::NoteRecord};
 
-pub const SHARE_VERSION: u8 = 1;
+pub const SHARE_VERSION: u8 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct SharePackage {
-    pub version: u8,
-    pub records: Vec<NoteRecord>,
+pub(crate) struct SharePackage {
+    pub(crate) version: u8,
+    pub(crate) records: Vec<NoteRecord>,
 }
 
 impl SharePackage {
-    pub fn new(records: Vec<NoteRecord>) -> Self {
+    pub(crate) fn new(records: Vec<NoteRecord>) -> Self {
         Self {
             version: SHARE_VERSION,
             records,
         }
     }
 
-    pub fn encode(&self) -> Result<Vec<u8>, ShareError> {
+    pub(crate) fn encode(&self) -> Result<Vec<u8>, ShareError> {
         envelope::encode_postcard(self).map_err(Into::into)
     }
 
-    pub fn decode(bytes: &[u8]) -> Result<Self, ShareError> {
+    pub(crate) fn decode(bytes: &[u8]) -> Result<Self, ShareError> {
         let package: Self = envelope::decode_postcard(bytes).map_err(ShareError::from)?;
         if package.version != SHARE_VERSION {
             return Err(ShareError::VersionMismatch {

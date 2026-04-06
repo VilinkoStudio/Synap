@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::models::note::NoteRecord;
 
-pub const PROTOCOL_VERSION: u8 = 1;
+pub const PROTOCOL_VERSION: u8 = 2;
 
 /// A transport-agnostic duplex byte channel for sync.
 ///
@@ -44,7 +44,7 @@ pub struct SyncStats {
 pub struct SyncRecordId(pub Uuid);
 
 impl SyncRecordId {
-    pub fn for_record(record: &NoteRecord) -> Result<Self, postcard::Error> {
+    pub(crate) fn for_record(record: &NoteRecord) -> Result<Self, postcard::Error> {
         Ok(Self(record.sync_id()?))
     }
 }
@@ -63,7 +63,7 @@ pub struct SyncBucketEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum SyncMessage {
+pub(crate) enum SyncMessage {
     Hello { version: u8 },
     Manifest { buckets: Vec<SyncBucketSummary> },
     BucketEntries { entries: Vec<SyncBucketEntry> },
@@ -96,11 +96,8 @@ pub enum SyncError {
     #[error("protocol version mismatch: local={local}, remote={remote}")]
     ProtocolVersionMismatch { local: u8, remote: u8 },
 
-    #[error("unexpected message: expected {expected}, got {got:?}")]
-    UnexpectedMessage {
-        expected: &'static str,
-        got: SyncMessage,
-    },
+    #[error("unexpected message: expected {expected}, got {got}")]
+    UnexpectedMessage { expected: &'static str, got: String },
 
     #[error("sync record id collision: {record_id:?}")]
     RecordIdCollision { record_id: SyncRecordId },

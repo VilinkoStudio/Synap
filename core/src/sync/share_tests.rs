@@ -4,8 +4,10 @@ use uuid::Uuid;
 use crate::{
     models::note::{EditLinkRecord, ReplyLinkRecord},
     service::SynapService,
-    sync::{SharePackage, ShareService},
+    sync::ShareService,
 };
+
+use super::share::SharePackage;
 
 #[test]
 fn test_export_records_notes() {

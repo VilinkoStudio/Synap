@@ -507,7 +507,6 @@ mod tests {
             NoteVersionRecord {
                 id: Builder::from_unix_timestamp_millis(timestamp_ms, &random).into_uuid(),
                 content: format!("note-{seed}"),
-                short_id: [seed; 8],
                 tags: vec![],
             },
         )

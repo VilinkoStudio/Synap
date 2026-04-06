@@ -1,2 +1,2 @@
-pub mod note_view;
-pub mod timeline_view;
+pub(crate) mod note_view;
+pub(crate) mod timeline_view;

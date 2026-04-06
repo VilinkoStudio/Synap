@@ -309,6 +309,7 @@ impl<'a, 'b> NoteView<'a, 'b> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::dagstorage::DagStore;
     use redb::{Database, ReadableDatabase};
     use tempfile::NamedTempFile;
 
@@ -645,8 +646,10 @@ mod tests {
         b.reply(&write_txn, &c).unwrap();
         c.reply(&write_txn, &d).unwrap();
 
-        // 回路：B 也连回 A
-        b.reply(&write_txn, &a).unwrap();
+        // 直接写底层关系表，模拟旧数据或脏数据里的回路。
+        DagStore::new("NoteLinkForward", "NoteLinkRev")
+            .link(&write_txn, &b_id, &a_id)
+            .unwrap();
 
         b.del(&write_txn).unwrap();
         c.del(&write_txn).unwrap();

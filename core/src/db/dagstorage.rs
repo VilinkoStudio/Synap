@@ -1,8 +1,10 @@
+use std::collections::{HashSet, VecDeque};
+
 use crate::db::{
     onetomany::{OneToMany, OneToManyReader},
     types::BlockId,
 };
-use redb::{ReadTransaction, WriteTransaction};
+use redb::{ReadTransaction, ReadableMultimapTable, WriteTransaction};
 use uuid::Uuid;
 // ==========================================
 // 1. 静态蓝图：DagStorage
@@ -54,12 +56,54 @@ impl DagStore {
         Ok(())
     }
 
+    pub fn would_create_cycle(
+        &self,
+        tx: &WriteTransaction,
+        parent: &Uuid,
+        child: &Uuid,
+    ) -> Result<bool, redb::Error> {
+        if parent == child {
+            return Ok(true);
+        }
+
+        self.path_exists_in_write(tx, child, parent)
+    }
+
     /// [Read] 核心修正：交出 Reader，而不是越权返回 Iterator
     pub fn reader(&self, tx: &ReadTransaction) -> Result<DagReader, redb::Error> {
         Ok(DagReader {
             forward: self.forward.reader(tx)?,
             backward: self.backward.reader(tx)?,
         })
+    }
+
+    fn path_exists_in_write(
+        &self,
+        tx: &WriteTransaction,
+        start: &Uuid,
+        target: &Uuid,
+    ) -> Result<bool, redb::Error> {
+        let table = tx.open_multimap_table(self.forward.table_def())?;
+        let start_bytes = start.into_bytes();
+        let target_bytes = target.into_bytes();
+        let mut queue = VecDeque::from([start_bytes]);
+        let mut visited = HashSet::from([start_bytes]);
+
+        while let Some(current) = queue.pop_front() {
+            let children = table.get(current)?;
+            for child_res in children {
+                let child: BlockId = child_res?.value();
+                if child == target_bytes {
+                    return Ok(true);
+                }
+
+                if visited.insert(child) {
+                    queue.push_back(child);
+                }
+            }
+        }
+
+        Ok(false)
     }
 }
 

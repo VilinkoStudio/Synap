@@ -1,9 +1,10 @@
 mod db;
+mod models;
 mod text;
+mod views;
 
 // Public API modules
 pub mod envelope;
-pub mod models;
 pub mod nlp;
 pub mod service;
 pub mod sync;
@@ -12,7 +13,6 @@ pub mod dto;
 pub mod error;
 pub mod search;
 pub mod version;
-pub mod views;
 /// Version information
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 

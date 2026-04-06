@@ -270,7 +270,7 @@ impl<'a> SyncService<'a> {
             other => {
                 return Err(SyncError::UnexpectedMessage {
                     expected: "Done",
-                    got: other,
+                    got: format!("{other:?}"),
                 });
             }
         }
@@ -318,7 +318,7 @@ impl<'a> SyncService<'a> {
             other => {
                 return Err(SyncError::UnexpectedMessage {
                     expected: "Done",
-                    got: other,
+                    got: format!("{other:?}"),
                 });
             }
         }
@@ -402,7 +402,7 @@ impl<'a> SyncService<'a> {
             }),
             other => Err(SyncError::UnexpectedMessage {
                 expected: "Hello",
-                got: other,
+                got: format!("{other:?}"),
             }),
         }
     }
@@ -437,7 +437,7 @@ impl<'a> SyncService<'a> {
             }
             other => Err(SyncError::UnexpectedMessage {
                 expected: "Manifest",
-                got: other,
+                got: format!("{other:?}"),
             }),
         }
     }
@@ -491,7 +491,7 @@ impl<'a> SyncService<'a> {
                 other => {
                     return Err(SyncError::UnexpectedMessage {
                         expected: "BucketEntries or BucketEntriesDone",
-                        got: other,
+                        got: format!("{other:?}"),
                     });
                 }
             }
@@ -555,7 +555,7 @@ impl<'a> SyncService<'a> {
                 other => {
                     return Err(SyncError::UnexpectedMessage {
                         expected: "Records or RecordsDone",
-                        got: other,
+                        got: format!("{other:?}"),
                     });
                 }
             }

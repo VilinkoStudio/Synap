@@ -1,37 +1,36 @@
 use super::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-pub struct NoteVersionRecord {
-    pub id: Uuid,
-    pub content: String,
-    pub short_id: [u8; 8],
-    pub tags: Vec<Uuid>,
+pub(crate) struct NoteVersionRecord {
+    pub(crate) id: Uuid,
+    pub(crate) content: String,
+    pub(crate) tags: Vec<Uuid>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct ReplyLinkRecord {
-    pub parent_id: Uuid,
-    pub child_id: Uuid,
+pub(crate) struct ReplyLinkRecord {
+    pub(crate) parent_id: Uuid,
+    pub(crate) child_id: Uuid,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct EditLinkRecord {
-    pub previous_id: Uuid,
-    pub next_id: Uuid,
+pub(crate) struct EditLinkRecord {
+    pub(crate) previous_id: Uuid,
+    pub(crate) next_id: Uuid,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct NoteRecord {
-    pub id: Uuid,
-    pub notes: Vec<NoteVersionRecord>,
-    pub tags: Vec<TagSyncRecord>,
-    pub reply_links: Vec<ReplyLinkRecord>,
-    pub edit_links: Vec<EditLinkRecord>,
-    pub tombstones: Vec<Uuid>,
+pub(crate) struct NoteRecord {
+    pub(crate) id: Uuid,
+    pub(crate) notes: Vec<NoteVersionRecord>,
+    pub(crate) tags: Vec<TagSyncRecord>,
+    pub(crate) reply_links: Vec<ReplyLinkRecord>,
+    pub(crate) edit_links: Vec<EditLinkRecord>,
+    pub(crate) tombstones: Vec<Uuid>,
 }
 
 impl NoteRecord {
-    pub fn sync_id(&self) -> Result<Uuid, postcard::Error> {
+    pub(crate) fn sync_id(&self) -> Result<Uuid, postcard::Error> {
         let namespace = Uuid::new_v5(&Uuid::NAMESPACE_OID, b"synap.note-record.sync");
         let payload = postcard::to_allocvec(self)?;
         Ok(Uuid::new_v5(&namespace, &payload))

@@ -1,13 +1,13 @@
 use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct NoteRef {
+pub(crate) struct NoteRef {
     pub(crate) id: Uuid,
     pub(crate) deleted: bool,
 }
 
 #[derive(Clone)]
-pub struct Note {
+pub(crate) struct Note {
     pub(crate) id: Uuid,
     pub(crate) deleted: bool,
     pub(crate) inner: NoteBlock,
@@ -42,6 +42,7 @@ impl NoteRef {
     }
 
     pub fn reply_to(self, tx: &WriteTransaction, child_id: &Uuid) -> Result<(), redb::Error> {
+        Note::validate_reply_link(tx, &self.id, child_id)?;
         NOTE_LINK.link(tx, &self.id, child_id)
     }
 
@@ -50,6 +51,7 @@ impl NoteRef {
         tx: &WriteTransaction,
         parent_id: &Uuid,
     ) -> Result<(), redb::Error> {
+        Note::validate_reply_link(tx, parent_id, &self.id)?;
         NOTE_LINK.link(tx, parent_id, &self.id)
     }
 
@@ -116,13 +118,22 @@ impl Note {
         normalized
     }
 
+    fn allocate_short_id(tx: &WriteTransaction) -> Result<[u8; 8], redb::Error> {
+        loop {
+            let short_id = random_id();
+            if ID_ALIAS.get_in_write(tx, short_id)?.is_none() {
+                return Ok(short_id);
+            }
+        }
+    }
+
     pub fn create(
         tx: &WriteTransaction,
         content: String,
         tags: Vec<Tag>,
     ) -> Result<Self, redb::Error> {
         let id = Uuid::now_v7();
-        let short_id = random_id();
+        let short_id = Self::allocate_short_id(tx)?;
         let tag_ids = Self::normalize_tag_ids(tags);
 
         let block = NoteBlock {
@@ -173,32 +184,29 @@ impl Note {
         sanitize_search_text(content)
     }
 
-    pub fn to_version_record(&self) -> NoteVersionRecord {
+    pub(crate) fn to_version_record(&self) -> NoteVersionRecord {
         NoteVersionRecord {
             id: self.id,
             content: self.inner.content.clone(),
-            short_id: self.inner.short_id,
             tags: self.inner.tags.clone(),
         }
     }
 
-    pub fn import_version(
+    pub(crate) fn import_version(
         tx: &WriteTransaction,
         record: NoteVersionRecord,
     ) -> Result<Self, redb::Error> {
         let note_id = record.id;
         let tag_ids = Self::dedup_tag_ids(record.tags);
+        let short_id = Self::allocate_short_id(tx)?;
         let block = NoteBlock {
             content: record.content,
-            short_id: record.short_id,
+            short_id,
             tags: tag_ids.clone(),
         };
 
         if let Some(existing) = NOTE_STORE.get_in_write(tx, note_id.as_bytes())? {
-            if existing.content != block.content
-                || existing.short_id != block.short_id
-                || existing.tags != block.tags
-            {
+            if existing.content != block.content || existing.tags != block.tags {
                 return Err(invalid_note_record(
                     "conflicting note version data during import",
                 ));
@@ -213,14 +221,7 @@ impl Note {
 
         NOTE_STORE.put(tx, note_id.as_bytes(), &block)?;
 
-        let note_id_bytes = note_id.into_bytes();
-        let should_insert_alias = match ID_ALIAS.get_in_write(tx, block.short_id)? {
-            Some(existing_id) => existing_id == note_id_bytes,
-            None => true,
-        };
-        if should_insert_alias {
-            ID_ALIAS.put(tx, block.short_id, &note_id_bytes)?;
-        }
+        ID_ALIAS.put(tx, block.short_id, note_id.as_bytes())?;
 
         for tag_id in &tag_ids {
             let _ = NOTE_TAG_INDEX.add(tx, tag_id.as_bytes(), note_id.as_bytes())?;
@@ -233,11 +234,14 @@ impl Note {
         })
     }
 
-    pub fn import_record(tx: &WriteTransaction, record: NoteRecord) -> Result<usize, redb::Error> {
+    pub(crate) fn import_record(
+        tx: &WriteTransaction,
+        record: NoteRecord,
+    ) -> Result<usize, redb::Error> {
         Self::import_records(tx, std::iter::once(record))
     }
 
-    pub fn import_records(
+    pub(crate) fn import_records(
         tx: &WriteTransaction,
         records: impl IntoIterator<Item = NoteRecord>,
     ) -> Result<usize, redb::Error> {
@@ -305,49 +309,78 @@ impl Note {
         }
 
         for link in edit_links {
-            if !Self::exists_in_write(tx, &link.previous_id)?
-                || !Self::exists_in_write(tx, &link.next_id)?
-            {
-                return Err(invalid_note_record(
-                    "edit link references a missing note version during import",
-                ));
-            }
             Self::import_edit_link(tx, &link.previous_id, &link.next_id)?;
         }
 
         for link in reply_links {
-            if Self::exists_in_write(tx, &link.parent_id)?
-                && Self::exists_in_write(tx, &link.child_id)?
-            {
-                Self::import_reply_link(tx, &link.parent_id, &link.child_id)?;
-            }
+            Self::import_reply_link(tx, &link.parent_id, &link.child_id)?;
         }
 
         Ok(unique_record_ids.len())
     }
 
-    pub fn import_reply_link(
+    fn import_reply_link(
         tx: &WriteTransaction,
         parent_id: &Uuid,
         child_id: &Uuid,
     ) -> Result<(), redb::Error> {
+        if !Self::exists_in_write(tx, parent_id)? || !Self::exists_in_write(tx, child_id)? {
+            return Ok(());
+        }
+
+        Self::validate_reply_link(tx, parent_id, child_id)?;
         NOTE_LINK.link(tx, parent_id, child_id)
     }
 
-    pub fn import_edit_link(
+    fn import_edit_link(
         tx: &WriteTransaction,
         previous_id: &Uuid,
         next_id: &Uuid,
     ) -> Result<(), redb::Error> {
+        Self::validate_edit_link(tx, previous_id, next_id)?;
         NOTE_EDIT.link(tx, previous_id, next_id)
     }
 
-    pub fn import_tombstone(tx: &WriteTransaction, note_id: &Uuid) -> Result<(), redb::Error> {
+    fn import_tombstone(tx: &WriteTransaction, note_id: &Uuid) -> Result<(), redb::Error> {
         NOTE_DELETE.add(tx, note_id.as_bytes()).map(|_| ())
     }
 
     fn exists_in_write(tx: &WriteTransaction, note_id: &Uuid) -> Result<bool, redb::Error> {
         Ok(NOTE_STORE.get_in_write(tx, note_id.as_bytes())?.is_some())
+    }
+
+    fn validate_reply_link(
+        tx: &WriteTransaction,
+        parent_id: &Uuid,
+        child_id: &Uuid,
+    ) -> Result<(), redb::Error> {
+        if !Self::exists_in_write(tx, parent_id)? || !Self::exists_in_write(tx, child_id)? {
+            return Err(invalid_note_record("reply link references a missing note"));
+        }
+
+        if NOTE_LINK.would_create_cycle(tx, parent_id, child_id)? {
+            return Err(invalid_note_record("reply link would create a cycle"));
+        }
+
+        Ok(())
+    }
+
+    fn validate_edit_link(
+        tx: &WriteTransaction,
+        previous_id: &Uuid,
+        next_id: &Uuid,
+    ) -> Result<(), redb::Error> {
+        if !Self::exists_in_write(tx, previous_id)? || !Self::exists_in_write(tx, next_id)? {
+            return Err(invalid_note_record(
+                "edit link references a missing note version during import",
+            ));
+        }
+
+        if NOTE_EDIT.would_create_cycle(tx, previous_id, next_id)? {
+            return Err(invalid_note_record("edit link would create a cycle"));
+        }
+
+        Ok(())
     }
 }
 
