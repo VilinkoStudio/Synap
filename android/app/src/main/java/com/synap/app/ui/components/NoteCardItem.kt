@@ -53,9 +53,9 @@ fun NoteCardItem(
     note: Note,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
-    onLongClick: () -> Unit, // 新增长按事件
-    isSelectionMode: Boolean, // 是否处于多选模式
-    isSelected: Boolean, // 当前卡片是否被选中
+    onLongClick: () -> Unit,
+    isSelectionMode: Boolean,
+    isSelected: Boolean,
     onToggleDeleted: () -> Unit,
     onReply: () -> Unit,
     animationDelayMillis: Int = 0,
@@ -89,7 +89,6 @@ fun NoteCardItem(
 
     SwipeToDismissBox(
         state = dismissState,
-        // 多选模式下屏蔽滑动物理效果
         enableDismissFromStartToEnd = !isSelectionMode,
         enableDismissFromEndToStart = !note.isDeleted && !isSelectionMode,
         backgroundContent = {
@@ -144,11 +143,11 @@ fun NoteCardItem(
                     onLongClick = onLongClick
                 ),
             colors = CardDefaults.cardColors(
-                containerColor = if (note.isDeleted) {
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant
-                },
+                containerColor = when {
+                    note.isDeleted -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                    isSelected -> MaterialTheme.colorScheme.secondaryContainer // 选中时变为更深的 SecondaryContainer 色彩
+                    else -> MaterialTheme.colorScheme.surfaceVariant
+                }
             ),
         ) {
             Row(
@@ -190,7 +189,7 @@ fun NoteCardItem(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             note.tags.forEach { tag ->
                                 Surface(
-                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    color = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.secondaryContainer,
                                     shape = MaterialTheme.shapes.small,
                                 ) {
                                     Text(
@@ -208,7 +207,7 @@ fun NoteCardItem(
                 AnimatedVisibility(visible = isSelectionMode) {
                     Checkbox(
                         checked = isSelected,
-                        onCheckedChange = null, // 由 onClick 统一接管点击事件
+                        onCheckedChange = null,
                         modifier = Modifier.padding(start = 16.dp)
                     )
                 }

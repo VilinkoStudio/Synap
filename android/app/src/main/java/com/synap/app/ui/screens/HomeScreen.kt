@@ -124,11 +124,9 @@ fun HomeScreen(
 
     var pendingDeleteNoteIds by remember { mutableStateOf(setOf<String>()) }
 
-    // --- 多选模式状态 ---
     var isSelectionMode by rememberSaveable { mutableStateOf(false) }
     var selectedNoteIds by rememberSaveable { mutableStateOf(setOf<String>()) }
 
-    // 物理返回键拦截（处于多选模式时按返回键取消选择）
     BackHandler(enabled = isSelectionMode) {
         isSelectionMode = false
         selectedNoteIds = emptySet()
@@ -140,10 +138,7 @@ fun HomeScreen(
         } else {
             selectedNoteIds + noteId
         }
-        // 如果最后取消选中了所有内容，自动退出多选模式
-        if (selectedNoteIds.isEmpty()) {
-            isSelectionMode = false
-        }
+        // 删除了这里的 if (selectedNoteIds.isEmpty()) 自动退出逻辑
     }
 
     fun finalizePendingDelete(note: Note) {
@@ -231,7 +226,6 @@ fun HomeScreen(
             }
     }
 
-    // 批量删除函数
     fun deleteSelectedNotes() {
         val notesToDelete = displayNotes.filter { it.id in selectedNoteIds } +
                 displaySessionGroups.flatMap { it.notes }.filter { it.id in selectedNoteIds }
@@ -240,7 +234,6 @@ fun HomeScreen(
             onToggleDeleted(note)
         }
 
-        // 恢复正常模式
         isSelectionMode = false
         selectedNoteIds = emptySet()
     }
@@ -385,134 +378,181 @@ fun HomeScreen(
             }
         },
         floatingActionButton = {
-            // 只保留原有的常规悬浮按钮在这个插槽里
-            AnimatedVisibility(
-                visible = !isSelectionMode,
-                enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
-                exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
+            Box(
+                modifier = Modifier.fillMaxWidth().offset(y = fabDodgeOffset),
+                contentAlignment = Alignment.BottomCenter
             ) {
-                Column(
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.offset(y = fabDodgeOffset)
+                AnimatedVisibility(
+                    visible = !isSelectionMode,
+                    enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+                    exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
+                    modifier = Modifier.align(Alignment.BottomEnd)
                 ) {
-                    AnimatedVisibility(
-                        visible = isScrolledDown,
-                        enter = fadeIn(),
-                        exit = fadeOut()
-                    ) {
-                        ExtendedFloatingActionButton(
-                            onClick = {
-                                scope.launch {
-                                    if (isShowingSessionFeed) {
-                                        sessionGridState.animateScrollToItem(0)
-                                    } else {
-                                        noteGridState.animateScrollToItem(0)
-                                    }
-                                }
-                            },
-                            icon = { Icon(Icons.Filled.ArrowUpward, contentDescription = null) },
-                            text = { Text(text = stringResource(R.string.backtop)) },
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
                         AnimatedVisibility(
-                            visible = !uiState.isSearchMode,
-                            enter = fadeIn() + slideInHorizontally { it / 2 },
-                            exit = fadeOut() + slideOutHorizontally { it / 2 }
+                            visible = isScrolledDown,
+                            enter = fadeIn(),
+                            exit = fadeOut()
                         ) {
-                            val isFeed = !uiState.showSessionFeed
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                shadowElevation = 6.dp,
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                modifier = Modifier.height(56.dp)
-                            ) {
-                                Row {
-                                    Surface(
-                                        onClick = {
-                                            onSetFilterPanelOpen(true)
-                                            scope.launch { noteGridState.animateScrollToItem(0) }
-                                        },
-                                        shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp),
-                                        color = if (isFeed) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                                        modifier = Modifier.fillMaxHeight()
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.Center,
-                                            modifier = Modifier.padding(horizontal = 16.dp)
-                                        ) {
-                                            AnimatedVisibility(visible = isFeed) {
-                                                Row {
-                                                    Icon(
-                                                        imageVector = Icons.Filled.Check,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(18.dp),
-                                                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                                    )
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                }
-                                            }
-                                            Text(
-                                                text = stringResource(R.string.home_feed_waterfall),
-                                                maxLines = 1,
-                                                softWrap = false,
-                                                style = MaterialTheme.typography.titleSmall,
-                                                color = if (isFeed) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
+                            ExtendedFloatingActionButton(
+                                onClick = {
+                                    scope.launch {
+                                        if (isShowingSessionFeed) {
+                                            sessionGridState.animateScrollToItem(0)
+                                        } else {
+                                            noteGridState.animateScrollToItem(0)
                                         }
                                     }
+                                },
+                                icon = { Icon(Icons.Filled.ArrowUpward, contentDescription = null) },
+                                text = { Text(text = stringResource(R.string.backtop)) },
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
 
-                                    Surface(
-                                        onClick = {
-                                            onSetFilterPanelOpen(false)
-                                            scope.launch { sessionGridState.animateScrollToItem(0) }
-                                        },
-                                        shape = RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp),
-                                        color = if (!isFeed) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                                        modifier = Modifier.fillMaxHeight()
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.Center,
-                                            modifier = Modifier.padding(horizontal = 16.dp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            AnimatedVisibility(
+                                visible = !uiState.isSearchMode,
+                                enter = fadeIn() + slideInHorizontally { it / 2 },
+                                exit = fadeOut() + slideOutHorizontally { it / 2 }
+                            ) {
+                                val isFeed = !uiState.showSessionFeed
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    shadowElevation = 6.dp,
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    modifier = Modifier.height(56.dp)
+                                ) {
+                                    Row {
+                                        Surface(
+                                            onClick = {
+                                                onSetFilterPanelOpen(true)
+                                                scope.launch { noteGridState.animateScrollToItem(0) }
+                                            },
+                                            shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp),
+                                            color = if (isFeed) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                            modifier = Modifier.fillMaxHeight()
                                         ) {
-                                            AnimatedVisibility(visible = !isFeed) {
-                                                Row {
-                                                    Icon(
-                                                        imageVector = Icons.Filled.Check,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(18.dp),
-                                                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                                    )
-                                                    Spacer(modifier = Modifier.width(6.dp))
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center,
+                                                modifier = Modifier.padding(horizontal = 16.dp)
+                                            ) {
+                                                AnimatedVisibility(visible = isFeed) {
+                                                    Row {
+                                                        Icon(
+                                                            imageVector = Icons.Filled.Check,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(18.dp),
+                                                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                                        )
+                                                        Spacer(modifier = Modifier.width(6.dp))
+                                                    }
                                                 }
+                                                Text(
+                                                    text = stringResource(R.string.home_feed_waterfall),
+                                                    maxLines = 1,
+                                                    softWrap = false,
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    color = if (isFeed) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
                                             }
-                                            Text(
-                                                text = stringResource(R.string.home_feed_timeline),
-                                                maxLines = 1,
-                                                softWrap = false,
-                                                style = MaterialTheme.typography.titleSmall,
-                                                color = if (!isFeed) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
+                                        }
+
+                                        Surface(
+                                            onClick = {
+                                                onSetFilterPanelOpen(false)
+                                                scope.launch { sessionGridState.animateScrollToItem(0) }
+                                            },
+                                            shape = RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp),
+                                            color = if (!isFeed) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                            modifier = Modifier.fillMaxHeight()
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center,
+                                                modifier = Modifier.padding(horizontal = 16.dp)
+                                            ) {
+                                                AnimatedVisibility(visible = !isFeed) {
+                                                    Row {
+                                                        Icon(
+                                                            imageVector = Icons.Filled.Check,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(18.dp),
+                                                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                                        )
+                                                        Spacer(modifier = Modifier.width(6.dp))
+                                                    }
+                                                }
+                                                Text(
+                                                    text = stringResource(R.string.home_feed_timeline),
+                                                    maxLines = 1,
+                                                    softWrap = false,
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    color = if (!isFeed) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        FloatingActionButton(
-                            onClick = onComposeNote,
-                            modifier = Modifier.size(56.dp)
+                            FloatingActionButton(
+                                onClick = onComposeNote,
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.home_creatnote))
+                            }
+                        }
+                    }
+                }
+
+                AnimatedVisibility(
+                    visible = isSelectionMode,
+                    enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+                    exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(percent = 50),
+                        shadowElevation = 8.dp,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.home_creatnote))
+                            IconButton(
+                                onClick = { /* TODO: 预留分享功能 */ },
+                                enabled = selectedNoteIds.isNotEmpty()
+                            ) {
+                                Icon(
+                                    Icons.Filled.Share,
+                                    contentDescription = "Share",
+                                    tint = if (selectedNoteIds.isNotEmpty()) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
+                                )
+                            }
+
+                            IconButton(
+                                onClick = { deleteSelectedNotes() },
+                                enabled = selectedNoteIds.isNotEmpty()
+                            ) {
+                                Icon(
+                                    Icons.Filled.Delete,
+                                    contentDescription = stringResource(R.string.delete),
+                                    tint = if (selectedNoteIds.isNotEmpty()) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
+                                )
+                            }
                         }
                     }
                 }
@@ -725,52 +765,6 @@ fun HomeScreen(
                                 .padding(bottom = 4.dp),
                             color = MaterialTheme.colorScheme.primary
                         )
-                    }
-                }
-            }
-
-            // --- 将悬浮多选工具栏放在 Box 层，脱离 FAB 限制实现真正的绝对居中，增加 16dp 底边距 ---
-            AnimatedVisibility(
-                visible = isSelectionMode,
-                enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
-                exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
-                modifier = Modifier.align(Alignment.BottomCenter) // 完美的居中对齐
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(percent = 50), // 完全圆角，胶囊状
-                    shadowElevation = 8.dp, // 提升悬浮层级
-                    color = MaterialTheme.colorScheme.primaryContainer, // Vibrant 背景色
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer, // 对应的图标颜色
-                    modifier = Modifier.padding(bottom = 16.dp) // 距离底部留出 16dp 间距
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), // 内部元件的上下左右留白
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // 分享按钮
-                        IconButton(
-                            onClick = { /* TODO: 预留分享功能 */ },
-                            enabled = selectedNoteIds.isNotEmpty()
-                        ) {
-                            Icon(
-                                Icons.Filled.Share,
-                                contentDescription = "Share",
-                                tint = if (selectedNoteIds.isNotEmpty()) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
-                            )
-                        }
-
-                        // 删除按钮
-                        IconButton(
-                            onClick = { deleteSelectedNotes() },
-                            enabled = selectedNoteIds.isNotEmpty()
-                        ) {
-                            Icon(
-                                Icons.Filled.Delete,
-                                contentDescription = stringResource(R.string.delete),
-                                tint = if (selectedNoteIds.isNotEmpty()) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
-                            )
-                        }
                     }
                 }
             }
