@@ -2,39 +2,22 @@ package com.synap.app.ui.navigation
 
 import android.net.Uri
 import androidx.compose.animation.AnimatedContentTransitionScope
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
+
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.synap.app.MainActivity
@@ -77,14 +60,6 @@ fun SynapNavGraph(
     databaseActivity: MainActivity?,
 ) {
     val navController = rememberNavController()
-    val backStackEntry by navController.currentBackStackEntryAsState()
-
-    val configuration = LocalConfiguration.current
-    val isLargeScreen = configuration.screenWidthDp >= 600
-    var showSettingsSidebar by rememberSaveable { mutableStateOf(false) }
-    var showTypographySidebar by rememberSaveable { mutableStateOf(false) }
-    var showLanguageSidebar by rememberSaveable { mutableStateOf(false) }
-    var showTeamSidebar by rememberSaveable { mutableStateOf(false) }
 
     val startDestination = remember { if (hasSeenTutorial) "home" else "tutorial" }
 
@@ -119,9 +94,7 @@ fun SynapNavGraph(
 
                 HomeScreen(
                     uiState = uiState,
-                    onOpenSettings = {
-                        if (isLargeScreen) showSettingsSidebar = true else navController.navigate("settings")
-                    },
+                    onOpenSettings = { navController.navigate("settings") },
                     onComposeNote = { navController.navigate(editorRoute()) },
                     onOpenNote = { noteId -> navController.navigate(detailRoute(noteId)) },
                     onReplyToNote = { noteId, summary -> navController.navigate(editorRoute(parentId = noteId, parentSummary = summary)) },
@@ -192,25 +165,15 @@ fun SynapNavGraph(
                     customThemeHue = customThemeHue, onCustomThemeHueChange = onCustomThemeHueChange,
                     handedness = handedness, onHandednessChange = onHandednessChange,
                     databaseActivity = databaseActivity,
-                    onNavigateToTypographySettings = { 
-                        if (isLargeScreen) showTypographySidebar = true else navController.navigate("typography_settings")
-                    },
-                    onNavigateToLanguageSelection = { 
-                        if (isLargeScreen) showLanguageSidebar = true else navController.navigate("language_selection")
-                    },
-                    onNavigateToTeam = { 
-                        if (isLargeScreen) showTeamSidebar = true else navController.navigate("team")
-                    },
+                    onNavigateToTypographySettings = { navController.navigate("typography_settings") },
+                    onNavigateToLanguageSelection = { navController.navigate("language_selection") },
+                    onNavigateToTeam = { navController.navigate("team") },
                     onNavigateToTutorial = { navController.navigate("tutorial") },
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
 
             composable("language_selection") {
-                if (isLargeScreen) {
-                    showLanguageSidebar = true
-                    LaunchedEffect(Unit) { navController.popBackStack() }
-                }
                 LanguageSelectionContainer(
                     languages = languages, selectedIndex = selectedLanguageIndex,
                     onLanguageSelect = onLanguageSelect, onNavigateBack = { navController.popBackStack() }
@@ -218,10 +181,6 @@ fun SynapNavGraph(
             }
 
             composable("typography_settings") {
-                if (isLargeScreen) {
-                    showTypographySidebar = true
-                    LaunchedEffect(Unit) { navController.popBackStack() }
-                }
                 TypographySettingsContainer(
                     currentFontFamily = currentFontFamily, onFontFamilyChange = onFontFamilyChange,
                     currentFontWeight = currentFontWeight, onFontWeightChange = onFontWeightChange,
@@ -231,10 +190,6 @@ fun SynapNavGraph(
             }
 
             composable("team") {
-                if (isLargeScreen) {
-                    showTeamSidebar = true
-                    LaunchedEffect(Unit) { navController.popBackStack() }
-                }
                 TeamScreen(
                     onNavigateBack = { navController.popBackStack() }
                 )
@@ -271,98 +226,5 @@ fun SynapNavGraph(
             }
         }
 
-        AnimatedVisibility(
-            visible = isLargeScreen && showSettingsSidebar,
-            enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()
-        ) {
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)).clickable(
-                interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = { showSettingsSidebar = false }
-            ))
-        }
-
-        AnimatedVisibility(
-            visible = isLargeScreen && showSettingsSidebar,
-            enter = slideInHorizontally(initialOffsetX = { it }), exit = slideOutHorizontally(targetOffsetX = { it }),
-            modifier = Modifier.align(Alignment.CenterEnd)
-        ) {
-            Surface(modifier = Modifier.width(320.dp).fillMaxHeight(), shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp), shadowElevation = 8.dp) {
-                SettingsContainer(
-                    themeMode = themeMode, onThemeModeChange = onThemeModeChange,
-                    useMonet = useMonet, supportsMonet = supportsMonet, onUseMonetChange = onUseMonetChange,
-                    customThemeHue = customThemeHue, onCustomThemeHueChange = onCustomThemeHueChange,
-                    handedness = handedness, onHandednessChange = onHandednessChange, databaseActivity = databaseActivity,
-                    onNavigateToTypographySettings = { showTypographySidebar = true },
-                    onNavigateToLanguageSelection = { showLanguageSidebar = true },
-                    onNavigateToTeam = { showTeamSidebar = true },
-                    onNavigateToTutorial = { showSettingsSidebar = false; navController.navigate("tutorial") },
-                    onNavigateBack = { showSettingsSidebar = false }
-                )
-            }
-        }
-
-        AnimatedVisibility(
-            visible = isLargeScreen && showTypographySidebar,
-            enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()
-        ) {
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)).clickable(
-                interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = { showTypographySidebar = false }
-            ))
-        }
-
-        AnimatedVisibility(
-            visible = isLargeScreen && showTypographySidebar,
-            enter = slideInHorizontally(initialOffsetX = { it }), exit = slideOutHorizontally(targetOffsetX = { it }),
-            modifier = Modifier.align(Alignment.CenterEnd)
-        ) {
-            Surface(modifier = Modifier.width(320.dp).fillMaxHeight(), shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp), shadowElevation = 8.dp) {
-                TypographySettingsContainer(
-                    currentFontFamily = currentFontFamily, onFontFamilyChange = onFontFamilyChange,
-                    currentFontWeight = currentFontWeight, onFontWeightChange = onFontWeightChange,
-                    noteTextSize = noteTextSize, onNoteTextSizeChange = onNoteTextSizeChange,
-                    onNavigateBack = { showTypographySidebar = false }
-                )
-            }
-        }
-
-        AnimatedVisibility(
-            visible = isLargeScreen && showLanguageSidebar,
-            enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()
-        ) {
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)).clickable(
-                interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = { showLanguageSidebar = false }
-            ))
-        }
-
-        AnimatedVisibility(
-            visible = isLargeScreen && showLanguageSidebar,
-            enter = slideInHorizontally(initialOffsetX = { it }), exit = slideOutHorizontally(targetOffsetX = { it }),
-            modifier = Modifier.align(Alignment.CenterEnd)
-        ) {
-            Surface(modifier = Modifier.width(320.dp).fillMaxHeight(), shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp), shadowElevation = 8.dp) {
-                LanguageSelectionContainer(
-                    languages = languages, selectedIndex = selectedLanguageIndex,
-                    onLanguageSelect = onLanguageSelect, onNavigateBack = { showLanguageSidebar = false }
-                )
-            }
-        }
-
-        AnimatedVisibility(
-            visible = isLargeScreen && showTeamSidebar,
-            enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()
-        ) {
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)).clickable(
-                interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = { showTeamSidebar = false }
-            ))
-        }
-
-        AnimatedVisibility(
-            visible = isLargeScreen && showTeamSidebar,
-            enter = slideInHorizontally(initialOffsetX = { it }), exit = slideOutHorizontally(targetOffsetX = { it }),
-            modifier = Modifier.align(Alignment.CenterEnd)
-        ) {
-            Surface(modifier = Modifier.width(320.dp).fillMaxHeight(), shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp), shadowElevation = 8.dp) {
-                TeamScreen(onNavigateBack = { showTeamSidebar = false })
-            }
-        }
     }
 }
