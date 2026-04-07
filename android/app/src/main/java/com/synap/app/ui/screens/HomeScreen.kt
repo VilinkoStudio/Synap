@@ -42,7 +42,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.BottomAppBar
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -385,7 +385,12 @@ fun HomeScreen(
             }
         },
         floatingActionButton = {
-            if (!isSelectionMode) { // 多选模式下隐藏悬浮按钮
+            // 只保留原有的常规悬浮按钮在这个插槽里
+            AnimatedVisibility(
+                visible = !isSelectionMode,
+                enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+                exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
+            ) {
                 Column(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -513,29 +518,7 @@ fun HomeScreen(
                 }
             }
         },
-        bottomBar = {
-            AnimatedVisibility(
-                visible = isSelectionMode,
-                enter = slideInVertically(initialOffsetY = { it }),
-                exit = slideOutVertically(targetOffsetY = { it })
-            ) {
-                BottomAppBar(
-                    actions = {
-                        Spacer(modifier = Modifier.weight(1f))
-                        IconButton(
-                            onClick = { deleteSelectedNotes() },
-                            enabled = selectedNoteIds.isNotEmpty() // 只有选中了笔记才能点删除
-                        ) {
-                            Icon(
-                                Icons.Filled.Delete,
-                                contentDescription = stringResource(R.string.delete),
-                                tint = if (selectedNoteIds.isNotEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                            )
-                        }
-                    }
-                )
-            }
-        }
+        bottomBar = {}
     ) { innerPadding ->
         Box(
             modifier = Modifier
@@ -742,6 +725,52 @@ fun HomeScreen(
                                 .padding(bottom = 4.dp),
                             color = MaterialTheme.colorScheme.primary
                         )
+                    }
+                }
+            }
+
+            // --- 将悬浮多选工具栏放在 Box 层，脱离 FAB 限制实现真正的绝对居中，增加 16dp 底边距 ---
+            AnimatedVisibility(
+                visible = isSelectionMode,
+                enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+                exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
+                modifier = Modifier.align(Alignment.BottomCenter) // 完美的居中对齐
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(percent = 50), // 完全圆角，胶囊状
+                    shadowElevation = 8.dp, // 提升悬浮层级
+                    color = MaterialTheme.colorScheme.primaryContainer, // Vibrant 背景色
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer, // 对应的图标颜色
+                    modifier = Modifier.padding(bottom = 16.dp) // 距离底部留出 16dp 间距
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), // 内部元件的上下左右留白
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 分享按钮
+                        IconButton(
+                            onClick = { /* TODO: 预留分享功能 */ },
+                            enabled = selectedNoteIds.isNotEmpty()
+                        ) {
+                            Icon(
+                                Icons.Filled.Share,
+                                contentDescription = "Share",
+                                tint = if (selectedNoteIds.isNotEmpty()) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
+                            )
+                        }
+
+                        // 删除按钮
+                        IconButton(
+                            onClick = { deleteSelectedNotes() },
+                            enabled = selectedNoteIds.isNotEmpty()
+                        ) {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = stringResource(R.string.delete),
+                                tint = if (selectedNoteIds.isNotEmpty()) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
+                            )
+                        }
                     }
                 }
             }
