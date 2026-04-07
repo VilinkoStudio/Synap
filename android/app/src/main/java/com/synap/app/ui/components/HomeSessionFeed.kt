@@ -24,6 +24,10 @@ import com.synap.app.ui.util.formatSessionTimeRange
 fun HomeSessionFeed(
     sessions: List<TimelineSessionGroup>,
     state: LazyStaggeredGridState,
+    isSelectionMode: Boolean, // 新增参数
+    selectedNoteIds: Set<String>, // 新增参数
+    onToggleSelection: (String) -> Unit, // 新增参数
+    onEnterSelectionMode: (String) -> Unit, // 新增参数
     onOpenNote: (String) -> Unit,
     onToggleDeleted: (Note) -> Unit,
     onReplyToNote: (String, String) -> Unit,
@@ -68,7 +72,14 @@ fun HomeSessionFeed(
             ) { noteIndex, note ->
                 NoteCardItem(
                     note = note,
-                    onClick = { onOpenNote(note.id) },
+                    onClick = {
+                        if (isSelectionMode) onToggleSelection(note.id) else onOpenNote(note.id)
+                    },
+                    onLongClick = {
+                        if (!isSelectionMode) onEnterSelectionMode(note.id)
+                    },
+                    isSelectionMode = isSelectionMode,
+                    isSelected = selectedNoteIds.contains(note.id),
                     onToggleDeleted = { onToggleDeleted(note) },
                     onReply = { onReplyToNote(note.id, note.content) },
                     animationDelayMillis = ((sessionIndex + noteIndex).coerceAtMost(8)) * 35,

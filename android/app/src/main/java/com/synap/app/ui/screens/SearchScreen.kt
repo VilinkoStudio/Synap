@@ -38,7 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import com.synap.app.R // 导入 R 文件
+import com.synap.app.R
 import com.synap.app.ui.components.NoteCardItem
 import com.synap.app.ui.model.Note
 import com.synap.app.ui.viewmodel.HomeUiState
@@ -172,6 +172,11 @@ fun SearchScreen(
                             NoteCardItem(
                                 note = note,
                                 onClick = { onOpenNote(note.id) },
+                                // --- 补充缺少的参数，搜索页默认关闭多选模式 ---
+                                onLongClick = { /* 搜索页不触发多选 */ },
+                                isSelectionMode = false,
+                                isSelected = false,
+                                // ------------------------------------
                                 onToggleDeleted = { onToggleDeleted(note) },
                                 onReply = { },
                                 animationDelayMillis = (index.coerceAtMost(6)) * 45,

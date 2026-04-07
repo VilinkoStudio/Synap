@@ -1,8 +1,10 @@
 package com.synap.app.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +21,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Reply
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -44,12 +47,15 @@ import com.synap.app.ui.util.formatNoteTime
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun NoteCardItem(
     note: Note,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
+    onLongClick: () -> Unit, // 新增长按事件
+    isSelectionMode: Boolean, // 是否处于多选模式
+    isSelected: Boolean, // 当前卡片是否被选中
     onToggleDeleted: () -> Unit,
     onReply: () -> Unit,
     animationDelayMillis: Int = 0,
@@ -58,6 +64,7 @@ fun NoteCardItem(
 
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { dismissValue ->
+            if (isSelectionMode) return@rememberSwipeToDismissBoxState false // 多选模式下禁用滑动
             when (dismissValue) {
                 SwipeToDismissBoxValue.StartToEnd -> {
                     scope.launch {
@@ -82,8 +89,9 @@ fun NoteCardItem(
 
     SwipeToDismissBox(
         state = dismissState,
-        enableDismissFromStartToEnd = true,
-        enableDismissFromEndToStart = !note.isDeleted,
+        // 多选模式下屏蔽滑动物理效果
+        enableDismissFromStartToEnd = !isSelectionMode,
+        enableDismissFromEndToStart = !note.isDeleted && !isSelectionMode,
         backgroundContent = {
             val color by animateColorAsState(
                 targetValue = when (dismissState.targetValue) {
@@ -130,9 +138,10 @@ fun NoteCardItem(
         Card(
             modifier = modifier
                 .fillMaxWidth()
-                .clickable(
-                    enabled = !note.isDeleted,
-                    onClick = onClick
+                .combinedClickable(
+                    enabled = !note.isDeleted || isSelectionMode,
+                    onClick = onClick,
+                    onLongClick = onLongClick
                 ),
             colors = CardDefaults.cardColors(
                 containerColor = if (note.isDeleted) {
@@ -142,53 +151,66 @@ fun NoteCardItem(
                 },
             ),
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                // --- 核心修改：应用字体和字重 ---
-                Text(
-                    text = note.content,
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontFamily = LocalNoteFontFamily.current,
-                        fontWeight = LocalNoteFontWeight.current,
-                        fontSize = LocalNoteTextSize.current,
-                        lineHeight = LocalNoteTextSize.current * 1.5f
-                    ),
-                    color = if (note.isDeleted) Color.Gray else Color.Unspecified,
-                    textDecoration = if (note.isDeleted) TextDecoration.LineThrough else TextDecoration.None,
-                    maxLines = 4,
-                    overflow = TextOverflow.Ellipsis,
-                )
-
-                if (!note.parentSummary.isNullOrBlank()) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "回复自“${note.parentSummary}”",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 8.dp),
+                        text = note.content,
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontFamily = LocalNoteFontFamily.current,
+                            fontWeight = LocalNoteFontWeight.current,
+                            fontSize = LocalNoteTextSize.current,
+                            lineHeight = LocalNoteTextSize.current * 1.5f
+                        ),
+                        color = if (note.isDeleted) Color.Gray else Color.Unspecified,
+                        textDecoration = if (note.isDeleted) TextDecoration.LineThrough else TextDecoration.None,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis,
                     )
-                }
 
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = formatNoteTime(note.timestamp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(end = 12.dp),
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        note.tags.forEach { tag ->
-                            Surface(
-                                color = MaterialTheme.colorScheme.secondaryContainer,
-                                shape = MaterialTheme.shapes.small,
-                            ) {
-                                Text(
-                                    text = tag,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    style = MaterialTheme.typography.labelSmall,
-                                )
+                    if (!note.parentSummary.isNullOrBlank()) {
+                        Text(
+                            text = "回复自“${note.parentSummary}”",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = formatNoteTime(note.timestamp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(end = 12.dp),
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            note.tags.forEach { tag ->
+                                Surface(
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    shape = MaterialTheme.shapes.small,
+                                ) {
+                                    Text(
+                                        text = tag,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                }
                             }
                         }
                     }
+                }
+
+                // 多选模式下的复选框
+                AnimatedVisibility(visible = isSelectionMode) {
+                    Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = null, // 由 onClick 统一接管点击事件
+                        modifier = Modifier.padding(start = 16.dp)
+                    )
                 }
             }
         }

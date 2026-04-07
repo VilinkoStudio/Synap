@@ -56,9 +56,9 @@ fun TrashScreen(
         derivedStateOf {
             val lastVisible = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
             uiState.hasMore &&
-                !uiState.isLoading &&
-                uiState.notes.isNotEmpty() &&
-                lastVisible >= uiState.notes.lastIndex - 4
+                    !uiState.isLoading &&
+                    uiState.notes.isNotEmpty() &&
+                    lastVisible >= uiState.notes.lastIndex - 4
         }
     }
 
@@ -180,6 +180,11 @@ fun TrashScreen(
                             NoteCardItem(
                                 note = note,
                                 onClick = {},
+                                // --- 补充缺少的参数，回收站页默认关闭多选模式 ---
+                                onLongClick = {},
+                                isSelectionMode = false,
+                                isSelected = false,
+                                // --------------------------------------
                                 onToggleDeleted = { onRestoreNote(note) },
                                 onReply = {},
                                 animationDelayMillis = (index.coerceAtMost(6)) * 45,
