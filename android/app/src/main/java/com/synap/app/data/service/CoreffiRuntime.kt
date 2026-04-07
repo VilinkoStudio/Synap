@@ -215,6 +215,9 @@ class CoreffiRuntime @Inject constructor(
     override suspend fun searchTags(query: String, limit: UInt): Result<List<String>> =
         withService { service -> service.searchTags(query, limit) }
 
+    override suspend fun recommendTag(content: String, limit: UInt): Result<List<String>> =
+        withService { service -> service.recommendTag(content, limit) }
+
     override suspend fun getAllTags(): Result<List<String>> =
         withService { service -> service.getAllTags() }
 

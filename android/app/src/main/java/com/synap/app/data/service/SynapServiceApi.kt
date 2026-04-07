@@ -52,6 +52,8 @@ interface SynapServiceApi {
 
     suspend fun searchTags(query: String, limit: UInt): Result<List<String>>
 
+    suspend fun recommendTag(content: String, limit: UInt): Result<List<String>>
+
     suspend fun getAllTags(): Result<List<String>>
 
     suspend fun getNotesByTag(tag: String, cursor: String?, limit: UInt?): Result<List<NoteRecord>>

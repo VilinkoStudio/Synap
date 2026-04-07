@@ -69,6 +69,7 @@
     <string name="edit_tag_add">Add tag</string>
     <string name="edit_tag_placeholder">Enter tag text here</string>
     <string name="edit_tag_check">Confirm</string>
+    <string name="edit_tag_recommend_title">Suggested Tags</string>
     <string name="home_search_title">Search notes, tags, snippets...</string>
     <string name="home_tagbar_none">No tags</string>
     <string name="home_tagbar_all">All Tags</string>
@@ -96,4 +97,5 @@
     <string name="home_feed_timeline">Timeline</string>
     <string name="content_desc_search">Search</string>
     <string name="content_desc_settings">Settings</string>
+    <string name="edit_reply_context_title">Continue this thread</string>
 </resources>

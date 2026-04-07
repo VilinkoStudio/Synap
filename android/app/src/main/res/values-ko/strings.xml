@@ -67,6 +67,7 @@
     <string name="edit_tag_add">태그 추가</string>
     <string name="edit_tag_placeholder">여기에 태그 입력</string>
     <string name="edit_tag_check">추가 확인</string>
+    <string name="edit_tag_recommend_title">추천 태그</string>
     <string name="home_search_title">노트, 태그, 스니펫 검색...</string>
     <string name="home_tagbar_none">태그 없음</string>
     <string name="home_tagbar_all">모든 태그</string>
@@ -94,4 +95,5 @@
     <string name="RED">샤오홍슈</string>
     <string name="role_backend">백엔드 개발</string>
     <string name="role_frontend_ui">프론트엔드 &amp; UI 디자인</string>
+    <string name="edit_reply_context_title">이 흐름을 이어서 쓰기</string>
 </resources>

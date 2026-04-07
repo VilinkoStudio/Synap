@@ -9,6 +9,9 @@ use redb::{Database, ReadableDatabase};
 use tempfile::NamedTempFile;
 use uuid::{Builder, Uuid};
 
+const ADAPTIVE_GAP_RATIO_NUMERATOR: u64 = 5;
+const ADAPTIVE_GAP_RATIO_DENOMINATOR: u64 = 2;
+
 #[derive(Debug, Clone)]
 pub struct Session {
     notes: Vec<u64>,
@@ -376,8 +379,11 @@ fn detect_session_spans_from_samples(
     samples: impl Iterator<Item = TimelineSample>,
     config: SessionDetectionConfig,
 ) -> Vec<SessionSpan> {
-    let mut samples = samples.into_iter();
+    let samples: Vec<_> = samples.into_iter().collect();
+    let split_gap_ms =
+        resolve_session_split_gap_ms(samples.iter().map(|sample| sample.timestamp_ms), config);
     let mut sessions = Vec::new();
+    let mut samples = samples.into_iter();
     let Some(first) = samples.next() else {
         return sessions;
     };
@@ -388,7 +394,7 @@ fn detect_session_spans_from_samples(
     for sample in samples {
         let gap = sample.timestamp_ms.saturating_sub(prev_ts);
 
-        if gap > config.split_gap_ms {
+        if gap > split_gap_ms {
             sessions.push(current.finish());
             current = SessionAccumulator::new(sample);
         } else {
@@ -406,6 +412,11 @@ fn detect_sessions_from_timestamps(
     timestamps: impl Iterator<Item = u64>,
     split_gap_ms: u64,
 ) -> impl Iterator<Item = Session> {
+    let timestamps: Vec<_> = timestamps.into_iter().collect();
+    let split_gap_ms = resolve_session_split_gap_ms(
+        timestamps.iter().copied(),
+        SessionDetectionConfig::new(split_gap_ms),
+    );
     let mut sessions = Vec::new();
     let mut timestamps = timestamps.into_iter();
     let Some(first) = timestamps.next() else {
@@ -428,6 +439,99 @@ fn detect_sessions_from_timestamps(
 
     sessions.push(current);
     sessions.into_iter()
+}
+
+fn resolve_session_split_gap_ms(
+    timestamps: impl Iterator<Item = u64>,
+    config: SessionDetectionConfig,
+) -> u64 {
+    let timestamps = timestamps.collect::<Vec<_>>();
+    let gaps = timestamps
+        .windows(2)
+        .map(|pair| pair[1].saturating_sub(pair[0]))
+        .filter(|gap| *gap > 0)
+        .collect::<Vec<_>>();
+
+    estimate_session_split_gap_ms(&gaps, config)
+}
+
+fn estimate_session_split_gap_ms(gaps: &[u64], config: SessionDetectionConfig) -> u64 {
+    let mut sorted_gaps = gaps
+        .iter()
+        .copied()
+        .filter(|gap| *gap > 0)
+        .collect::<Vec<_>>();
+
+    if sorted_gaps.is_empty() {
+        return config.split_gap_ms;
+    }
+
+    sorted_gaps.sort_unstable();
+
+    if let Some((lower_gap, upper_gap)) = strongest_adaptive_gap_jump(&sorted_gaps) {
+        return geometric_gap_midpoint(lower_gap, upper_gap).max(1);
+    }
+
+    let typical_gap = sorted_gaps[(sorted_gaps.len() - 1) / 2];
+    config.split_gap_ms.max(scale_gap(
+        typical_gap,
+        ADAPTIVE_GAP_RATIO_NUMERATOR,
+        ADAPTIVE_GAP_RATIO_DENOMINATOR,
+    ))
+}
+
+fn strongest_adaptive_gap_jump(sorted_gaps: &[u64]) -> Option<(u64, u64)> {
+    let mut best: Option<(u64, u64)> = None;
+
+    for index in 0..sorted_gaps.len().saturating_sub(1) {
+        let lower_gap = sorted_gaps[index];
+        let upper_gap = sorted_gaps[index + 1];
+        if lower_gap == 0 || upper_gap <= lower_gap {
+            continue;
+        }
+
+        let left_count = index + 1;
+        let right_count = sorted_gaps.len() - left_count;
+        if left_count < right_count {
+            continue;
+        }
+
+        if !gap_ratio_at_least(
+            upper_gap,
+            lower_gap,
+            ADAPTIVE_GAP_RATIO_NUMERATOR,
+            ADAPTIVE_GAP_RATIO_DENOMINATOR,
+        ) {
+            continue;
+        }
+
+        let should_replace = match best {
+            Some((best_lower_gap, best_upper_gap)) => {
+                (upper_gap as u128) * (best_lower_gap as u128)
+                    > (best_upper_gap as u128) * (lower_gap as u128)
+            }
+            None => true,
+        };
+
+        if should_replace {
+            best = Some((lower_gap, upper_gap));
+        }
+    }
+
+    best
+}
+
+fn gap_ratio_at_least(upper_gap: u64, lower_gap: u64, numerator: u64, denominator: u64) -> bool {
+    (upper_gap as u128) * (denominator as u128) >= (lower_gap as u128) * (numerator as u128)
+}
+
+fn scale_gap(gap: u64, numerator: u64, denominator: u64) -> u64 {
+    (((gap as u128) * (numerator as u128) + (denominator as u128 - 1)) / (denominator as u128))
+        as u64
+}
+
+fn geometric_gap_midpoint(lower_gap: u64, upper_gap: u64) -> u64 {
+    ((lower_gap as f64) * (upper_gap as f64)).sqrt().round() as u64
 }
 
 fn split_session_spans(spans: Vec<SessionSpan>, point: TimelinePoint) -> SessionSpanSplit {
@@ -589,6 +693,52 @@ mod tests {
     }
 
     #[test]
+    fn test_detect_sessions_adapts_to_global_burst_gaps() {
+        let timestamps = vec![
+            ts_ms(0),
+            ts_ms(60),
+            ts_ms(120),
+            ts_ms(300),
+            ts_ms(360),
+            ts_ms(720),
+            ts_ms(780),
+        ];
+
+        assert_eq!(
+            resolve_session_split_gap_ms(
+                timestamps.iter().copied(),
+                SessionDetectionConfig::default()
+            ),
+            geometric_gap_midpoint(ts_ms(60), ts_ms(180))
+        );
+
+        let sessions: Vec<_> =
+            detect_sessions_from_timestamps(timestamps.into_iter(), 5 * 60 * 1000).collect();
+
+        let counts: Vec<_> = sessions.iter().map(Session::count).collect();
+        assert_eq!(counts, vec![3, 2, 2]);
+    }
+
+    #[test]
+    fn test_detect_sessions_adapts_to_slower_global_cadence() {
+        let timestamps = vec![ts_ms(0), ts_ms(600), ts_ms(1200), ts_ms(1800)];
+
+        assert_eq!(
+            resolve_session_split_gap_ms(
+                timestamps.iter().copied(),
+                SessionDetectionConfig::default()
+            ),
+            ts_ms(1500)
+        );
+
+        let sessions: Vec<_> =
+            detect_sessions_from_timestamps(timestamps.into_iter(), 5 * 60 * 1000).collect();
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].count(), 4);
+    }
+
+    #[test]
     fn test_detect_sessions_single_note() {
         let timestamps = vec![ts_ms(0)];
 
@@ -619,6 +769,42 @@ mod tests {
         assert_eq!(session.end(), ts_ms(1200));
         assert_eq!(session.count(), 3);
         assert_eq!(session.duration(), ts_ms(1200));
+    }
+
+    #[test]
+    fn test_estimate_session_split_gap_ms_prefers_global_gap_jump() {
+        let gaps = vec![
+            ts_ms(60),
+            ts_ms(60),
+            ts_ms(180),
+            ts_ms(60),
+            ts_ms(360),
+            ts_ms(60),
+        ];
+
+        assert_eq!(
+            strongest_adaptive_gap_jump(&{
+                let mut sorted = gaps.clone();
+                sorted.sort_unstable();
+                sorted
+            }),
+            Some((ts_ms(60), ts_ms(180)))
+        );
+
+        assert_eq!(
+            estimate_session_split_gap_ms(&gaps, SessionDetectionConfig::default()),
+            geometric_gap_midpoint(ts_ms(60), ts_ms(180))
+        );
+    }
+
+    #[test]
+    fn test_estimate_session_split_gap_ms_tracks_slower_global_cadence() {
+        let gaps = vec![ts_ms(600), ts_ms(600), ts_ms(600)];
+
+        assert_eq!(
+            estimate_session_split_gap_ms(&gaps, SessionDetectionConfig::default()),
+            ts_ms(1500)
+        );
     }
 
     #[test]
@@ -749,6 +935,49 @@ mod tests {
         assert_eq!(newer[0].oldest_id(), ids[2]);
         assert_eq!(newer[0].newest_id(), ids[3]);
         assert_eq!(newer[1].oldest_id(), ids[4]);
+    }
+
+    #[test]
+    fn test_split_session_spans_from_any_point_reconstructs_same_sessions() {
+        let (db, ids) = create_spaced_note_sequence(&[
+            ts_ms(0),
+            ts_ms(60),
+            ts_ms(120),
+            ts_ms(300),
+            ts_ms(360),
+            ts_ms(720),
+            ts_ms(780),
+        ]);
+
+        let rtx = db.begin_read().unwrap();
+        let reader = NoteReader::new(&rtx).unwrap();
+        let timeline = TimelineView::new(&reader);
+        let expected = timeline
+            .session_spans(SessionDetectionConfig::default())
+            .unwrap();
+
+        let points = [
+            TimelinePoint::NoteId(ids[0]),
+            TimelinePoint::NoteId(ids[3]),
+            TimelinePoint::NoteId(ids[6]),
+            TimelinePoint::TimestampMs(ts_ms(200)),
+            TimelinePoint::TimestampMs(ts_ms(500)),
+        ];
+
+        for point in points {
+            let split = timeline
+                .split_session_spans_from(point, SessionDetectionConfig::default())
+                .unwrap();
+
+            let mut reconstructed: Vec<_> = split.older.collect();
+            reconstructed.reverse();
+            if let Some(current) = split.current {
+                reconstructed.push(current);
+            }
+            reconstructed.extend(split.newer);
+
+            assert_eq!(reconstructed, expected);
+        }
     }
 
     #[test]

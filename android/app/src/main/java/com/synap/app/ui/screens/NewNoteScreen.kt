@@ -1,13 +1,12 @@
 package com.synap.app.ui.screens
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,7 +15,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -24,6 +23,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Reply
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -56,14 +56,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import com.synap.app.LocalNoteFontFamily
 import com.synap.app.LocalNoteFontWeight
 import com.synap.app.LocalNoteTextSize
+import com.synap.app.R
 import com.synap.app.ui.viewmodel.EditorMode
 import com.synap.app.ui.viewmodel.EditorUiState
 import kotlinx.coroutines.delay
-import androidx.compose.ui.res.stringResource
-import com.synap.app.R
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -72,7 +72,6 @@ fun NewNoteScreen(
     onNavigateBack: () -> Unit,
     onContentChange: (String) -> Unit,
     onAddTag: (String) -> Unit,
-    onUpdateTag: (Int, String) -> Unit,
     onRemoveTag: (Int) -> Unit,
     onSave: () -> Unit,
 ) {
@@ -82,7 +81,6 @@ fun NewNoteScreen(
 
     val bodyFocusRequester = remember { FocusRequester() }
     val tagFocusRequester = remember { FocusRequester() }
-    val tagScrollState = rememberScrollState()
     val isImeVisible = WindowInsets.isImeVisible
 
     LaunchedEffect(Unit) {
@@ -140,21 +138,50 @@ fun NewNoteScreen(
                 is EditorMode.Reply -> {
                     if (!mode.parentSummary.isNullOrBlank()) {
                         Surface(
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            shape = MaterialTheme.shapes.small,
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            shape = MaterialTheme.shapes.medium,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(bottom = 12.dp),
                         ) {
-                            Text(
-                                text = "“${stringResource(R.string.reply)}${mode.parentSummary}”"
-                                ,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.Top,
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(32.dp),
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Reply,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    }
+                                }
+
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.edit_reply_context_title),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                    Text(
+                                        text = mode.parentSummary,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -205,6 +232,53 @@ fun NewNoteScreen(
                 )
             }
 
+            if (uiState.recommendedTags.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.edit_tag_recommend_title),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+
+                        if (uiState.isRecommendingTags) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        }
+                    }
+
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        uiState.recommendedTags.forEach { tag ->
+                            SuggestionChip(
+                                onClick = { onAddTag(tag) },
+                                label = { Text(tag) },
+                                icon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.Add,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(SuggestionChipDefaults.IconSize),
+                                    )
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             Column(
@@ -213,17 +287,16 @@ fun NewNoteScreen(
                     .imePadding()
                     .padding(bottom = if (isImeVisible) 0.dp else 16.dp)
             ) {
-                Row(
+                FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .horizontalScroll(tagScrollState)
                         .padding(bottom = 8.dp),
                 ) {
                     uiState.tags.forEachIndexed { index, tag ->
                         InputChip(
-                            selected = false,
+                            selected = true,
                             onClick = { },
                             label = { Text(tag) },
                             trailingIcon = {

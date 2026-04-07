@@ -67,6 +67,7 @@
     <string name="edit_tag_add">タグを追加</string>
     <string name="edit_tag_placeholder">ここにタグを入力</string>
     <string name="edit_tag_check">追加</string>
+    <string name="edit_tag_recommend_title">おすすめタグ</string>
     <string name="home_search_title">ノート、タグ、スニペットを検索...</string>
     <string name="home_tagbar_none">タグなし</string>
     <string name="home_tagbar_all">すべてのタグ</string>
@@ -94,4 +95,5 @@
     <string name="RED">RED (小紅書)</string>
     <string name="role_backend">バックエンド開発</string>
     <string name="role_frontend_ui">フロントエンド &amp; UI デザイン</string>
+    <string name="edit_reply_context_title">この流れを引き継いで書く</string>
 </resources>

@@ -50,3 +50,42 @@ fun formatSessionTimeRange(startedAt: Long, endedAt: Long): String {
         "${formatter.format(startDate)} - ${formatter.format(endDate)}"
     }
 }
+
+fun formatSessionDayLabel(startedAt: Long, endedAt: Long): String {
+    val normalizedStart = normalizeEpochMillis(startedAt)
+    val normalizedEnd = normalizeEpochMillis(endedAt)
+    val startDate = Date(normalizedStart)
+    val endDate = Date(normalizedEnd)
+    val sameDay = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(startDate) ==
+        SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(endDate)
+
+    return if (sameDay) {
+        SimpleDateFormat("yyyy年M月d日", Locale.getDefault()).format(startDate).let { absolute ->
+            val currentYear = Calendar.getInstance().get(Calendar.YEAR).toString()
+            if (absolute.startsWith(currentYear)) {
+                SimpleDateFormat("M月d日", Locale.getDefault()).format(startDate)
+            } else {
+                absolute
+            }
+        }
+    } else {
+        val formatter = SimpleDateFormat("M月d日", Locale.getDefault())
+        "${formatter.format(startDate)} - ${formatter.format(endDate)}"
+    }
+}
+
+fun formatSessionTimeRangeCompact(startedAt: Long, endedAt: Long): String {
+    val normalizedStart = normalizeEpochMillis(startedAt)
+    val normalizedEnd = normalizeEpochMillis(endedAt)
+    val startDate = Date(normalizedStart)
+    val endDate = Date(normalizedEnd)
+    val sameDay = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(startDate) ==
+        SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(endDate)
+
+    return if (sameDay) {
+        val formatter = SimpleDateFormat("HH:mm", Locale.getDefault())
+        "${formatter.format(startDate)} - ${formatter.format(endDate)}"
+    } else {
+        formatSessionTimeRange(startedAt, endedAt)
+    }
+}
