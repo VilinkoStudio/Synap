@@ -266,7 +266,7 @@ fun SynapNavGraph(
                 NewNoteScreen(
                     uiState = uiState, onNavigateBack = { navController.popBackStack() },
                     onContentChange = viewModel::updateContent, onAddTag = viewModel::addTag,
-                    onUpdateTag = viewModel::updateTag, onRemoveTag = viewModel::removeTag, onSave = viewModel::save,
+                    onRemoveTag = viewModel::removeTag, onSave = viewModel::save,
                 )
             }
         }

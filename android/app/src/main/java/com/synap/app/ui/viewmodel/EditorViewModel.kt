@@ -6,6 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.synap.app.data.repository.SynapRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +33,8 @@ data class EditorUiState(
     val tags: List<String> = emptyList(),
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
+    val isRecommendingTags: Boolean = false,
+    val recommendedTags: List<String> = emptyList(),
     val errorMessage: String? = null,
 )
 
@@ -55,6 +60,9 @@ class EditorViewModel @Inject constructor(
     val uiState: StateFlow<EditorUiState> = _uiState.asStateFlow()
     private val _events = MutableSharedFlow<EditorEvent>()
     val events = _events.asSharedFlow()
+    private var recommendTagsJob: Job? = null
+    private var recommendedTagCandidates: List<String> = emptyList()
+    private var lastRecommendedContent: String? = null
 
     init {
         if (mode is EditorMode.Edit) {
@@ -69,6 +77,7 @@ class EditorViewModel @Inject constructor(
                             isLoading = false,
                             errorMessage = null,
                         )
+                        scheduleTagRecommendations(note.content)
                     },
                     onFailure = { throwable ->
                         _uiState.value = _uiState.value.copy(
@@ -83,6 +92,7 @@ class EditorViewModel @Inject constructor(
 
     fun updateContent(value: String) {
         _uiState.update { it.copy(content = value, errorMessage = null) }
+        scheduleTagRecommendations(value)
     }
 
     fun addTag(value: String) {
@@ -91,7 +101,12 @@ class EditorViewModel @Inject constructor(
             return
         }
         _uiState.update { state ->
-            state.copy(tags = (state.tags + normalized).distinct(), errorMessage = null)
+            val updatedTags = (state.tags + normalized).distinct()
+            state.copy(
+                tags = updatedTags,
+                recommendedTags = filterRecommendedTags(updatedTags),
+                errorMessage = null,
+            )
         }
     }
 
@@ -100,10 +115,12 @@ class EditorViewModel @Inject constructor(
             if (index !in state.tags.indices) {
                 state
             } else {
+                val updatedTags = state.tags.toMutableList().apply {
+                    this[index] = value.trim()
+                }.filter { it.isNotEmpty() }.distinct()
                 state.copy(
-                    tags = state.tags.toMutableList().apply {
-                        this[index] = value.trim()
-                    }.filter { it.isNotEmpty() }.distinct(),
+                    tags = updatedTags,
+                    recommendedTags = filterRecommendedTags(updatedTags),
                     errorMessage = null,
                 )
             }
@@ -115,8 +132,10 @@ class EditorViewModel @Inject constructor(
             if (index !in state.tags.indices) {
                 state
             } else {
+                val updatedTags = state.tags.toMutableList().apply { removeAt(index) }
                 state.copy(
-                    tags = state.tags.toMutableList().apply { removeAt(index) },
+                    tags = updatedTags,
+                    recommendedTags = filterRecommendedTags(updatedTags),
                 )
             }
         }
@@ -153,5 +172,84 @@ class EditorViewModel @Inject constructor(
                 },
             )
         }
+    }
+
+    private fun scheduleTagRecommendations(content: String) {
+        recommendTagsJob?.cancel()
+
+        val normalized = content.trim()
+        if (normalized.isEmpty()) {
+            clearTagRecommendations(resetCache = true)
+            return
+        }
+
+        recommendTagsJob = viewModelScope.launch {
+            delay(TAG_RECOMMENDATION_DEBOUNCE_MS)
+
+            if (normalized != _uiState.value.content.trim()) {
+                return@launch
+            }
+
+            if (normalized == lastRecommendedContent) {
+                _uiState.update { state ->
+                    state.copy(recommendedTags = filterRecommendedTags(state.tags))
+                }
+                return@launch
+            }
+
+            _uiState.update { it.copy(isRecommendingTags = true) }
+
+            try {
+                recommendedTagCandidates = repository
+                    .recommendTag(normalized, TAG_RECOMMENDATION_LIMIT)
+                    .map(String::trim)
+                    .filter(String::isNotEmpty)
+                    .distinct()
+                lastRecommendedContent = normalized
+
+                _uiState.update { state ->
+                    state.copy(
+                        isRecommendingTags = false,
+                        recommendedTags = filterRecommendedTags(state.tags),
+                    )
+                }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Throwable) {
+                clearTagRecommendations(resetCache = true)
+            }
+        }
+    }
+
+    private fun clearTagRecommendations(resetCache: Boolean = false) {
+        if (resetCache) {
+            recommendedTagCandidates = emptyList()
+            lastRecommendedContent = null
+        }
+
+        _uiState.update {
+            it.copy(
+                isRecommendingTags = false,
+                recommendedTags = emptyList(),
+            )
+        }
+    }
+
+    private fun filterRecommendedTags(selectedTags: List<String>): List<String> {
+        if (recommendedTagCandidates.isEmpty()) {
+            return emptyList()
+        }
+
+        val selected = selectedTags
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .toSet()
+
+        return recommendedTagCandidates.filterNot(selected::contains)
+    }
+
+    private companion object {
+        private const val TAG_RECOMMENDATION_DEBOUNCE_MS = 350L
+        private val TAG_RECOMMENDATION_LIMIT = 6u
     }
 }

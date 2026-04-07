@@ -57,6 +57,8 @@ interface SynapRepository {
 
     suspend fun searchTags(query: String, limit: UInt = 10u): List<String>
 
+    suspend fun recommendTag(content: String, limit: UInt = 6u): List<String>
+
     suspend fun getAllTags(): List<String>
 
     suspend fun getNotesByTag(tag: String, cursor: String?, limit: UInt? = 20u): List<NoteRecord>
@@ -178,6 +180,9 @@ class SynapRepositoryImpl @Inject constructor(
 
     override suspend fun searchTags(query: String, limit: UInt): List<String> =
         service.searchTags(query, limit).unwrap()
+
+    override suspend fun recommendTag(content: String, limit: UInt): List<String> =
+        service.recommendTag(content, limit).unwrap()
 
     override suspend fun getAllTags(): List<String> =
         service.getAllTags().unwrap()

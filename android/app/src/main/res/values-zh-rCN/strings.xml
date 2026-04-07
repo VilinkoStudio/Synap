@@ -67,6 +67,7 @@
     <string name="edit_tag_add">添加标签</string>
     <string name="edit_tag_placeholder">在此输入标签文字</string>
     <string name="edit_tag_check">确认添加</string>
+    <string name="edit_tag_recommend_title">推荐标签</string>
     <string name="home_search_title">搜索笔记、标签、片段...</string>
     <string name="home_tagbar_none">无标签</string>
     <string name="home_tagbar_all">全部标签</string>

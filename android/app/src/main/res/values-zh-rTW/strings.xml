@@ -67,6 +67,7 @@
     <string name="edit_tag_add">新增標籤</string>
     <string name="edit_tag_placeholder">在此輸入標籤文字</string>
     <string name="edit_tag_check">確認新增</string>
+    <string name="edit_tag_recommend_title">推薦標籤</string>
     <string name="home_search_title">搜尋筆記、標籤、片段...</string>
     <string name="home_tagbar_none">無標籤</string>
     <string name="home_tagbar_all">全部標籤</string>
