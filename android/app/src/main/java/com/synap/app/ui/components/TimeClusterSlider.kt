@@ -1,176 +1,204 @@
 package com.synap.app.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.synap.app.ui.theme.MyApplicationTheme
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 data class TimeClusterMarker(
+    val id: String,
     val title: String,
     val rangeLabel: String,
     val noteCount: Int,
-    val previewText: String,
 )
 
 @Composable
-fun CompactTimeClusterSlider(
+fun TimeClusterSlider(
     markers: List<TimeClusterMarker>,
-    selectedIndex: Int,
-    onSelectedIndexChange: (Int) -> Unit,
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
+    collapsedAxisWeight: Float,
+    hasOlder: Boolean,
+    isLoadingOlder: Boolean,
+    onLoadOlder: () -> Unit,
     modifier: Modifier = Modifier,
+    hasNewer: Boolean = false,
+    isLoadingNewer: Boolean = false,
+    onLoadNewer: () -> Unit = {},
+    onScrubbingChange: (Boolean) -> Unit = {},
+    onScrubProgressChange: (Float) -> Unit = {},
 ) {
     if (markers.isEmpty()) {
         return
     }
 
+    val axisLayout = remember(markers) { SessionAxisLayout.fromMarkers(markers) }
     val density = LocalDensity.current
-    val haptic = LocalHapticFeedback.current
-    val safeSelectedIndex = selectedIndex.coerceIn(markers.indices)
-    val activeMarker = markers[safeSelectedIndex]
-
-    val railHeight = (28 + ((markers.size - 1).coerceAtLeast(0) * 18)).dp
-    val railWidth by animateDpAsState(
-        targetValue = if (expanded) 40.dp else 14.dp,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "time_slider_width",
-    )
-    val hostWidth by animateDpAsState(
-        targetValue = if (expanded) 112.dp else 18.dp,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "time_slider_host_width",
-    )
-    val railColor by animateColorAsState(
-        targetValue = if (expanded) {
-            MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
-        } else {
-            Color.Transparent
-        },
-        label = "time_slider_rail_color",
-    )
-    val railBorderColor by animateColorAsState(
-        targetValue = if (expanded) {
-            MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
-        } else {
-            Color.Transparent
-        },
-        label = "time_slider_border_color",
-    )
-
-    val edgePaddingPx = with(density) { 12.dp.toPx() }
-    val labelHeightPx = with(density) { 26.dp.toPx() }
+    val lastIndex = axisLayout.lastSessionIndex
+    val safeCollapsedWeight = collapsedAxisWeight.coerceIn(0f, axisLayout.totalWeight)
+    val safeCollapsedProgress = axisLayout.weightToSessionProgress(safeCollapsedWeight)
+    val safeSelectedIndex = axisLayout.weightToActiveSessionIndex(safeCollapsedWeight).coerceIn(0, lastIndex)
+    val latestSelectedProgress by rememberUpdatedState(safeCollapsedProgress)
+    val latestOnScrubbingChange by rememberUpdatedState(onScrubbingChange)
+    val latestOnScrubProgressChange by rememberUpdatedState(onScrubProgressChange)
 
     var trackHeightPx by remember { mutableFloatStateOf(0f) }
-    var lastHapticIndex by rememberSaveable { mutableIntStateOf(safeSelectedIndex) }
+    var isScrubbing by remember { mutableStateOf(false) }
+    var dragAnchorIndex by remember { mutableFloatStateOf(0f) }
+    var dragAnchorY by remember { mutableFloatStateOf(0f) }
+    var currentTouchY by remember { mutableFloatStateOf(0f) }
+    var dispatchedIndex by remember { mutableIntStateOf(safeSelectedIndex) }
+    var lastOlderRequestCount by remember { mutableIntStateOf(-1) }
+    var lastNewerRequestCount by remember { mutableIntStateOf(-1) }
+    val animatedSliderWidth by animateDpAsState(
+        targetValue = if (isScrubbing) 104.dp else 36.dp,
+        label = "timeClusterSliderWidth",
+    )
+    val animatedTrackWidth by animateDpAsState(
+        targetValue = if (isScrubbing) 48.dp else 28.dp,
+        label = "timeClusterTrackWidth",
+    )
 
-    fun updateSelection(y: Float) {
-        val nextIndex = markerIndexForPosition(
-            y = y,
-            totalHeight = trackHeightPx,
-            markerCount = markers.size,
-            edgePaddingPx = edgePaddingPx,
-        )
+    val stepPx = with(density) { 28.dp.toPx() }
+    val edgeInsetPx = with(density) { 28.dp.toPx() }
+    val tooltipHalfHeightPx = with(density) { 28.dp.roundToPx() }
+    val railInsetPx = with(density) { 12.dp.toPx() }
+    val baseRadiusPx = with(density) { 1.8.dp.toPx() }
+    val expandedRadiusPx = with(density) { if (isScrubbing) 8.dp.toPx() else 4.5.dp.toPx() }
+    val shiftPx = with(density) { if (isScrubbing) 22.dp.toPx() else 8.dp.toPx() }
+    val fadePx = with(density) { 44.dp.toPx() }
+    val collapsedStrokePx = with(density) { 1.25.dp.toPx() }
+    val activeCollapsedStrokePx = with(density) { 2.dp.toPx() }
+    val collapsedWeightStepPx = with(density) { 10.dp.toPx() }
 
-        if (nextIndex != safeSelectedIndex) {
-            onSelectedIndexChange(nextIndex)
-            if (lastHapticIndex != nextIndex) {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                lastHapticIndex = nextIndex
-            }
+    val rawFocusIndex = if (isScrubbing) {
+        dragAnchorIndex + ((currentTouchY - dragAnchorY) / stepPx)
+    } else {
+        safeCollapsedProgress
+    }
+    val clampedFocusIndex = rawFocusIndex.coerceIn(0f, lastIndex.toFloat())
+    val elasticOverscroll = rawFocusIndex - clampedFocusIndex
+    val displayFocusIndex = clampedFocusIndex + elasticOverscroll * 0.32f
+    val highlightedIndex = if (isScrubbing) dispatchedIndex else safeSelectedIndex
+    val activeMarker = markers[highlightedIndex.coerceIn(0, lastIndex)]
+    val sliderCenterY = if (trackHeightPx > 0f) trackHeightPx / 2f else edgeInsetPx * 4f
+    val bubbleY = if (trackHeightPx <= 0f) {
+        edgeInsetPx
+    } else {
+        val preferred = if (isScrubbing) {
+            currentTouchY
+        } else {
+            sliderCenterY
+        }
+        preferred.coerceIn(edgeInsetPx, trackHeightPx - edgeInsetPx)
+    }
+
+    fun updateFromTouch(y: Float) {
+        currentTouchY = y.coerceIn(0f, trackHeightPx.coerceAtLeast(y))
+        val nextRawIndex = dragAnchorIndex + ((currentTouchY - dragAnchorY) / stepPx)
+        val clampedProgress = nextRawIndex.coerceIn(0f, lastIndex.toFloat())
+        dispatchedIndex = clampedProgress.roundToInt().coerceIn(0, lastIndex)
+        latestOnScrubProgressChange(clampedProgress)
+    }
+
+    LaunchedEffect(safeSelectedIndex, isScrubbing) {
+        if (!isScrubbing) {
+            dispatchedIndex = safeSelectedIndex
+        }
+    }
+
+    LaunchedEffect(markers.size, safeCollapsedProgress, hasOlder, isLoadingOlder, isScrubbing, clampedFocusIndex) {
+        val needsBuffer = markers.size < 10
+        val focusProgress = if (isScrubbing) clampedFocusIndex else safeCollapsedProgress
+        val nearOlderEdge = focusProgress >= markers.lastIndex - 2f
+        if (hasOlder && !isLoadingOlder && (needsBuffer || nearOlderEdge) && lastOlderRequestCount != markers.size) {
+            lastOlderRequestCount = markers.size
+            onLoadOlder()
+        }
+    }
+
+    LaunchedEffect(markers.size, safeCollapsedProgress, hasNewer, isLoadingNewer, isScrubbing, clampedFocusIndex) {
+        val focusProgress = if (isScrubbing) clampedFocusIndex else safeCollapsedProgress
+        val nearNewerEdge = focusProgress <= 1f
+        if (hasNewer && !isLoadingNewer && nearNewerEdge && lastNewerRequestCount != markers.size) {
+            lastNewerRequestCount = markers.size
+            onLoadNewer()
         }
     }
 
     Box(
-        modifier = modifier
-            .width(hostWidth)
-            .height(railHeight),
+        modifier = modifier.width(animatedSliderWidth),
     ) {
         AnimatedVisibility(
-            visible = expanded,
+            visible = isScrubbing,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .offset {
-                    val rawY = markerCenterOffset(
-                        index = safeSelectedIndex,
-                        markerCount = markers.size,
-                        contentHeight = trackHeightPx,
-                        edgePaddingPx = edgePaddingPx,
-                    ) - (labelHeightPx / 2f)
-                    val maxY = (trackHeightPx - labelHeightPx).coerceAtLeast(0f)
-                    IntOffset(0, rawY.roundToInt().coerceIn(0, maxY.roundToInt()))
+                    IntOffset(
+                        x = 0,
+                        y = bubbleY.roundToInt() - tooltipHalfHeightPx,
+                    )
                 },
         ) {
-            SelectedTimeLabel(marker = activeMarker)
+            SliderTooltip(marker = activeMarker)
         }
 
-        Surface(
+        Box(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .width(railWidth)
+                .width(animatedTrackWidth)
                 .fillMaxHeight()
-                .onSizeChanged { size -> trackHeightPx = size.height.toFloat() }
-                .pointerInput(markers.size, trackHeightPx) {
+                .onSizeChanged { trackHeightPx = it.height.toFloat() }
+                .pointerInput(markers.size) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
-                        onExpandedChange(true)
-                        updateSelection(down.position.y)
+                        isScrubbing = true
+                        latestOnScrubbingChange(true)
+                        dragAnchorIndex = latestSelectedProgress
+                        dragAnchorY = down.position.y
+                        updateFromTouch(down.position.y)
+                        down.consume()
 
                         while (true) {
                             val event = awaitPointerEvent()
@@ -179,366 +207,172 @@ fun CompactTimeClusterSlider(
                                 break
                             }
 
-                            updateSelection(change.position.y)
+                            updateFromTouch(change.position.y)
                             change.consume()
                         }
 
-                        onExpandedChange(false)
+                        isScrubbing = false
+                        latestOnScrubbingChange(false)
                     }
                 },
-            shape = RoundedCornerShape(999.dp),
-            color = railColor,
-            border = BorderStroke(1.dp, railBorderColor),
-            tonalElevation = if (expanded) 1.dp else 0.dp,
-            shadowElevation = if (expanded) 4.dp else 0.dp,
         ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                if (expanded) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .width(1.dp)
-                            .fillMaxHeight()
-                            .padding(vertical = 10.dp)
-                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.14f)),
-                    )
-                }
+            val dotColor = MaterialTheme.colorScheme.onSurfaceVariant
+            val activeDotColor = MaterialTheme.colorScheme.primary
+            val collapsedLineColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.26f)
 
-                markers.forEachIndexed { index, _ ->
-                    TimeClusterDot(
-                        index = index,
-                        markerCount = markers.size,
-                        selectedIndex = safeSelectedIndex,
-                        contentHeight = trackHeightPx,
-                        edgePaddingPx = edgePaddingPx,
-                        expanded = expanded,
-                    )
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val canvasHeight = size.height
+                val railX = size.width - railInsetPx
+
+                if (!isScrubbing) {
+                    val boundaryMarkers = buildList {
+                        for (boundaryIndex in 0..axisLayout.sessionCount) {
+                            val boundaryWeight = axisLayout.boundaryWeight(boundaryIndex)
+                            val y = sliderCenterY + ((boundaryWeight - safeCollapsedWeight) * collapsedWeightStepPx)
+                            if (y >= -fadePx && y <= canvasHeight + fadePx) {
+                                add(
+                                    BoundaryMarker(
+                                        boundaryIndex = boundaryIndex,
+                                        y = y,
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                    val activeSegmentIndex = axisLayout.weightToActiveSessionIndex(safeCollapsedWeight)
+
+                    boundaryMarkers.zipWithNext().forEach { (start, end) ->
+                        val edgeFade = minOf(edgeFadeForY(start.y, canvasHeight, fadePx), edgeFadeForY(end.y, canvasHeight, fadePx))
+                        val isActiveSegment = start.boundaryIndex == activeSegmentIndex && end.boundaryIndex == activeSegmentIndex + 1
+                        val color = if (isActiveSegment) activeDotColor else collapsedLineColor
+                        drawLine(
+                            color = color.copy(alpha = (if (isActiveSegment) 0.56f else 0.24f) * edgeFade),
+                            start = Offset(railX, start.y),
+                            end = Offset(railX, end.y),
+                            strokeWidth = if (isActiveSegment) activeCollapsedStrokePx else collapsedStrokePx,
+                            cap = StrokeCap.Round,
+                        )
+                    }
+
+                    boundaryMarkers.forEach { marker ->
+                        val edgeFade = edgeFadeForY(marker.y, canvasHeight, fadePx)
+                        val isActiveBoundary = marker.boundaryIndex == activeSegmentIndex || marker.boundaryIndex == activeSegmentIndex + 1
+                        drawCircle(
+                            color = if (isActiveBoundary) activeDotColor else dotColor,
+                            radius = baseRadiusPx,
+                            center = Offset(railX, marker.y),
+                            alpha = (if (isActiveBoundary) 0.92f else 0.48f) * edgeFade,
+                        )
+                    }
+                } else {
+                    val visibleMarkers = buildList {
+                        markers.forEachIndexed { index, marker ->
+                            val y = sliderCenterY + ((index - displayFocusIndex) * stepPx)
+                            if (y >= -fadePx && y <= canvasHeight + fadePx) {
+                                add(VisibleMarker(index = index, y = y, noteCount = marker.noteCount))
+                            }
+                        }
+                    }
+
+                    visibleMarkers.forEach { marker ->
+                        val distance = abs(marker.index - displayFocusIndex)
+                        val focus = smoothStep((1f - (distance / 3.4f)).coerceIn(0f, 1f))
+                        val densityBoost = ((marker.noteCount.coerceAtMost(10) - 1).coerceAtLeast(0) / 9f)
+                        val radius = baseRadiusPx + ((expandedRadiusPx + densityBoost * 2.dp.toPx()) - baseRadiusPx) * focus
+                        val shift = shiftPx * focus * (0.72f + densityBoost * 0.28f)
+                        val edgeFade = edgeFadeForY(marker.y, canvasHeight, fadePx)
+                        val alpha = 0.18f + (0.88f * focus)
+                        drawCircle(
+                            color = if (marker.index == highlightedIndex) activeDotColor else dotColor,
+                            radius = radius,
+                            center = Offset(x = railX - shift, y = marker.y),
+                            alpha = alpha * edgeFade,
+                        )
+                    }
                 }
+            }
+
+            if (isLoadingOlder) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 10.dp)
+                        .size(12.dp),
+                    strokeWidth = 1.5.dp,
+                )
+            }
+
+            if (isLoadingNewer) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 10.dp)
+                        .size(12.dp),
+                    strokeWidth = 1.5.dp,
+                )
             }
         }
     }
 }
 
-@Composable
-private fun BoxScope.TimeClusterDot(
-    index: Int,
-    markerCount: Int,
-    selectedIndex: Int,
-    contentHeight: Float,
-    edgePaddingPx: Float,
-    expanded: Boolean,
-) {
-    val distance = abs(index - selectedIndex)
-    val visible = expanded || distance <= 2
-    val density = LocalDensity.current
+private data class BoundaryMarker(
+    val boundaryIndex: Int,
+    val y: Float,
+)
 
-    val dotSize by animateDpAsState(
-        targetValue = when {
-            !visible -> 1.dp
-            distance == 0 && expanded -> 7.dp
-            distance == 0 -> 5.dp
-            distance == 1 && expanded -> 4.dp
-            distance == 1 -> 3.dp
-            else -> 2.dp
-        },
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "time_slider_dot_size",
-    )
-    val dotAlpha by animateFloatAsState(
-        targetValue = when {
-            !visible -> 0f
-            distance == 0 -> 1f
-            distance == 1 && expanded -> 0.42f
-            distance == 1 -> 0.34f
-            expanded -> 0.22f
-            else -> 0.16f
-        },
-        animationSpec = spring(stiffness = Spring.StiffnessLow),
-        label = "time_slider_dot_alpha",
-    )
-    val dotColor by animateColorAsState(
-        targetValue = if (distance == 0) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            MaterialTheme.colorScheme.onSurface
-        },
-        label = "time_slider_dot_color",
-    )
-    val dotRadiusPx = with(density) { dotSize.toPx() / 2f }
+private data class VisibleMarker(
+    val index: Int,
+    val y: Float,
+    val noteCount: Int,
+)
 
-    Box(
-        modifier = Modifier
-            .align(Alignment.TopCenter)
-            .offset {
-                val y = markerCenterOffset(
-                    index = index,
-                    markerCount = markerCount,
-                    contentHeight = contentHeight,
-                    edgePaddingPx = edgePaddingPx,
-                ) - dotRadiusPx
-                IntOffset(0, y.roundToInt())
-            }
-            .size(dotSize)
-            .alpha(dotAlpha)
-            .clip(CircleShape)
-            .background(dotColor),
-    )
+private fun edgeFadeForY(
+    y: Float,
+    height: Float,
+    fadePx: Float,
+): Float = when {
+    y < fadePx -> (y / fadePx).coerceIn(0f, 1f)
+    y > height - fadePx -> ((height - y) / fadePx).coerceIn(0f, 1f)
+    else -> 1f
 }
 
 @Composable
-private fun SelectedTimeLabel(
+private fun SliderTooltip(
     marker: TimeClusterMarker,
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(999.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.08f)),
-    ) {
-        Text(
-            text = "${marker.title} · ${marker.noteCount}",
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            style = MaterialTheme.typography.labelMedium.copy(
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.1.sp,
-            ),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-fun TimeClusterSliderShowcase(
-    startExpanded: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    val markers = remember {
-        listOf(
-            TimeClusterMarker(
-                title = "此刻",
-                rangeLabel = "00:20 - 02:10",
-                noteCount = 3,
-                previewText = "灵感和待办都集中在这一小段时间里。",
-            ),
-            TimeClusterMarker(
-                title = "昨晚",
-                rangeLabel = "21:10 - 23:40",
-                noteCount = 6,
-                previewText = "一口气写了几条复盘，回看时更像一个完整状态。",
-            ),
-            TimeClusterMarker(
-                title = "周三午后",
-                rangeLabel = "13:00 - 16:00",
-                noteCount = 4,
-                previewText = "会议记录、任务拆分和一条突然出现的想法混在一起。",
-            ),
-            TimeClusterMarker(
-                title = "上周末",
-                rangeLabel = "19:30 - 22:00",
-                noteCount = 5,
-                previewText = "生活记录和轻松的随手笔记堆成了一小段安静时间。",
-            ),
-            TimeClusterMarker(
-                title = "三月下旬",
-                rangeLabel = "03/21 - 03/28",
-                noteCount = 9,
-                previewText = "这个阶段写得很密，像是某个主题持续发酵之后的输出。",
-            ),
-        )
-    }
-
-    var selectedIndex by rememberSaveable { mutableIntStateOf(1) }
-    var expanded by rememberSaveable { mutableStateOf(startExpanded) }
-
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 20.dp, vertical = 24.dp),
+        modifier = modifier.border(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
+            shape = RoundedCornerShape(18.dp),
+        ),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+        shadowElevation = 8.dp,
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(end = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
-                text = "时间线",
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.2.sp,
-                ),
+                text = marker.title,
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = if (expanded) {
-                    "按住右侧时间点时，它会展开成一条很细的可滑动时间轨。"
-                } else {
-                    "平时只是一小列时间刻痕，轻一点，也更像页面本身的一部分。"
-                },
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
-                    lineHeight = 20.sp,
-                ),
+                text = "${marker.rangeLabel} · ${marker.noteCount} 条笔记",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            markers.forEachIndexed { index, marker ->
-                TimeClusterSliceRow(
-                    marker = marker,
-                    isSelected = index == selectedIndex,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
-
-        CompactTimeClusterSlider(
-            markers = markers,
-            selectedIndex = selectedIndex,
-            onSelectedIndexChange = { selectedIndex = it },
-            expanded = expanded,
-            onExpandedChange = { expanded = it },
-            modifier = Modifier.align(Alignment.CenterEnd),
-        )
-    }
-}
-
-@Composable
-private fun TimeClusterSliceRow(
-    marker: TimeClusterMarker,
-    isSelected: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    val containerColor by animateColorAsState(
-        targetValue = if (isSelected) {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.82f)
-        } else {
-            MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)
-        },
-        label = "time_slice_row_color",
-    )
-    val stripeAlpha by animateFloatAsState(
-        targetValue = if (isSelected) 1f else 0f,
-        label = "time_slice_row_stripe_alpha",
-    )
-
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(18.dp),
-        color = containerColor,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.06f)),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.Top,
-        ) {
-            Box(
-                modifier = Modifier
-                    .padding(top = 2.dp)
-                    .width(2.dp)
-                    .height(30.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = stripeAlpha)),
-            )
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = marker.title,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-                        ),
-                    )
-                    Text(
-                        text = "${marker.noteCount} 条",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f),
-                        ),
-                    )
-                }
-
-                Text(
-                    text = marker.previewText,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
-                        lineHeight = 20.sp,
-                    ),
-                )
-
-                Text(
-                    text = marker.rangeLabel,
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.48f),
-                    ),
-                )
-            }
         }
     }
 }
 
-private fun markerIndexForPosition(
-    y: Float,
-    totalHeight: Float,
-    markerCount: Int,
-    edgePaddingPx: Float,
-): Int {
-    if (markerCount <= 1 || totalHeight <= edgePaddingPx * 2f) {
-        return 0
-    }
-
-    val top = edgePaddingPx
-    val bottom = totalHeight - edgePaddingPx
-    val step = (bottom - top) / (markerCount - 1)
-    val clamped = y.coerceIn(top, bottom)
-    return ((clamped - top) / step).roundToInt().coerceIn(0, markerCount - 1)
-}
-
-private fun markerCenterOffset(
-    index: Int,
-    markerCount: Int,
-    contentHeight: Float,
-    edgePaddingPx: Float,
-): Float {
-    if (markerCount <= 1 || contentHeight <= edgePaddingPx * 2f) {
-        return contentHeight / 2f
-    }
-
-    val top = edgePaddingPx
-    val bottom = contentHeight - edgePaddingPx
-    val fraction = index / (markerCount - 1).toFloat()
-    return top + (bottom - top) * fraction
-}
-
-@Preview(name = "Time Slider Collapsed", widthDp = 430, heightDp = 920, showBackground = true)
-@Composable
-private fun TimeClusterSliderCollapsedPreview() {
-    MyApplicationTheme(dynamicColor = false) {
-        TimeClusterSliderShowcase(startExpanded = false)
-    }
-}
-
-@Preview(name = "Time Slider Expanded", widthDp = 430, heightDp = 920, showBackground = true)
-@Composable
-private fun TimeClusterSliderExpandedPreview() {
-    MyApplicationTheme(dynamicColor = false) {
-        TimeClusterSliderShowcase(startExpanded = true)
-    }
-}
+private fun smoothStep(value: Float): Float =
+    value * value * (3f - 2f * value)

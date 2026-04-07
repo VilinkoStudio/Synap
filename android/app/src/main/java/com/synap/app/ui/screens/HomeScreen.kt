@@ -240,21 +240,14 @@ fun HomeScreen(
 
     val shouldLoadMore by remember(
         noteGridState,
-        sessionGridState,
         displayNotes,
-        displaySessionGroups,
         uiState.hasMore,
         uiState.isLoading,
         isShowingSessionFeed,
     ) {
         derivedStateOf {
             if (isShowingSessionFeed) {
-                val lastVisible = sessionGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-                val triggerIndex = (displaySessionGroups.lastIndex - 1).coerceAtLeast(0)
-                uiState.hasMore &&
-                        !uiState.isLoading &&
-                        displaySessionGroups.isNotEmpty() &&
-                        lastVisible >= triggerIndex
+                false
             } else {
                 val lastVisible = noteGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
                 uiState.hasMore &&
@@ -666,6 +659,9 @@ fun HomeScreen(
                                 HomeSessionFeed(
                                     sessions = displaySessionGroups,
                                     state = sessionGridState,
+                                    hasMore = uiState.hasMore,
+                                    isLoadingMore = uiState.isLoading,
+                                    onLoadMore = onLoadMore,
                                     isSelectionMode = isSelectionMode,
                                     selectedNoteIds = selectedNoteIds,
                                     onToggleSelection = ::toggleSelection,
