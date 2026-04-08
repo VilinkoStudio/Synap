@@ -184,6 +184,9 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.core:core-splashscreen:1.0.1")
+    implementation("androidx.compose.material3:material3-window-size-class:1.4.0")
+    implementation("androidx.compose.material3:material3-adaptive-navigation-suite:1.5.0-alpha16")
+    implementation("androidx.compose.material3:material3:1.4.0")
 }
 
 apply(from = rootProject.file("gradle/rust-uniffi.gradle.kts"))

@@ -1,7 +1,5 @@
 package com.synap.app.ui.components
 
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentWidth // 新增导入
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
@@ -28,9 +27,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridItemInfo
 import com.synap.app.ui.model.Note
@@ -48,10 +44,10 @@ fun HomeSessionFeed(
     hasMore: Boolean,
     isLoadingMore: Boolean,
     onLoadMore: () -> Unit,
-    isSelectionMode: Boolean, // 新增参数
-    selectedNoteIds: Set<String>, // 新增参数
-    onToggleSelection: (String) -> Unit, // 新增参数
-    onEnterSelectionMode: (String) -> Unit, // 新增参数
+    isSelectionMode: Boolean,
+    selectedNoteIds: Set<String>,
+    onToggleSelection: (String) -> Unit,
+    onEnterSelectionMode: (String) -> Unit,
     onOpenNote: (String) -> Unit,
     onToggleDeleted: (Note) -> Unit,
     onReplyToNote: (String, String) -> Unit,
@@ -75,16 +71,6 @@ fun HomeSessionFeed(
     var scrubTargetWeight by remember { mutableStateOf(0f) }
     val latestCurrentAxisWeight by rememberUpdatedState(currentAxisWeight)
     val latestScrubTargetWeight by rememberUpdatedState(scrubTargetWeight)
-    val animatedEndPadding by animateDpAsState(
-        targetValue = if (isSliderScrubbing) 92.dp else 40.dp,
-        label = "sessionFeedEndPadding",
-    )
-    val animatedGridScaleX by animateFloatAsState(
-        targetValue = if (isSliderScrubbing) 0.94f else 1f,
-        label = "sessionFeedScaleX",
-    )
-    val density = LocalDensity.current
-    val sliderOffsetPx = with(density) { 6.dp.toPx() }
 
     LaunchedEffect(sessions.size) {
         if (sessions.isEmpty()) {
@@ -149,19 +135,13 @@ fun HomeSessionFeed(
             .fillMaxHeight(),
     ) {
         LazyVerticalStaggeredGrid(
-            columns = StaggeredGridCells.Adaptive(minSize = 240.dp),
+            columns = StaggeredGridCells.Adaptive(minSize = 360.dp),
             state = state,
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    scaleX = animatedGridScaleX
-                    translationX = if (isSliderScrubbing) -sliderOffsetPx else 0f
-                    transformOrigin = TransformOrigin(0f, 0.5f)
-                },
+            modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 start = 16.dp,
                 top = 8.dp,
-                end = animatedEndPadding,
+                end = 16.dp,
                 bottom = 96.dp,
             ),
             verticalItemSpacing = 12.dp,
@@ -231,8 +211,9 @@ fun HomeSessionFeed(
                         .coerceIn(0f, axisLayout.totalWeight)
                 },
                 modifier = Modifier
-                    .align(Alignment.CenterEnd)
+                    .align(Alignment.CenterEnd) // 第一步：容器锚定在父组件的右侧
                     .fillMaxHeight()
+                    .wrapContentWidth(align = Alignment.End) // 第二步：核心修复，强制时间轴自身变宽时向左侧延展，确保右侧定死不动
                     .padding(end = 4.dp, top = 12.dp, bottom = 12.dp),
             )
         }

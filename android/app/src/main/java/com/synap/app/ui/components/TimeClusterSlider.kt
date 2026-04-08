@@ -3,7 +3,6 @@ package com.synap.app.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -17,6 +16,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth // 新增导入
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -89,14 +89,6 @@ fun TimeClusterSlider(
     var dispatchedIndex by remember { mutableIntStateOf(safeSelectedIndex) }
     var lastOlderRequestCount by remember { mutableIntStateOf(-1) }
     var lastNewerRequestCount by remember { mutableIntStateOf(-1) }
-    val animatedSliderWidth by animateDpAsState(
-        targetValue = if (isScrubbing) 104.dp else 36.dp,
-        label = "timeClusterSliderWidth",
-    )
-    val animatedTrackWidth by animateDpAsState(
-        targetValue = if (isScrubbing) 48.dp else 28.dp,
-        label = "timeClusterTrackWidth",
-    )
 
     val stepPx = with(density) { 28.dp.toPx() }
     val edgeInsetPx = with(density) { 28.dp.toPx() }
@@ -166,14 +158,16 @@ fun TimeClusterSlider(
     }
 
     Box(
-        modifier = modifier.width(animatedSliderWidth),
+        modifier = modifier.width(36.dp),
     ) {
         AnimatedVisibility(
             visible = isScrubbing,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier
-                .align(Alignment.TopStart)
+                .align(Alignment.TopEnd)
+                .wrapContentWidth(unbounded = true, align = Alignment.End)
+                .padding(end = 56.dp)
                 .offset {
                     IntOffset(
                         x = 0,
@@ -187,7 +181,7 @@ fun TimeClusterSlider(
         Box(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .width(animatedTrackWidth)
+                .width(28.dp)
                 .fillMaxHeight()
                 .onSizeChanged { trackHeightPx = it.height.toFloat() }
                 .pointerInput(markers.size) {

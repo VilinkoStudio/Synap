@@ -110,6 +110,7 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
         ) {
+            // ==================== 1. 深色模式 ====================
             Text(
                 text = stringResource(R.string.dark_mode),
                 style = MaterialTheme.typography.titleSmall,
@@ -156,6 +157,7 @@ fun SettingsScreen(
             }
             Spacer(modifier = Modifier.height(24.dp))
 
+            // ==================== 2. 外观 ====================
             Text(
                 text = stringResource(R.string.appearance),
                 style = MaterialTheme.typography.titleSmall,
@@ -308,12 +310,22 @@ fun SettingsScreen(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
 
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-
+            // ==================== 3. 无障碍 (新增的独立卡片) ====================
+            Text(
+                text = "无障碍",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+            ) {
                 var showHandednessMenu by remember { mutableStateOf(false) }
                 Box(modifier = Modifier.fillMaxWidth()) {
                     Row(
@@ -373,6 +385,7 @@ fun SettingsScreen(
             }
             Spacer(modifier = Modifier.height(24.dp))
 
+            // ==================== 4. 备份与恢复 ====================
             Text(
                 text = stringResource(R.string.backup_and_restore),
                 style = MaterialTheme.typography.titleSmall,
@@ -478,6 +491,7 @@ fun SettingsScreen(
             }
             Spacer(modifier = Modifier.height(24.dp))
 
+            // ==================== 5. 关于 ====================
             Text(
                 text = stringResource(R.string.about),
                 style = MaterialTheme.typography.titleSmall,
