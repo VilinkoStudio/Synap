@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -38,7 +37,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -99,43 +97,7 @@ fun NoteDetailScreen(
                 },
             )
         },
-        bottomBar = {
-            if (uiState.note != null) {
-                // 使用 Box 仅用于将其居中并设置底边距
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    // --- 彻底使用官方原生组件，无自定义颜色 ---
-                    HorizontalFloatingToolbar(
-                        expanded = true, // 让工具栏保持展开状态以显示内部按钮
-                    ) {
-                        TextButton(onClick = onDelete) {
-                            Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(stringResource(R.string.delete))
-                        }
-                        TextButton(onClick = { /* 仅作 UI 展示，暂无功能 */ }) {
-                            Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("分享")
-                        }
-                        TextButton(onClick = onReply) {
-                            Icon(Icons.Filled.Reply, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(stringResource(R.string.reply))
-                        }
-                        TextButton(onClick = onEdit) {
-                            Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(stringResource(R.string.edit))
-                        }
-                    }
-                }
-            }
-        },
+        // --- 核心修改 1：彻底移除 bottomBar，释放底部完整空间 ---
         floatingActionButton = {
             if (uiState.note != null) {
                 AnimatedVisibility(
@@ -153,135 +115,177 @@ fun NoteDetailScreen(
                         text = { Text(text = stringResource(R.string.backtop)) },
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.padding(bottom = 80.dp) // 避开底部工具栏
+                        modifier = Modifier.padding(bottom = 80.dp) // 依然避开中间的工具栏
                     )
                 }
             }
         }
     ) { innerPadding ->
-        if (uiState.isLoading && uiState.note == null) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                CircularProgressIndicator()
-            }
-            return@Scaffold
-        }
 
-        if (uiState.note == null) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text(
-                    text = uiState.errorMessage ?: stringResource(R.string.notedetail_errorMessage),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.error,
-                )
-                OutlinedButton(
-                    onClick = onRefresh,
-                    modifier = Modifier.padding(top = 16.dp),
-                ) {
-                    Text("重试")
-                }
-            }
-            return@Scaffold
-        }
-
-        val note = uiState.note
-
-        Column(
+        // 使用一个充满屏幕的 Box 作为底层容器
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(scrollState)
-                .padding(16.dp),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(bottom = 16.dp),
-            ) {
-                Text(
-                    text = formatNoteTime(note.timestamp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = 12.dp),
-                )
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+            if (uiState.isLoading && uiState.note == null) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
                 ) {
-                    note.tags.forEach { tag ->
-                        Surface(
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            shape = MaterialTheme.shapes.small,
+                    CircularProgressIndicator()
+                }
+            } else if (uiState.note == null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        text = uiState.errorMessage ?: stringResource(R.string.notedetail_errorMessage),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    OutlinedButton(
+                        onClick = onRefresh,
+                        modifier = Modifier.padding(top = 16.dp),
+                    ) {
+                        Text("重试")
+                    }
+                }
+            } else {
+                val note = uiState.note
+
+                // 列表在底层滚动
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(scrollState)
+                        .padding(16.dp),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(bottom = 16.dp),
+                    ) {
+                        Text(
+                            text = formatNoteTime(note.timestamp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(end = 12.dp),
+                        )
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(
-                                text = tag,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                style = MaterialTheme.typography.labelSmall,
-                            )
+                            note.tags.forEach { tag ->
+                                Surface(
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    shape = MaterialTheme.shapes.small,
+                                ) {
+                                    Text(
+                                        text = tag,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                }
+                            }
                         }
+                    }
+
+                    Text(
+                        text = note.content,
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontFamily = LocalNoteFontFamily.current,
+                            fontWeight = LocalNoteFontWeight.current,
+                            fontSize = LocalNoteTextSize.current,
+                            lineHeight = LocalNoteTextSize.current * LocalNoteLineSpacing.current
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+
+                    if (uiState.errorMessage != null) {
+                        Text(
+                            text = uiState.errorMessage,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(top = 16.dp),
+                        )
+                    }
+
+                    RelationSection(
+                        title = stringResource(R.string.notedetail_origins),
+                        notes = uiState.origins,
+                        onOpenRelatedNote = onOpenRelatedNote,
+                    )
+                    RelationSection(
+                        title = stringResource(R.string.notedetail_previousVersions),
+                        notes = uiState.previousVersions,
+                        onOpenRelatedNote = onOpenRelatedNote,
+                    )
+                    RelationSection(
+                        title = stringResource(R.string.notedetail_nextVersions),
+                        notes = uiState.nextVersions,
+                        onOpenRelatedNote = onOpenRelatedNote,
+                    )
+                    RelationSection(
+                        title = stringResource(R.string.notedetail_replies),
+                        notes = uiState.replies,
+                        onOpenRelatedNote = onOpenRelatedNote,
+                    )
+
+                    if (uiState.repliesHasMore) {
+                        OutlinedButton(
+                            onClick = onLoadMoreReplies,
+                            modifier = Modifier.padding(top = 12.dp),
+                        ) {
+                            Text(if (uiState.repliesLoading) "加载中..." else "加载更多回复")
+                        }
+                    }
+                    // Spacer 保证滑到底部时内容不会被悬浮栏永久遮挡
+                    Spacer(modifier = Modifier.height(120.dp))
+                }
+
+                // --- 核心修改 2：作为绝对定位的悬浮层叠加在最上面 ---
+                HorizontalFloatingToolbar(
+                    expanded = true,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 24.dp) // 控制距离底部的距离
+                ) {
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            imageVector = Icons.Filled.Delete,
+                            contentDescription = stringResource(R.string.delete),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    IconButton(onClick = { /* UI Only */ }) {
+                        Icon(
+                            imageVector = Icons.Filled.Share,
+                            contentDescription = "分享",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    IconButton(onClick = onReply) {
+                        Icon(
+                            imageVector = Icons.Filled.Reply,
+                            contentDescription = stringResource(R.string.reply),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    IconButton(onClick = onEdit) {
+                        Icon(
+                            imageVector = Icons.Filled.Edit,
+                            contentDescription = stringResource(R.string.edit),
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
                 }
             }
-
-            Text(
-                text = note.content,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontFamily = LocalNoteFontFamily.current,
-                    fontWeight = LocalNoteFontWeight.current,
-                    fontSize = LocalNoteTextSize.current,
-                    lineHeight = LocalNoteTextSize.current * LocalNoteLineSpacing.current
-                ),
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            if (uiState.errorMessage != null) {
-                Text(
-                    text = uiState.errorMessage,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(top = 16.dp),
-                )
-            }
-
-            RelationSection(
-                title = stringResource(R.string.notedetail_origins),
-                notes = uiState.origins,
-                onOpenRelatedNote = onOpenRelatedNote,
-            )
-            RelationSection(
-                title = stringResource(R.string.notedetail_previousVersions),
-                notes = uiState.previousVersions,
-                onOpenRelatedNote = onOpenRelatedNote,
-            )
-            RelationSection(
-                title = stringResource(R.string.notedetail_nextVersions),
-                notes = uiState.nextVersions,
-                onOpenRelatedNote = onOpenRelatedNote,
-            )
-            RelationSection(
-                title = stringResource(R.string.notedetail_replies),
-                notes = uiState.replies,
-                onOpenRelatedNote = onOpenRelatedNote,
-            )
-
-            if (uiState.repliesHasMore) {
-                OutlinedButton(
-                    onClick = onLoadMoreReplies,
-                    modifier = Modifier.padding(top = 12.dp),
-                ) {
-                    Text(if (uiState.repliesLoading) "加载中..." else "加载更多回复")
-                }
-            }
-            Spacer(modifier = Modifier.height(200.dp))
         }
     }
 }
