@@ -35,7 +35,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -43,9 +42,9 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -390,7 +389,7 @@ fun HomeScreen(
                             enter = fadeIn(),
                             exit = fadeOut()
                         ) {
-                            ExtendedFloatingActionButton(
+                            FloatingActionButton(
                                 onClick = {
                                     scope.launch {
                                         if (isShowingSessionFeed) {
@@ -400,11 +399,11 @@ fun HomeScreen(
                                         }
                                     }
                                 },
-                                icon = { Icon(Icons.Filled.ArrowUpward, contentDescription = null) },
-                                text = { Text(text = stringResource(R.string.backtop)) },
                                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
                                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
+                            ) {
+                                Icon(Icons.Filled.VerticalAlignTop, contentDescription = stringResource(R.string.backtop))
+                            }
                         }
 
                         Row(

@@ -19,16 +19,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Reply
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.VerticalAlignTop
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,15 +39,19 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.ParagraphStyle
 import androidx.compose.ui.text.SpanStyle
@@ -203,11 +209,73 @@ fun NoteDetailScreen(
 ) {
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
+    val clipboardManager = LocalClipboardManager.current
 
     val isScrolledDown by remember {
         derivedStateOf {
             scrollState.value > 300
         }
+    }
+
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showCopyDialog by remember { mutableStateOf(false) }
+
+    // 删除弹窗
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("确认删除") },
+            text = { Text("确定要删除这条笔记吗？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteDialog = false
+                    onDelete()
+                }) {
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) { Text("取消") }
+            }
+        )
+    }
+
+    // 复制 Markdown 提示弹窗
+    if (showCopyDialog && uiState.note != null) {
+        AlertDialog(
+            onDismissRequest = { showCopyDialog = false },
+            title = { Text("复制选项") },
+            text = { Text("检测到正文包含 Markdown 语法，请选择复制纯文本还是完整格式？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    clipboardManager.setText(AnnotatedString(uiState.note!!.content))
+                    showCopyDialog = false
+                }) {
+                    Text("完整格式", color = MaterialTheme.colorScheme.primary)
+                }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { showCopyDialog = false }) {
+                        Text("取消", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    TextButton(onClick = {
+                        val plainText = uiState.note!!.content
+                            .replace(Regex("\\*\\*(.*?)\\*\\*"), "$1")
+                            .replace(Regex("(?<!\\*)\\*(?!\\*)(.*?)(?<!\\*)\\*(?!\\*)"), "$1")
+                            .replace(Regex("~~(.*?)~~"), "$1")
+                            .replace(Regex("<u>(.*?)</u>"), "$1")
+                            .replace(Regex("==(.*?)=="), "$1")
+                            .replace(Regex("^(#{1,4} )", RegexOption.MULTILINE), "")
+                            .replace(Regex("^(>+ )", RegexOption.MULTILINE), "")
+                        clipboardManager.setText(AnnotatedString(plainText))
+                        showCopyDialog = false
+                    }) {
+                        Text("纯文本", color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -233,24 +301,23 @@ fun NoteDetailScreen(
                     enter = fadeIn(),
                     exit = fadeOut()
                 ) {
-                    ExtendedFloatingActionButton(
+                    FloatingActionButton(
                         onClick = {
                             scope.launch {
                                 scrollState.animateScrollTo(0)
                             }
                         },
-                        icon = { Icon(Icons.Filled.ArrowUpward, contentDescription = null) },
-                        text = { Text(text = stringResource(R.string.backtop)) },
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.padding(bottom = 80.dp) // 依然避开中间的工具栏
-                    )
+                        modifier = Modifier.padding(bottom = 80.dp)
+                    ) {
+                        Icon(Icons.Filled.VerticalAlignTop, contentDescription = stringResource(R.string.backtop))
+                    }
                 }
             }
         }
     ) { innerPadding ->
 
-        // 使用一个充满屏幕的 Box 作为底层容器
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -286,7 +353,6 @@ fun NoteDetailScreen(
             } else {
                 val note = uiState.note
 
-                // 列表在底层滚动
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -326,7 +392,6 @@ fun NoteDetailScreen(
                     val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
                     val baseFontSize = LocalNoteTextSize.current.value
 
-                    // 详情页正文使用共享渲染引擎（Full 完整模式）
                     val annotatedContent = remember(note.content, primaryColor, highlightColor, baseFontSize) {
                         buildMarkdownAnnotatedString(note.content, primaryColor, highlightColor, baseFontSize, isCompact = false)
                     }
@@ -379,7 +444,6 @@ fun NoteDetailScreen(
                             Text(if (uiState.repliesLoading) "加载中..." else "加载更多回复")
                         }
                     }
-                    // Spacer 保证滑到底部时内容不会被悬浮栏永久遮挡
                     Spacer(modifier = Modifier.height(120.dp))
                 }
 
@@ -387,12 +451,27 @@ fun NoteDetailScreen(
                     expanded = true,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = 24.dp) // 控制距离底部的距离
+                        .padding(bottom = 24.dp)
                 ) {
-                    IconButton(onClick = onDelete) {
+                    IconButton(onClick = { showDeleteDialog = true }) {
                         Icon(
                             imageVector = Icons.Filled.Delete,
                             contentDescription = stringResource(R.string.delete),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    IconButton(onClick = {
+                        val hasMarkdown = Regex("\\*\\*|(?<!\\*)\\*(?!\\*)|~~|<u>|==|^#{1,4} |^> |^-\\s+\\[[ x]\\]\\s+|^-\\s+|^\\d+\\.\\s+", RegexOption.MULTILINE).containsMatchIn(note.content)
+                        if (hasMarkdown) {
+                            showCopyDialog = true
+                        } else {
+                            clipboardManager.setText(AnnotatedString(note.content))
+                        }
+                    }) {
+                        Icon(
+                            imageVector = Icons.Filled.ContentCopy,
+                            contentDescription = "复制",
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -458,7 +537,6 @@ private fun RelationSection(
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
 
-                    // 关联卡片使用共享渲染引擎（Compact 紧凑模式）
                     val annotatedContent = remember(note.content, primaryColor, highlightColor, baseFontSize) {
                         buildMarkdownAnnotatedString(note.content, primaryColor, highlightColor, baseFontSize, isCompact = true)
                     }

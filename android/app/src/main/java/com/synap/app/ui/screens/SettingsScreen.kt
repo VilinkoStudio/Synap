@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.SmartButton
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.DropdownMenu
@@ -313,7 +314,7 @@ fun SettingsScreen(
             }
             Spacer(modifier = Modifier.height(24.dp))
 
-            // ==================== 3. 无障碍 (新增的独立卡片) ====================
+            // ==================== 3. 无障碍 ====================
             Text(
                 text = "无障碍",
                 style = MaterialTheme.typography.titleSmall,
@@ -381,6 +382,45 @@ fun SettingsScreen(
                             }
                         )
                     }
+                }
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+
+                // --- 纯 UI 预留：显示按钮上的文字 ---
+                var showButtonTextUI by remember { mutableStateOf(false) }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showButtonTextUI = !showButtonTextUI }
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.SmartButton,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 16.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "显示按钮上的文字",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "手机上打开此按钮可能会造成无法显示所有内容。",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = showButtonTextUI,
+                        onCheckedChange = { showButtonTextUI = it },
+                    )
                 }
             }
             Spacer(modifier = Modifier.height(24.dp))
