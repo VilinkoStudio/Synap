@@ -1,0 +1,122 @@
+.note-list {
+    list-style: none;
+    display: block;
+    column-width: 280px;
+    column-gap: 0;
+    padding: 0 6px;
+    position: relative;
+}
+
+.active-indicator {
+    position: absolute;
+    top: 0;
+    left: 4px;
+    width: 3px;
+    height: 16px;
+    background-color: var(--primary);
+    border-radius: 4px;
+    transition:
+        transform 0.25s cubic-bezier(0, 0, 0, 1),
+        opacity 0.2s;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 2;
+    margin-left: 6px;
+}
+
+.note-list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.note-item {
+    break-inside: avoid;
+    -webkit-column-break-inside: avoid;
+    page-break-inside: avoid;
+    margin: 0 4px 8px;
+    padding: 12px 14px;
+    border-radius: 6px;
+    cursor: default;
+    transition: background-color 0.15s;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border: 1px solid transparent;
+    position: relative;
+    padding-right: 70px;
+}
+
+.note-item:hover {
+    background-color: var(--item-hover);
+}
+
+.note-item.active {
+    background-color: var(--item-active);
+}
+
+.note-content {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-main);
+    word-break: break-all;
+}
+
+.note-item-actions {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.note-item-action {
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.note-item-action:hover:not(:disabled) {
+    color: var(--text-main);
+}
+
+.note-item-action-danger:hover:not(:disabled) {
+    color: #d13438;
+}
+
+.note-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.note-time {
+    color: var(--text-muted);
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+.note-meta-tag {
+    background-color: #e5e5e5;
+    color: #555;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+}
+
+.note-list-footer {
+    padding: 0 10px 8px;
+}
+
+.note-list-more {
+    width: 100%;
+    justify-content: center;
+}

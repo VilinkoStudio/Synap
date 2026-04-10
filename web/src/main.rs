@@ -1,9 +1,12 @@
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
-    use std::sync::{Arc, Mutex};
+    use std::{path::PathBuf, sync::Arc};
 
-    use axum::Router;
+    use axum::{
+        routing::{get, post},
+        Extension, Router,
+    };
     use leptos::logging::log;
     use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
@@ -14,13 +17,18 @@ async fn main() {
     let addr = conf.leptos_options.site_addr;
     let leptos_options = conf.leptos_options;
     let db_path = std::env::var("SYNAP_WEB_DB").unwrap_or_else(|_| "synap-web.redb".to_string());
-    let service: SharedService = Arc::new(Mutex::new(
-        SynapService::new(Some(db_path)).expect("failed to initialize Synap service"),
-    ));
+    let service: SharedService = Arc::new(AppState {
+        service: std::sync::Mutex::new(Some(
+            SynapService::new(Some(db_path.clone())).expect("failed to initialize Synap service"),
+        )),
+        db_path: PathBuf::from(db_path),
+    });
     // Generate the list of routes in your Leptos App
     let routes = generate_route_list(App);
 
     let app = Router::new()
+        .route("/api/settings/export", get(export_db_handler))
+        .route("/api/settings/import", post(import_db_handler))
         .leptos_routes_with_context(
             &leptos_options,
             routes,
@@ -33,6 +41,7 @@ async fn main() {
                 move || shell(leptos_options.clone())
             },
         )
+        .layer(Extension(service))
         .fallback(leptos_axum::file_and_error_handler(shell))
         .with_state(leptos_options);
 

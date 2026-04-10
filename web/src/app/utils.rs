@@ -1,26 +1,5 @@
 use chrono::{Local, TimeZone};
 
-pub fn parse_tags(input: &str) -> Vec<String> {
-    input
-        .split([',', '，', '\n'])
-        .map(str::trim)
-        .filter(|tag| !tag.is_empty())
-        .map(str::to_owned)
-        .collect()
-}
-
-pub fn join_tags(tags: &[String]) -> String {
-    tags.join(", ")
-}
-
-pub fn remove_tag(input: &str, target: &str) -> String {
-    parse_tags(input)
-        .into_iter()
-        .filter(|tag| tag != target)
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
 pub fn preview(content: &str, limit: usize) -> String {
     let flattened = content.replace('\n', " ");
     let mut chars = flattened.chars();
