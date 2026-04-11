@@ -4,6 +4,7 @@ members = [
     "coreffi",
     "cli",
     "desktop",
+    "tools/importers/xiaomi-notes",
     "xtask",
     "web",
 ]
