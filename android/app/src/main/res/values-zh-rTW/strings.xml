@@ -90,6 +90,9 @@
     <string name="notedetail_previousVersions">上一版本</string>
     <string name="notedetail_nextVersions">下一版本</string>
     <string name="notedetail_replies">回覆</string>
+    <string name="notedetail_add_calendar_reminder">新增日曆提醒</string>
+    <string name="notedetail_calendar_default_title">Synap 筆記提醒</string>
+    <string name="notedetail_calendar_unavailable">未找到可用的日曆應用程式</string>
     <string name="creative_team">創作團隊</string>
     <string name="bilibili">嗶哩嗶哩</string>
     <string name="tiktok">抖音</string>

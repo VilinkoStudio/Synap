@@ -90,6 +90,9 @@
     <string name="notedetail_previousVersions">Previous version</string>
     <string name="notedetail_nextVersions">Next version</string>
     <string name="notedetail_replies">Replies</string>
+    <string name="notedetail_add_calendar_reminder">Add calendar reminder</string>
+    <string name="notedetail_calendar_default_title">Synap note reminder</string>
+    <string name="notedetail_calendar_unavailable">No calendar app available</string>
     <string name="creative_team">Creative team</string>
     <string name="bilibili">bilibili</string>
     <string name="tiktok">TikTok</string>

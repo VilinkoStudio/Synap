@@ -90,6 +90,9 @@
     <string name="notedetail_previousVersions">前のバージョン</string>
     <string name="notedetail_nextVersions">次のバージョン</string>
     <string name="notedetail_replies">返信</string>
+    <string name="notedetail_add_calendar_reminder">カレンダーのリマインダーを追加</string>
+    <string name="notedetail_calendar_default_title">Synap メモのリマインダー</string>
+    <string name="notedetail_calendar_unavailable">利用可能なカレンダーアプリが見つかりません</string>
     <string name="creative_team">制作チーム</string>
     <string name="bilibili">bilibili</string>
     <string name="tiktok">TikTok</string>

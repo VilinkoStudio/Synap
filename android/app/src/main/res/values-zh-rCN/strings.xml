@@ -80,6 +80,9 @@
     <string name="notedetail_previousVersions">上一版本</string>
     <string name="notedetail_nextVersions">下一版本</string>
     <string name="notedetail_replies">回复</string>
+    <string name="notedetail_add_calendar_reminder">添加日历提醒</string>
+    <string name="notedetail_calendar_default_title">Synap 笔记提醒</string>
+    <string name="notedetail_calendar_unavailable">未找到可用的日历应用</string>
     <string name="creative_team">创作团队</string>
     <string name="bilibili">哔哩哔哩</string>
     <string name="tiktok">抖音</string>

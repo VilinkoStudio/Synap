@@ -1,5 +1,9 @@
 package com.synap.app.ui.screens
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.provider.CalendarContract
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,9 +26,9 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Reply
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -52,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.ParagraphStyle
 import androidx.compose.ui.text.SpanStyle
@@ -210,6 +215,10 @@ fun NoteDetailScreen(
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+    val addCalendarReminderLabel = stringResource(R.string.notedetail_add_calendar_reminder)
+    val defaultCalendarTitle = stringResource(R.string.notedetail_calendar_default_title)
+    val calendarUnavailableMessage = stringResource(R.string.notedetail_calendar_unavailable)
 
     val isScrolledDown by remember {
         derivedStateOf {
@@ -476,10 +485,25 @@ fun NoteDetailScreen(
                         )
                     }
 
-                    IconButton(onClick = { /* UI Only */ }) {
+                    IconButton(onClick = {
+                        val intent = Intent(Intent.ACTION_INSERT).apply {
+                            data = CalendarContract.Events.CONTENT_URI
+                            putExtra(
+                                CalendarContract.Events.TITLE,
+                                buildCalendarReminderTitle(note = note, fallback = defaultCalendarTitle),
+                            )
+                            putExtra(CalendarContract.Events.DESCRIPTION, note.content)
+                        }
+
+                        try {
+                            context.startActivity(intent)
+                        } catch (_: ActivityNotFoundException) {
+                            Toast.makeText(context, calendarUnavailableMessage, Toast.LENGTH_SHORT).show()
+                        }
+                    }) {
                         Icon(
-                            imageVector = Icons.Filled.Share,
-                            contentDescription = "分享",
+                            imageVector = Icons.Filled.Event,
+                            contentDescription = addCalendarReminderLabel,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -503,6 +527,21 @@ fun NoteDetailScreen(
             }
         }
     }
+}
+
+private fun buildCalendarReminderTitle(note: Note, fallback: String): String {
+    val firstContentLine = note.content
+        .lineSequence()
+        .map(String::trim)
+        .firstOrNull(String::isNotEmpty)
+        .orEmpty()
+
+    val sanitized = firstContentLine
+        .replace(Regex("^(#{1,4} |> |-\\s+\\[[ x]\\]\\s+|-\\s+|\\d+\\.\\s+)"), "")
+        .replace(Regex("\\*\\*\\*|\\*\\*|(?<!\\*)\\*(?!\\*)|~~|<u>|</u>|=="), "")
+        .trim()
+
+    return sanitized.take(40).ifEmpty { fallback }
 }
 
 @Composable

@@ -90,6 +90,9 @@
     <string name="notedetail_previousVersions">이전 버전</string>
     <string name="notedetail_nextVersions">다음 버전</string>
     <string name="notedetail_replies">답글</string>
+    <string name="notedetail_add_calendar_reminder">캘린더 알림 추가</string>
+    <string name="notedetail_calendar_default_title">Synap 노트 알림</string>
+    <string name="notedetail_calendar_unavailable">사용 가능한 캘린더 앱을 찾을 수 없습니다</string>
     <string name="creative_team">제작 팀</string>
     <string name="bilibili">bilibili</string>
     <string name="tiktok">TikTok</string>
