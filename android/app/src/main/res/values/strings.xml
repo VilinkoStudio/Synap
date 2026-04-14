@@ -96,5 +96,8 @@
     <string name="creative_team">创作团队</string>
     <string name="bilibili">哔哩哔哩</string>
     <string name="tiktok">抖音</string>
+    <string name="xiaohongshu">小红书</string>
+    <string name="role_backend">后端开发</string>
+    <string name="role_frontend_ui">前端 &amp; UI 设计</string>
     <string name="edit_reply_context_title">接续这条思路</string>
 </resources>

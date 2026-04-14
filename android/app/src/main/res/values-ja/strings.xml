@@ -96,5 +96,8 @@
     <string name="creative_team">制作チーム</string>
     <string name="bilibili">bilibili</string>
     <string name="tiktok">TikTok</string>
+    <string name="xiaohongshu">小紅書</string>
+    <string name="role_backend">バックエンド開発</string>
+    <string name="role_frontend_ui">フロントエンド &amp; UI デザイン</string>
     <string name="edit_reply_context_title">この考えを続ける</string>
 </resources>

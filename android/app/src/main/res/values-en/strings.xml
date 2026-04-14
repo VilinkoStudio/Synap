@@ -96,5 +96,8 @@
     <string name="creative_team">Creative team</string>
     <string name="bilibili">bilibili</string>
     <string name="tiktok">TikTok</string>
+    <string name="xiaohongshu">Xiaohongshu</string>
+    <string name="role_backend">Backend Developer</string>
+    <string name="role_frontend_ui">Frontend &amp; UI Design</string>
     <string name="edit_reply_context_title">Continue this thought</string>
 </resources>
