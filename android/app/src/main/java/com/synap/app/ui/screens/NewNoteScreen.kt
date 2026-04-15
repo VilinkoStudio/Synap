@@ -1,5 +1,6 @@
 package com.synap.app.ui.screens
 
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -62,6 +63,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -70,6 +72,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -87,6 +90,7 @@ import com.synap.app.ui.viewmodel.EditorUiState
 import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
+import kotlinx.coroutines.CancellationException
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -139,9 +143,31 @@ fun NewNoteScreen(
         }
     }
 
+    // ========== 预返回手势核心状态 ==========
+    var backProgress by remember { mutableFloatStateOf(0f) }
+
+    PredictiveBackHandler { progressFlow ->
+        try {
+            progressFlow.collect { backEvent ->
+                backProgress = backEvent.progress // 收集滑动进度
+            }
+            onNavigateBack() // 手指松开且决定返回时，触发导航
+        } catch (e: CancellationException) {
+            backProgress = 0f // 用户取消了返回手势，重置进度
+        }
+    }
+
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
+            // ========== 应用预返回手势的视觉形变 ==========
+            .graphicsLayer {
+                val scale = 1f - (0.1f * backProgress) // 页面最多缩小到 90%
+                scaleX = scale
+                scaleY = scale
+                shape = RoundedCornerShape(32.dp * backProgress) // 随进度增加圆角
+                clip = true
+            }
             .let {
                 if (uiState.mode == EditorMode.Create && sharedTransitionScope != null && animatedVisibilityScope != null) {
                     with(sharedTransitionScope) {
@@ -170,7 +196,7 @@ fun NewNoteScreen(
                 // 标签区域
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                     if (isTagInputVisible) {
-                        // 【核心修复】：增加一个状态，标记是否真正获取过焦点
+                        // 【核心修复】：出现输入框时，强制请求焦点，防止触发 onFocusChanged 导致瞬间隐藏
                         var hasGainedFocus by remember { mutableStateOf(false) }
 
                         LaunchedEffect(Unit) {
