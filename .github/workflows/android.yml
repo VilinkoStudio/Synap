@@ -5,7 +5,7 @@ on:
     branches:
       - master
     tags:
-      - '*'
+      - 'android-*'
     paths:
       - 'android/**'
       - 'core/**'
