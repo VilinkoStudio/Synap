@@ -60,6 +60,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -169,16 +170,44 @@ fun NewNoteScreen(
                 // 标签区域
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                     if (isTagInputVisible) {
+                        // 【核心修复】：增加一个状态，标记是否真正获取过焦点
+                        var hasGainedFocus by remember { mutableStateOf(false) }
+
+                        LaunchedEffect(Unit) {
+                            try {
+                                tagFocusRequester.requestFocus()
+                            } catch (e: Exception) {
+                                // 忽略偶发的焦点请求异常
+                            }
+                        }
+
                         OutlinedTextField(
                             value = tagInputText,
                             onValueChange = { tagInputText = it },
                             placeholder = { Text("输入标签") },
-                            modifier = Modifier.fillMaxWidth().height(56.dp).focusRequester(tagFocusRequester)
-                                .onFocusChanged { if (!it.isFocused && tagInputText.isBlank()) isTagInputVisible = false },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                                .focusRequester(tagFocusRequester)
+                                .onFocusChanged { focusState ->
+                                    if (focusState.isFocused) {
+                                        // 成功获取到焦点，打上标记
+                                        hasGainedFocus = true
+                                    } else if (hasGainedFocus && tagInputText.isBlank()) {
+                                        // 只有在“曾经获取过焦点”，并且现在失去焦点且内容为空时，才隐藏输入框
+                                        isTagInputVisible = false
+                                    }
+                                },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(onDone = {
-                                if (tagInputText.isNotBlank()) { onAddTag(tagInputText.trim()); tagInputText = ""; isTagInputVisible = false }
+                                if (tagInputText.isNotBlank()) {
+                                    onAddTag(tagInputText.trim())
+                                    tagInputText = ""
+                                    isTagInputVisible = false
+                                } else {
+                                    isTagInputVisible = false
+                                }
                             })
                         )
                     } else {
