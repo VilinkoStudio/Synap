@@ -132,26 +132,7 @@ impl Note {
         content: String,
         tags: Vec<Tag>,
     ) -> Result<Self, redb::Error> {
-        Self::create_with_id(tx, Uuid::now_v7(), content, tags)
-    }
-
-    pub fn create_at(
-        tx: &WriteTransaction,
-        timestamp_ms: u64,
-        content: String,
-        tags: Vec<Tag>,
-    ) -> Result<Self, redb::Error> {
-        let random = random_id::<10>();
-        let id = Builder::from_unix_timestamp_millis(timestamp_ms, &random).into_uuid();
-        Self::create_with_id(tx, id, content, tags)
-    }
-
-    fn create_with_id(
-        tx: &WriteTransaction,
-        id: Uuid,
-        content: String,
-        tags: Vec<Tag>,
-    ) -> Result<Self, redb::Error> {
+        let id = Uuid::now_v7();
         let short_id = Self::allocate_short_id(tx)?;
         let tag_ids = Self::normalize_tag_ids(tags);
 

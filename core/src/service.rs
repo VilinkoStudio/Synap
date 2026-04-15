@@ -64,15 +64,6 @@ pub enum TimelineDirection {
 const DEFAULT_SESSION_DETECTION_CONFIG: SessionDetectionConfig =
     SessionDetectionConfig::new(5 * 60 * 1000);
 
-fn current_timestamp_ms() -> u64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
-}
-
 impl SynapService {
     /// 封装只读事务的生命周期
     pub(crate) fn with_read<F, T>(&self, f: F) -> Result<T, ServiceError>
@@ -1037,18 +1028,9 @@ impl SynapService {
     // ------------------------------------------
 
     pub fn create_note(&self, content: String, tags: Vec<String>) -> Result<NoteDTO, ServiceError> {
-        self.create_note_at(content, tags, current_timestamp_ms())
-    }
-
-    pub fn create_note_at(
-        &self,
-        content: String,
-        tags: Vec<String>,
-        created_at_ms: u64,
-    ) -> Result<NoteDTO, ServiceError> {
         let note = self.with_write(|tx| {
             let tags = self.materialize_tags(tx, tags)?;
-            Note::create_at(tx, created_at_ms, content, tags).map_err(Into::into)
+            Note::create(tx, content, tags).map_err(Into::into)
         })?;
 
         self.note_searcher.insert(note.clone());
@@ -1447,16 +1429,6 @@ mod tests {
         let created = service.create_note("timed".to_string(), vec![]).unwrap();
 
         assert!(created.created_at >= 1_000_000_000_000);
-    }
-
-    #[test]
-    fn test_create_note_at_preserves_provided_timestamp() {
-        let service = SynapService::new(None).unwrap();
-        let created = service
-            .create_note_at("imported".to_string(), vec![], 1_742_165_200_123)
-            .unwrap();
-
-        assert_eq!(created.created_at, 1_742_165_200_123);
     }
 
     #[test]

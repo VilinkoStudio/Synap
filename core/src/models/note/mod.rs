@@ -6,7 +6,7 @@ use std::{
 
 use redb::{ReadTransaction, WriteTransaction};
 use serde::{Deserialize, Serialize};
-use uuid::{Builder, Uuid};
+use uuid::Uuid;
 
 use crate::{
     db::{
