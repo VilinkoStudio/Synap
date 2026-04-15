@@ -1,6 +1,12 @@
 package com.synap.app.ui.screens
 
+import android.content.Context
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.Gravity
+import android.view.inputmethod.InputMethodManager
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.appcompat.widget.AppCompatEditText
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -79,10 +85,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.appcompat.widget.AppCompatEditText
-import android.text.Editable
-import android.text.TextWatcher
-import android.view.Gravity
 import com.synap.app.LocalNoteTextSize
 import com.synap.app.R
 import com.synap.app.ui.viewmodel.EditorMode
@@ -91,6 +93,7 @@ import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -140,6 +143,17 @@ fun NewNoteScreen(
             val line = layout.getLineForOffset(start)
             val lineStart = layout.getLineStart(line)
             text.insert(lineStart, prefix)
+        }
+    }
+
+    // ========== 核心新增：自动获取焦点并弹起键盘 ==========
+    LaunchedEffect(nativeEditText) {
+        nativeEditText?.let { et ->
+            // 等待页面共享动画完成，保证拉起键盘时依然丝滑
+            delay(300)
+            et.requestFocus()
+            val imm = et.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(et, InputMethodManager.SHOW_IMPLICIT)
         }
     }
 
@@ -286,7 +300,6 @@ fun NewNoteScreen(
 
                                     setText(uiState.content)
                                     setSelection(uiState.content.length)
-                                    requestFocus()
                                 }
                             },
                             update = { view ->
@@ -325,27 +338,27 @@ fun NewNoteScreen(
                             shape = RoundedCornerShape(50),
                             color = MaterialTheme.colorScheme.primaryContainer,
                             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            shadowElevation = 6.dp
+                            shadowElevation = 6.dp,
+                            modifier = Modifier.height(64.dp)
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                                    .padding(horizontal = 8.dp)
                                     .horizontalScroll(rememberScrollState()),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 val iconColor = MaterialTheme.colorScheme.onPrimaryContainer
                                 val textStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = iconColor)
 
-                                // 将所有快捷操作整合至同一行
-                                IconButton(onClick = { applyLinePrefix("# ") }) { Text("H1", style = textStyle) }
-                                IconButton(onClick = { applyLinePrefix("## ") }) { Text("H2", style = textStyle) }
                                 IconButton(onClick = { applyStyle("**", "**") }) { Icon(Icons.Filled.FormatBold, null, tint = iconColor) }
                                 IconButton(onClick = { applyStyle("*", "*") }) { Icon(Icons.Filled.FormatItalic, null, tint = iconColor) }
                                 IconButton(onClick = { applyStyle("~~", "~~") }) { Icon(Icons.Filled.FormatStrikethrough, null, tint = iconColor) }
                                 IconButton(onClick = { applyStyle("<u>", "</u>") }) { Icon(Icons.Filled.FormatUnderlined, null, tint = iconColor) }
                                 IconButton(onClick = { applyStyle("==", "==") }) { Icon(Icons.Filled.FormatColorText, null, tint = iconColor) }
                                 IconButton(onClick = { applyLinePrefix("> ") }) { Icon(Icons.Filled.FormatQuote, null, tint = iconColor) }
+                                IconButton(onClick = { applyLinePrefix("# ") }) { Text("H1", style = textStyle) }
+                                IconButton(onClick = { applyLinePrefix("## ") }) { Text("H2", style = textStyle) }
                                 IconButton(onClick = { applyLinePrefix("- ") }) { Icon(Icons.Filled.FormatListBulleted, null, tint = iconColor) }
                                 IconButton(onClick = { applyLinePrefix("1. ") }) { Text("1.", style = textStyle) }
                             }
@@ -359,9 +372,13 @@ fun NewNoteScreen(
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        shadowElevation = 6.dp
+                        shadowElevation = 6.dp,
+                        modifier = Modifier.size(64.dp)
                     ) {
-                        IconButton(onClick = { isToolbarExpanded = !isToolbarExpanded }) {
+                        IconButton(
+                            onClick = { isToolbarExpanded = !isToolbarExpanded },
+                            modifier = Modifier.fillMaxSize()
+                        ) {
                             Icon(
                                 imageVector = if (isToolbarExpanded) Icons.Filled.Close else Icons.Filled.KeyboardArrowLeft,
                                 contentDescription = if (isToolbarExpanded) "收起" else "展开"
