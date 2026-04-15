@@ -24,8 +24,7 @@ fun HomeNoteFeed(
     onOpenNote: (String) -> Unit,
     onToggleDeleted: (Note) -> Unit,
     onReplyToNote: (String, String) -> Unit,
-    bottomInset: Dp = 0.dp, // 新增参数
-    contentPadding: PaddingValues
+    bottomInset: Dp = 0.dp // 统一传 Dp
 ) {
     LazyVerticalStaggeredGrid(
         columns = StaggeredGridCells.Adaptive(minSize = 240.dp),
@@ -33,9 +32,8 @@ fun HomeNoteFeed(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = PaddingValues(
             start = 16.dp,
-            top = 8.dp, // 顶部固定写死 8.dp
+            top = 8.dp,
             end = 16.dp,
-            // 核心修改：原有悬浮按钮的 96.dp 加上系统的底部小白条高度
             bottom = 96.dp + bottomInset,
         ),
         verticalItemSpacing = 16.dp,

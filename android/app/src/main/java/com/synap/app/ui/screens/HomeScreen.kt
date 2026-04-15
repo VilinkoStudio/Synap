@@ -1,6 +1,7 @@
 package com.synap.app.ui.screens
 
 import android.content.Context
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
@@ -14,12 +15,14 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -37,6 +40,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Search
@@ -55,11 +59,13 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -78,9 +84,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.synap.app.R
@@ -118,7 +128,10 @@ fun HomeScreen(
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
 ) {
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     val prefs = remember { context.getSharedPreferences("synap_prefs", Context.MODE_PRIVATE) }
+
+    val navVisibilityScope = animatedVisibilityScope
 
     val noteGridState = rememberLazyStaggeredGridState()
     val sessionGridState = rememberLazyStaggeredGridState()
@@ -151,9 +164,12 @@ fun HomeScreen(
     var selectedNoteIds by rememberSaveable { mutableStateOf(setOf<String>()) }
 
     var showFeedMenu by remember { mutableStateOf(false) }
-
-    // 控制多选删除确认弹窗
     var showMultiDeleteDialog by remember { mutableStateOf(false) }
+    var noteToCopy by remember { mutableStateOf<Note?>(null) }
+
+    // 分享 BottomSheet 状态
+    var showShareBottomSheet by remember { mutableStateOf(false) }
+    val shareSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     BackHandler(enabled = isSelectionMode) {
         isSelectionMode = false
@@ -311,7 +327,7 @@ fun HomeScreen(
         AlertDialog(
             onDismissRequest = { showMultiDeleteDialog = false },
             title = { Text("确认删除") },
-            text = { Text("是否确认删除选择的${selectedNoteIds.size}条笔记？") },
+            text = { Text("是否确认删除选择的 ${selectedNoteIds.size} 条笔记？") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -330,25 +346,112 @@ fun HomeScreen(
         )
     }
 
+    noteToCopy?.let { note ->
+        AlertDialog(
+            onDismissRequest = { noteToCopy = null },
+            title = { Text("复制笔记") },
+            text = { Text("该笔记包含 Markdown 格式，请选择您要复制的文本格式：") },
+            confirmButton = {
+                TextButton(onClick = {
+                    clipboardManager.setText(AnnotatedString(note.content))
+                    Toast.makeText(context, "已复制 Markdown", Toast.LENGTH_SHORT).show()
+                    noteToCopy = null
+                    isSelectionMode = false
+                    selectedNoteIds = emptySet()
+                }) {
+                    Text("Markdown")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    val plainText = stripMarkdown(note.content)
+                    clipboardManager.setText(AnnotatedString(plainText))
+                    Toast.makeText(context, "已复制纯文本", Toast.LENGTH_SHORT).show()
+                    noteToCopy = null
+                    isSelectionMode = false
+                    selectedNoteIds = emptySet()
+                }) {
+                    Text("纯文本")
+                }
+            }
+        )
+    }
+
+    // ========== 分享 BottomSheet ==========
+    if (showShareBottomSheet && selectedNoteIds.isNotEmpty()) {
+        ModalBottomSheet(
+            onDismissRequest = { showShareBottomSheet = false },
+            sheetState = shareSheetState,
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "扫码分享",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // 合并所有选中的文本生成二维码
+                val fullTextToShare = remember(selectedNoteIds, displayNotes, displaySessionGroups) {
+                    val notesToShare = displayNotes.filter { it.id in selectedNoteIds } +
+                            displaySessionGroups.flatMap { it.notes }.filter { it.id in selectedNoteIds }
+                    notesToShare.distinctBy { it.id }.joinToString("\n\n---\n\n") { it.content }
+                }
+
+                val qrPrimaryColor = MaterialTheme.colorScheme.primary.toArgb()
+                val qrBgColor = MaterialTheme.colorScheme.surface.toArgb()
+
+                val qrBitmap = remember(fullTextToShare, qrPrimaryColor, qrBgColor) {
+                    generateQRCodeBitmapForHome(fullTextToShare, 800, qrPrimaryColor, qrBgColor)
+                }
+
+                if (qrBitmap != null) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 8.dp,
+                        shadowElevation = 4.dp
+                    ) {
+                        Image(
+                            bitmap = qrBitmap.asImageBitmap(),
+                            contentDescription = "笔记分享二维码",
+                            modifier = Modifier
+                                .size(280.dp)
+                                .padding(16.dp)
+                        )
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier.size(280.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("二维码内容过长，生成失败", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+                Spacer(modifier = Modifier.height(48.dp))
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             Column {
                 if (isSelectionMode) {
                     TopAppBar(
                         title = {
-                            // --- 改动：使用白色文字和主题色高亮背景 ---
-                            Surface(
-                                color = MaterialTheme.colorScheme.primary,
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Text(
-                                    text = "${stringResource(R.string.selected)} ${selectedNoteIds.size}",
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                                )
-                            }
+                            Text(
+                                text = "${stringResource(R.string.selected)} ${selectedNoteIds.size}",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         },
                         navigationIcon = {
                             IconButton(onClick = {
@@ -445,13 +548,12 @@ fun HomeScreen(
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    // ========== 给首页的搜索框打上共享 Tag ==========
                                     .let {
-                                        if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                                        if (sharedTransitionScope != null && navVisibilityScope != null) {
                                             with(sharedTransitionScope) {
                                                 it.sharedBounds(
-                                                    sharedContentState = rememberSharedContentState(key = "search_bar_transform"),
-                                                    animatedVisibilityScope = animatedVisibilityScope
+                                                    sharedContentState = rememberSharedContentState(key = "search_to_fullscreen"),
+                                                    animatedVisibilityScope = navVisibilityScope
                                                 )
                                             }
                                         } else {
@@ -486,16 +588,15 @@ fun HomeScreen(
             }
         },
         floatingActionButton = {
-            // --- 改动：移除之前的 Box 和 Selection Toolbar，这里只保留主 FAB ---
             AnimatedVisibility(
                 visible = !isSelectionMode,
                 enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
                 exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
+                modifier = Modifier.offset(y = fabDodgeOffset)
             ) {
                 Column(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.offset(y = fabDodgeOffset)
                 ) {
                     AnimatedVisibility(
                         visible = isScrolledDown,
@@ -674,7 +775,7 @@ fun HomeScreen(
                                 HomeNoteFeed(
                                     notes = displayNotes,
                                     state = noteGridState,
-                                    contentPadding = innerPadding,
+                                    bottomInset = innerPadding.calculateBottomPadding(),
                                     isSelectionMode = isSelectionMode,
                                     selectedNoteIds = selectedNoteIds,
                                     onToggleSelection = ::toggleSelection,
@@ -698,61 +799,15 @@ fun HomeScreen(
                 }
             }
 
-            // --- 改动：将多选的浮动工具栏移至主 Box 内，并设置 BottomCenter 居中 ---
-            AnimatedVisibility(
-                visible = isSelectionMode,
-                enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
-                exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    // 确保避开撤销弹窗及底部导航栏
-                    .offset(y = fabDodgeOffset)
-                    .padding(bottom = innerPadding.calculateBottomPadding() + 32.dp)
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(percent = 50),
-                    shadowElevation = 8.dp,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = { /* TODO: 预留分享功能 */ },
-                            enabled = selectedNoteIds.isNotEmpty()
-                        ) {
-                            Icon(
-                                Icons.Filled.Share,
-                                contentDescription = "Share",
-                                tint = if (selectedNoteIds.isNotEmpty()) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
-                            )
-                        }
-
-                        IconButton(
-                            onClick = { showMultiDeleteDialog = true },
-                            enabled = selectedNoteIds.isNotEmpty()
-                        ) {
-                            Icon(
-                                Icons.Filled.Delete,
-                                contentDescription = stringResource(R.string.delete),
-                                tint = if (selectedNoteIds.isNotEmpty()) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
-                            )
-                        }
-                    }
-                }
-            }
-
             AnimatedVisibility(
                 visible = deletedNoteToUndo != null,
                 enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
                 exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 32.dp, start = 16.dp, end = 16.dp)
+                    .padding(bottom = 16.dp + innerPadding.calculateBottomPadding())
                     .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
             ) {
                 Surface(
                     shape = RoundedCornerShape(8.dp),
@@ -803,8 +858,99 @@ fun HomeScreen(
                     }
                 }
             }
+
+            AnimatedVisibility(
+                visible = isSelectionMode,
+                enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+                exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    // ========== 设置更小的底部间距 ==========
+                    .padding(bottom = 8.dp + innerPadding.calculateBottomPadding())
+                    .offset(y = fabDodgeOffset)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(percent = 50),
+                    shadowElevation = 8.dp,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (selectedNoteIds.size == 1) {
+                            IconButton(
+                                onClick = {
+                                    val noteId = selectedNoteIds.first()
+                                    val note = displayNotes.find { it.id == noteId }
+                                        ?: displaySessionGroups.flatMap { it.notes }.find { it.id == noteId }
+
+                                    if (note != null) {
+                                        val hasMarkdown = Regex("(\\*\\*\\*|\\*\\*|\\*|~~|<u>|==|^#{1,6} |^> |^-\\s+\\[[ x]\\]\\s|^-\\s|^\\d+\\.\\s)", RegexOption.MULTILINE).containsMatchIn(note.content)
+                                        if (hasMarkdown) {
+                                            noteToCopy = note
+                                        } else {
+                                            clipboardManager.setText(AnnotatedString(note.content))
+                                            Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                                            isSelectionMode = false
+                                            selectedNoteIds = emptySet()
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Filled.ContentCopy,
+                                    contentDescription = "复制",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { showShareBottomSheet = true },
+                            enabled = selectedNoteIds.isNotEmpty()
+                        ) {
+                            Icon(
+                                Icons.Filled.Share,
+                                contentDescription = "Share",
+                                tint = if (selectedNoteIds.isNotEmpty()) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { showMultiDeleteDialog = true },
+                            enabled = selectedNoteIds.isNotEmpty()
+                        ) {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = stringResource(R.string.delete),
+                                tint = if (selectedNoteIds.isNotEmpty()) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
+}
+
+// ==================== 辅助工具函数 ====================
+fun stripMarkdown(text: String): String {
+    var result = text
+    result = result.replace(Regex("^(#{1,6})\\s+", RegexOption.MULTILINE), "")
+    result = result.replace(Regex("\\*\\*\\*(.*?)\\*\\*\\*"), "$1")
+    result = result.replace(Regex("\\*\\*(.*?)\\*\\*"), "$1")
+    result = result.replace(Regex("\\*(.*?)\\*"), "$1")
+    result = result.replace(Regex("~~(.*?)~~"), "$1")
+    result = result.replace(Regex("==(.*?)=="), "$1")
+    result = result.replace(Regex("<u>(.*?)</u>"), "$1")
+    result = result.replace(Regex("^>\\s+", RegexOption.MULTILINE), "")
+    result = result.replace(Regex("^-\\s+\\[[ x]\\]\\s+", RegexOption.MULTILINE), "")
+    result = result.replace(Regex("^-\\s+", RegexOption.MULTILINE), "")
+    result = result.replace(Regex("^\\d+\\.\\s+", RegexOption.MULTILINE), "")
+    return result
 }
 
 @Composable
@@ -843,5 +989,38 @@ fun WavyProgressIndicator(
                 )
             )
         }
+    }
+}
+
+// ==================== 二维码生成工具 ====================
+fun generateQRCodeBitmapForHome(text: String, size: Int = 512, primaryColor: Int = android.graphics.Color.BLACK, backgroundColor: Int = android.graphics.Color.WHITE): android.graphics.Bitmap? {
+    if (text.isEmpty()) return null
+    return try {
+        val hints = mapOf(
+            com.google.zxing.EncodeHintType.CHARACTER_SET to "UTF-8",
+            com.google.zxing.EncodeHintType.MARGIN to 1
+        )
+        val bitMatrix = com.google.zxing.MultiFormatWriter().encode(
+            text,
+            com.google.zxing.BarcodeFormat.QR_CODE,
+            size,
+            size,
+            hints
+        )
+        val width = bitMatrix.width
+        val height = bitMatrix.height
+        val pixels = IntArray(width * height)
+        for (y in 0 until height) {
+            val offset = y * width
+            for (x in 0 until width) {
+                pixels[offset + x] = if (bitMatrix[x, y]) primaryColor else backgroundColor
+            }
+        }
+        val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+        bitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+        bitmap
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
     }
 }
