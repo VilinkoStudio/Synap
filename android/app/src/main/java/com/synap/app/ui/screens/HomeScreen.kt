@@ -446,6 +446,7 @@ fun HomeScreen(
                 if (isSelectionMode) {
                     TopAppBar(
                         title = {
+                            // 【核心修改 1】：去掉了背景色，恢复为原生的纯文字样式
                             Text(
                                 text = "${stringResource(R.string.selected)} ${selectedNoteIds.size}",
                                 style = MaterialTheme.typography.titleLarge,
@@ -625,11 +626,11 @@ fun HomeScreen(
                         modifier = Modifier
                             .size(56.dp)
                             .let {
-                                if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                                if (sharedTransitionScope != null && navVisibilityScope != null) {
                                     with(sharedTransitionScope) {
                                         it.sharedBounds(
                                             sharedContentState = rememberSharedContentState(key = "fab_to_new_note"),
-                                            animatedVisibilityScope = animatedVisibilityScope
+                                            animatedVisibilityScope = navVisibilityScope
                                         )
                                     }
                                 } else {
@@ -865,7 +866,7 @@ fun HomeScreen(
                 exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    // ========== 设置更小的底部间距 ==========
+                    // 【核心修改 2】：将间距调小，改为 8.dp，让它更靠近小白条
                     .padding(bottom = 8.dp + innerPadding.calculateBottomPadding())
                     .offset(y = fabDodgeOffset)
             ) {
@@ -908,6 +909,7 @@ fun HomeScreen(
                             }
                         }
 
+                        // 【核心修改 4】：触发分享弹窗
                         IconButton(
                             onClick = { showShareBottomSheet = true },
                             enabled = selectedNoteIds.isNotEmpty()

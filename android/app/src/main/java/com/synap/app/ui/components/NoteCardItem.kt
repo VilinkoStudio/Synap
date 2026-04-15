@@ -35,11 +35,15 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.ParagraphStyle
 import androidx.compose.ui.text.SpanStyle
@@ -159,7 +163,6 @@ fun buildMarkdownAnnotatedString(
                 addStyle(SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold), match.range.first, match.range.first + 1)
             }
         } else {
-            // 紧凑模式：隐藏掉巨型排版的 Markdown 符号，使其降级为纯文本展示
             Regex("\\*\\*\\*|\\*\\*").findAll(visualString).forEach { match ->
                 addStyle(hiddenSpanStyle, match.range.first, match.range.last + 1)
             }
@@ -194,34 +197,40 @@ fun NoteCardItem(
 ) {
     val scope = rememberCoroutineScope()
 
+    // 【核心修复 1】：使用底层触摸 API，记录用户是否处于长按/滑动未松手状态
+    var isPressed by remember { mutableStateOf(false) }
+
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { dismissValue ->
             if (isSelectionMode) return@rememberSwipeToDismissBoxState false // 多选模式下禁用滑动
-            // 仅负责状态放行，绝不在这里执行业务逻辑！
+
+            // 仅放行状态变化（让底色变红），绝不在这里执行删除逻辑！
             when (dismissValue) {
                 SwipeToDismissBoxValue.StartToEnd -> true
                 SwipeToDismissBoxValue.EndToStart -> !note.isDeleted
                 SwipeToDismissBoxValue.Settled -> true
             }
         },
+        // 【核心修复 2】：滑动 20% 即可触发状态（背景变色）
+        positionalThreshold = { totalDistance -> totalDistance * 0.2f }
     )
 
-    // 核心修复逻辑：监听真实的 currentValue。它只会在用户“彻底松手并划过去动画完成”之后才更新
-    LaunchedEffect(dismissState.currentValue) {
-        when (dismissState.currentValue) {
-            SwipeToDismissBoxValue.StartToEnd -> {
-                onToggleDeleted()
-                // 动作触发后，瞬间将卡片状态重置回中心
-                dismissState.snapTo(SwipeToDismissBoxValue.Settled)
-            }
-            SwipeToDismissBoxValue.EndToStart -> {
-                if (!note.isDeleted) {
-                    onReply()
+    // 【核心修复 3】：只有等用户彻底松手（isPressed = false）并且状态已切换，才执行真正动作
+    LaunchedEffect(dismissState.currentValue, isPressed) {
+        if (!isPressed) {
+            when (dismissState.currentValue) {
+                SwipeToDismissBoxValue.StartToEnd -> {
+                    onToggleDeleted()
+                    dismissState.snapTo(SwipeToDismissBoxValue.Settled)
                 }
-                // 动作触发后，瞬间将卡片状态重置回中心
-                dismissState.snapTo(SwipeToDismissBoxValue.Settled)
+                SwipeToDismissBoxValue.EndToStart -> {
+                    if (!note.isDeleted) {
+                        onReply()
+                    }
+                    dismissState.snapTo(SwipeToDismissBoxValue.Settled)
+                }
+                SwipeToDismissBoxValue.Settled -> {}
             }
-            SwipeToDismissBoxValue.Settled -> {}
         }
     }
 
@@ -229,6 +238,15 @@ fun NoteCardItem(
         state = dismissState,
         enableDismissFromStartToEnd = !isSelectionMode,
         enableDismissFromEndToStart = !note.isDeleted && !isSelectionMode,
+        modifier = Modifier.pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    // 只要有任何一根手指按在屏幕上，就是 true，松手就是 false
+                    isPressed = event.changes.any { it.pressed }
+                }
+            }
+        },
         backgroundContent = {
             val color by animateColorAsState(
                 targetValue = when (dismissState.targetValue) {
@@ -283,7 +301,7 @@ fun NoteCardItem(
             colors = CardDefaults.cardColors(
                 containerColor = when {
                     note.isDeleted -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-                    isSelected -> MaterialTheme.colorScheme.secondaryContainer // 选中时变为更深的 SecondaryContainer 色彩
+                    isSelected -> MaterialTheme.colorScheme.secondaryContainer
                     else -> MaterialTheme.colorScheme.surfaceVariant
                 }
             ),
