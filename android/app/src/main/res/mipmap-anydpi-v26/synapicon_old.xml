@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@mipmap/synapicon_old_background"/>
-    <foreground android:drawable="@mipmap/synapicon_old_foreground"/>
-    <monochrome android:drawable="@mipmap/synapicon_old_monochrome"/>
+    
+    <background android:drawable="@android:color/system_accent1_500"/>
+    
+    <foreground>
+        <inset 
+            android:drawable="@drawable/ic_synapicon_old_vector"
+            android:inset="25%" /> 
+    </foreground>
+    
+    <monochrome>
+        <inset 
+            android:drawable="@drawable/ic_synapicon_old_vector"
+            android:inset="25%" />
+    </monochrome>
+    
 </adaptive-icon>
