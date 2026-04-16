@@ -81,6 +81,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -113,6 +114,7 @@ fun NewNoteScreen(
     val tagFocusRequester = remember { FocusRequester() }
 
     val isImeVisible = WindowInsets.isImeVisible
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     // 控制工具栏展开和收起的状态
     var isToolbarExpanded by remember { mutableStateOf(true) }
@@ -158,6 +160,17 @@ fun NewNoteScreen(
         }
     }
 
+    // ========== 核心新增：处理降下键盘并执行路由回调 ==========
+    fun hideKeyboardAndNavigate(action: () -> Unit) {
+        keyboardController?.hide()
+        nativeEditText?.let { et ->
+            val imm = et.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(et.windowToken, 0)
+            et.clearFocus()
+        }
+        action()
+    }
+
     // ========== 预返回手势核心状态 ==========
     var backProgress by remember { mutableFloatStateOf(0f) }
 
@@ -166,7 +179,8 @@ fun NewNoteScreen(
             progressFlow.collect { backEvent ->
                 backProgress = backEvent.progress // 收集滑动进度
             }
-            onNavigateBack() // 手指松开且决定返回时，触发导航
+            // 手指松开且决定返回时，收起键盘并触发导航
+            hideKeyboardAndNavigate { onNavigateBack() }
         } catch (e: CancellationException) {
             backProgress = 0f // 用户取消了返回手势，重置进度
         }
@@ -196,9 +210,11 @@ fun NewNoteScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(if (uiState.mode is EditorMode.Create) R.string.edit_title_creat else R.string.edit_title_edit)) },
-                navigationIcon = { IconButton(onClick = onNavigateBack) { Icon(Icons.Filled.ArrowBack, "返回") } },
+                // 点击返回按钮收下键盘
+                navigationIcon = { IconButton(onClick = { hideKeyboardAndNavigate { onNavigateBack() } }) { Icon(Icons.Filled.ArrowBack, "返回") } },
+                // 点击保存按钮收下键盘
                 actions = {
-                    IconButton(onClick = onSave, enabled = !uiState.isSaving && !uiState.isLoading) {
+                    IconButton(onClick = { hideKeyboardAndNavigate { onSave() } }, enabled = !uiState.isSaving && !uiState.isLoading) {
                         if (uiState.isSaving) CircularProgressIndicator(modifier = Modifier.size(24.dp)) else Icon(Icons.Filled.Check, "保存")
                     }
                 },
@@ -211,7 +227,7 @@ fun NewNoteScreen(
                 // 标签区域
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                     if (isTagInputVisible) {
-                        // 【核心修复】：出现输入框时，强制请求焦点，防止触发 onFocusChanged 导致瞬间隐藏
+                        // 出现输入框时，强制请求焦点，防止触发 onFocusChanged 导致瞬间隐藏
                         var hasGainedFocus by remember { mutableStateOf(false) }
 
                         LaunchedEffect(Unit) {
@@ -222,35 +238,57 @@ fun NewNoteScreen(
                             }
                         }
 
-                        OutlinedTextField(
-                            value = tagInputText,
-                            onValueChange = { tagInputText = it },
-                            placeholder = { Text("输入标签") },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp)
-                                .focusRequester(tagFocusRequester)
-                                .onFocusChanged { focusState ->
-                                    if (focusState.isFocused) {
-                                        // 成功获取到焦点，打上标记
-                                        hasGainedFocus = true
-                                    } else if (hasGainedFocus && tagInputText.isBlank()) {
-                                        // 只有在“曾经获取过焦点”，并且现在失去焦点且内容为空时，才隐藏输入框
+                        // 【核心修改】：在旁边包裹了 Row 并增加确认按钮
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = tagInputText,
+                                onValueChange = { tagInputText = it },
+                                placeholder = { Text("输入标签") },
+                                modifier = Modifier
+                                    .weight(1f) // 使 TextField 占据剩余所有空间
+                                    .height(56.dp)
+                                    .focusRequester(tagFocusRequester)
+                                    .onFocusChanged { focusState ->
+                                        if (focusState.isFocused) {
+                                            hasGainedFocus = true
+                                        } else if (hasGainedFocus && tagInputText.isBlank()) {
+                                            isTagInputVisible = false
+                                        }
+                                    },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                keyboardActions = KeyboardActions(onDone = {
+                                    if (tagInputText.isNotBlank()) {
+                                        onAddTag(tagInputText.trim())
+                                        tagInputText = ""
+                                        isTagInputVisible = false
+                                    } else {
                                         isTagInputVisible = false
                                     }
-                                },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                            keyboardActions = KeyboardActions(onDone = {
-                                if (tagInputText.isNotBlank()) {
-                                    onAddTag(tagInputText.trim())
-                                    tagInputText = ""
-                                    isTagInputVisible = false
-                                } else {
+                                })
+                            )
+
+                            // 【核心新增】：确认识别标签的勾号按钮
+                            IconButton(
+                                onClick = {
+                                    if (tagInputText.isNotBlank()) {
+                                        onAddTag(tagInputText.trim())
+                                        tagInputText = ""
+                                    }
                                     isTagInputVisible = false
                                 }
-                            })
-                        )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = "确认添加",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
                     } else {
                         Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             uiState.tags.forEachIndexed { i, tag ->
