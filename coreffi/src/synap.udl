@@ -49,6 +49,13 @@ dictionary TimelineSessionsPageDTO {
     string? next_cursor;
 };
 
+dictionary ShareStatsDTO {
+    u64 records;
+    u64 records_applied;
+    u64 bytes;
+    u64 duration_ms;
+};
+
 dictionary BuildInfo {
     string crate_version;
     string git_branch;
@@ -103,4 +110,6 @@ interface SynapService {
     [Throws=FfiError] NoteDTO edit_note(string target_id, string new_content, sequence<string> tags);
     [Throws=FfiError] void delete_note(string target_id);
     [Throws=FfiError] void restore_note(string target_id);
+    [Throws=FfiError] bytes export_share(sequence<string> note_ids);
+    [Throws=FfiError] ShareStatsDTO import_share(bytes payload);
 };

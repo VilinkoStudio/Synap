@@ -1,6 +1,7 @@
 package com.synap.app
 
 import android.content.Context
+import android.text.format.Formatter
 import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -8,11 +9,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -28,17 +31,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.os.LocaleListCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.synap.app.data.model.ShareImportStats
+import com.synap.app.R
 import com.synap.app.ui.data.sampleLanguages
 import com.synap.app.ui.navigation.SynapNavGraph
 import com.synap.app.ui.theme.MyApplicationTheme
 import com.synap.app.ui.viewmodel.AppSessionUiState
 import com.synap.app.ui.viewmodel.AppSessionViewModel
+import com.synap.app.ui.viewmodel.ShareImportUiState
+import com.synap.app.ui.viewmodel.ShareImportViewModel
 
 // --- 定义专属于笔记正文的 CompositionLocal ---
 val LocalNoteTextSize = compositionLocalOf { 16.sp }
@@ -86,6 +94,8 @@ fun SynapApp(activity: MainActivity?) {
 
     val sessionViewModel: AppSessionViewModel = hiltViewModel()
     val sessionState by sessionViewModel.uiState.collectAsState()
+    val shareImportViewModel: ShareImportViewModel = hiltViewModel()
+    val shareImportState by shareImportViewModel.uiState.collectAsState()
 
     val isDarkTheme = when (themeMode) {
         1 -> false
@@ -169,9 +179,74 @@ fun SynapApp(activity: MainActivity?) {
                             databaseActivity = activity,
                         )
                     }
+
+                    ShareImportDialog(
+                        state = shareImportState,
+                        onDismiss = shareImportViewModel::clearState,
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ShareImportDialog(
+    state: ShareImportUiState,
+    onDismiss: () -> Unit,
+) {
+    when (state) {
+        ShareImportUiState.Idle -> Unit
+        ShareImportUiState.Importing -> {
+            AlertDialog(
+                onDismissRequest = {},
+                title = { Text(stringResource(R.string.share_import_in_progress_title)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        CircularProgressIndicator()
+                        Text(stringResource(R.string.share_import_in_progress_message))
+                    }
+                },
+                confirmButton = {},
+            )
+        }
+        is ShareImportUiState.Success -> {
+            AlertDialog(
+                onDismissRequest = onDismiss,
+                title = { Text(stringResource(R.string.share_import_success_title)) },
+                text = { ShareImportStatsContent(stats = state.stats) },
+                confirmButton = {
+                    TextButton(onClick = onDismiss) {
+                        Text(stringResource(R.string.share_import_confirm))
+                    }
+                },
+            )
+        }
+        is ShareImportUiState.Error -> {
+            AlertDialog(
+                onDismissRequest = onDismiss,
+                title = { Text(stringResource(R.string.share_import_error_title)) },
+                text = { Text(state.message) },
+                confirmButton = {
+                    TextButton(onClick = onDismiss) {
+                        Text(stringResource(R.string.share_import_close))
+                    }
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ShareImportStatsContent(stats: ShareImportStats) {
+    val context = LocalContext.current
+    val readableBytes = Formatter.formatShortFileSize(context, stats.bytes)
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("记录数：${stats.records}")
+        Text("实际导入：${stats.recordsApplied}")
+        Text("数据大小：$readableBytes")
+        Text("耗时：${stats.durationMs} ms")
     }
 }
 

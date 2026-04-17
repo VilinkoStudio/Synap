@@ -29,6 +29,7 @@ impl FrameCodec {
         let len = payload.len() as u32;
         writer.write_all(&len.to_be_bytes())?;
         writer.write_all(&payload)?;
+        writer.flush()?;
 
         Ok(payload.len() + 4)
     }

@@ -3,6 +3,7 @@ package com.synap.app.data.service
 import com.synap.app.data.model.NoteFeedFilter
 import com.synap.app.data.model.TimelineDirection
 import com.synap.app.data.model.NoteRecord
+import com.synap.app.data.model.ShareImportStats
 import com.synap.app.data.model.TimelineSessionRecord
 import com.synap.app.data.portal.CursorPage
 import java.io.InputStream
@@ -20,6 +21,10 @@ interface SynapServiceApi {
     suspend fun exportDatabase(outputStream: OutputStream): Result<Unit>
 
     suspend fun replaceDatabase(inputStream: InputStream): Result<Unit>
+
+    suspend fun exportShare(noteIds: List<String>): Result<ByteArray>
+
+    suspend fun importShare(bytes: ByteArray): Result<ShareImportStats>
 
     suspend fun getNote(idOrShortId: String): Result<NoteRecord>
 

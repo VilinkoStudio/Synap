@@ -114,6 +114,7 @@ fun SynapNavGraph(
                         onToggleTagFilter = viewModel::toggleTag,
                         onToggleUntaggedFilter = viewModel::toggleUntagged,
                         onToggleAllTags = viewModel::toggleAllTags,
+                        onExportShare = viewModel::exportShare,
                         sharedTransitionScope = this@SharedTransitionLayout,
                         animatedVisibilityScope = this@composable
                     )
@@ -164,6 +165,7 @@ fun SynapNavGraph(
                         onOpenRelatedNote = { noteId -> navController.navigate(detailRoute(noteId)) },
                         onLoadMoreReplies = viewModel::loadMoreReplies,
                         onRefresh = viewModel::refreshAll,
+                        onExportShare = viewModel::exportShare,
                     )
                 }
 

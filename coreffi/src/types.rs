@@ -1,8 +1,8 @@
 //! FFI-compatible type conversions for Synap.
 
 use synap_core::dto::{
-    NoteDTO as CoreNoteDto, TimelineNotesPageDTO as CoreTimelineNotesPageDto,
-    TimelineSessionDTO as CoreTimelineSessionDto,
+    NoteDTO as CoreNoteDto, ShareStatsDTO as CoreShareStatsDto,
+    TimelineNotesPageDTO as CoreTimelineNotesPageDto, TimelineSessionDTO as CoreTimelineSessionDto,
     TimelineSessionsPageDTO as CoreTimelineSessionsPageDto,
 };
 use synap_core::service::FilteredNoteStatus as CoreFilteredNoteStatus;
@@ -76,6 +76,25 @@ impl From<CoreTimelineSessionsPageDto> for TimelineSessionsPageDTO {
         Self {
             sessions: page.sessions.into_iter().map(Into::into).collect(),
             next_cursor: page.next_cursor,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShareStatsDTO {
+    pub records: u64,
+    pub records_applied: u64,
+    pub bytes: u64,
+    pub duration_ms: u64,
+}
+
+impl From<CoreShareStatsDto> for ShareStatsDTO {
+    fn from(stats: CoreShareStatsDto) -> Self {
+        Self {
+            records: stats.records,
+            records_applied: stats.records_applied,
+            bytes: stats.bytes,
+            duration_ms: stats.duration_ms,
         }
     }
 }

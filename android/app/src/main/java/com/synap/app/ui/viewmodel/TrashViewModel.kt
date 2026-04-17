@@ -51,7 +51,7 @@ class TrashViewModel @Inject constructor(
         viewModelScope.launch {
             repository.mutations.collect { mutation ->
                 when (mutation) {
-                    is SynapMutation.Deleted, is SynapMutation.Restored -> {
+                    is SynapMutation.Deleted, is SynapMutation.Restored, is SynapMutation.Imported -> {
                         deletedPortal.invalidate()
                         refresh()
                     }

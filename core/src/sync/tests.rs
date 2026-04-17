@@ -106,6 +106,23 @@ fn run_bidirectional_sync_with_config(
     })
 }
 
+fn run_facade_sync(
+    service_a: &SynapService,
+    service_b: &SynapService,
+) -> (
+    Result<crate::dto::SyncSessionDTO, crate::error::ServiceError>,
+    Result<crate::dto::SyncSessionDTO, crate::error::ServiceError>,
+) {
+    let (channel_a, channel_b) = MemoryChannel::pair();
+
+    std::thread::scope(|scope| {
+        let initiator = scope.spawn(move || service_a.initiate_sync(channel_a));
+        let listener = scope.spawn(move || service_b.listen_sync(channel_b));
+
+        (initiator.join().unwrap(), listener.join().unwrap())
+    })
+}
+
 #[test]
 fn test_bidirectional_sync_merges_append_only_ledgers() {
     let dir = tempdir().unwrap();
@@ -224,4 +241,99 @@ fn test_bidirectional_sync_handles_chunked_bucket_entries() {
         let note = service_b.get_note(&note_id).unwrap();
         assert_eq!(note.id, note_id);
     }
+}
+
+#[test]
+fn test_sync_facade_runs_through_crypto_channel() {
+    let dir = tempdir().unwrap();
+    let path_a = dir.path().join("peer-a-facade.redb");
+    let path_b = dir.path().join("peer-b-facade.redb");
+
+    let service_a = SynapService::new(Some(path_a.to_string_lossy().into_owned())).unwrap();
+    let service_b = SynapService::new(Some(path_b.to_string_lossy().into_owned())).unwrap();
+
+    let local_a = service_a.get_local_identity().unwrap();
+    let local_b = service_b.get_local_identity().unwrap();
+    service_a
+        .trust_peer(&local_b.signing.public_key, Some("peer-b".into()))
+        .unwrap();
+    service_b
+        .trust_peer(&local_a.signing.public_key, Some("peer-a".into()))
+        .unwrap();
+
+    let note_a = service_a
+        .create_note("facade sync note".to_string(), vec!["facade".into()])
+        .unwrap();
+
+    let (initiator, listener) = run_facade_sync(&service_a, &service_b);
+    let initiator = initiator.unwrap();
+    let listener = listener.unwrap();
+
+    assert_eq!(initiator.peer.public_key, local_b.signing.public_key);
+    assert_eq!(listener.peer.public_key, local_a.signing.public_key);
+    assert!(
+        initiator
+            .stats
+            .as_ref()
+            .is_some_and(|stats| stats.records_sent > 0)
+            || listener
+                .stats
+                .as_ref()
+                .is_some_and(|stats| stats.records_sent > 0)
+    );
+
+    let fetched = service_b.get_note(&note_a.id).unwrap();
+    assert_eq!(fetched.content, "facade sync note");
+}
+
+#[test]
+fn test_sync_facade_remembers_untrusted_peers_until_approved() {
+    let dir = tempdir().unwrap();
+    let path_a = dir.path().join("peer-a-pending.redb");
+    let path_b = dir.path().join("peer-b-pending.redb");
+
+    let service_a = SynapService::new(Some(path_a.to_string_lossy().into_owned())).unwrap();
+    let service_b = SynapService::new(Some(path_b.to_string_lossy().into_owned())).unwrap();
+
+    let local_a = service_a.get_local_identity().unwrap();
+    let local_b = service_b.get_local_identity().unwrap();
+
+    let (initiator, listener) = run_facade_sync(&service_a, &service_b);
+
+    let initiator = initiator.unwrap();
+    let listener = listener.unwrap();
+    assert_eq!(initiator.status, crate::dto::SyncStatusDTO::PendingTrust);
+    assert_eq!(listener.status, crate::dto::SyncStatusDTO::PendingTrust);
+    assert_eq!(initiator.peer.public_key, local_b.signing.public_key);
+    assert_eq!(listener.peer.public_key, local_a.signing.public_key);
+
+    let pending_a = service_a.get_peers().unwrap();
+    let pending_b = service_b.get_peers().unwrap();
+    assert!(pending_a
+        .iter()
+        .any(|record| record.public_key == local_b.signing.public_key));
+    assert!(pending_b
+        .iter()
+        .any(|record| record.public_key == local_a.signing.public_key));
+
+    service_a
+        .trust_peer(&local_b.signing.public_key, Some("peer-b".into()))
+        .unwrap();
+    service_b
+        .trust_peer(&local_a.signing.public_key, Some("peer-a".into()))
+        .unwrap();
+
+    let note_b = service_b
+        .create_note(
+            "trusted after approval".to_string(),
+            vec!["approval".into()],
+        )
+        .unwrap();
+
+    let (initiator, listener) = run_facade_sync(&service_a, &service_b);
+    assert!(initiator.is_ok());
+    assert!(listener.is_ok());
+
+    let fetched = service_a.get_note(&note_b.id).unwrap();
+    assert_eq!(fetched.content, "trusted after approval");
 }

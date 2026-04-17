@@ -99,4 +99,10 @@
     <string name="role_backend">后端开发</string>
     <string name="role_frontend_ui">前端 &amp; UI 设计</string>
     <string name="edit_reply_context_title">接续这条思路</string>
+    <string name="share_import_in_progress_title">正在导入分享内容</string>
+    <string name="share_import_in_progress_message">请稍候，Synap 正在处理这份分享数据。</string>
+    <string name="share_import_success_title">导入完成</string>
+    <string name="share_import_error_title">导入失败</string>
+    <string name="share_import_confirm">知道了</string>
+    <string name="share_import_close">关闭</string>
 </resources>

@@ -84,6 +84,7 @@ import com.synap.app.LocalNoteFontWeight
 import com.synap.app.LocalNoteLineSpacing
 import com.synap.app.LocalNoteTextSize
 import com.synap.app.R
+import com.synap.app.ui.components.ShareExportSheet
 import com.synap.app.ui.model.Note
 import com.synap.app.ui.util.formatNoteTime
 import com.synap.app.ui.viewmodel.DetailUiState
@@ -226,6 +227,7 @@ fun NoteDetailScreen(
     onOpenRelatedNote: (String) -> Unit,
     onLoadMoreReplies: () -> Unit,
     onRefresh: () -> Unit,
+    onExportShare: suspend (List<String>) -> ByteArray,
 ) {
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
@@ -246,7 +248,6 @@ fun NoteDetailScreen(
 
     // 分享 BottomSheet 状态
     var showShareBottomSheet by remember { mutableStateOf(false) }
-    val shareSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     if (showDeleteDialog) {
         AlertDialog(
@@ -306,72 +307,21 @@ fun NoteDetailScreen(
 
     // 分享 BottomSheet 内容
     if (showShareBottomSheet && uiState.note != null) {
-        ModalBottomSheet(
-            onDismissRequest = { showShareBottomSheet = false },
-            sheetState = shareSheetState,
-            containerColor = MaterialTheme.colorScheme.surface
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "扫码分享",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // 合并所有文本生成二维码
-                val fullTextToShare = remember(uiState) {
-                    buildString {
-                        append(uiState.note!!.content)
-                        val allRelated = uiState.origins + uiState.previousVersions + uiState.nextVersions + uiState.replies
-                        if (allRelated.isNotEmpty()) {
-                            append("\n\n--- 关联内容 ---\n")
-                            allRelated.distinctBy { it.id }.forEach {
-                                append(it.content).append("\n\n")
-                            }
-                        }
-                    }
-                }
-
-                val qrPrimaryColor = MaterialTheme.colorScheme.primary.toArgb()
-                val qrBgColor = MaterialTheme.colorScheme.surface.toArgb()
-
-                val qrBitmap = remember(fullTextToShare, qrPrimaryColor, qrBgColor) {
-                    generateQRCodeBitmap(fullTextToShare, 800, qrPrimaryColor, qrBgColor)
-                }
-
-                if (qrBitmap != null) {
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 8.dp,
-                        shadowElevation = 4.dp
-                    ) {
-                        Image(
-                            bitmap = qrBitmap.asImageBitmap(),
-                            contentDescription = "笔记分享二维码",
-                            modifier = Modifier
-                                .size(280.dp)
-                                .padding(16.dp)
-                        )
-                    }
-                } else {
-                    Box(
-                        modifier = Modifier.size(280.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("二维码内容过长，生成失败", color = MaterialTheme.colorScheme.error)
-                    }
-                }
-                Spacer(modifier = Modifier.height(48.dp))
-            }
+        val noteIdsToShare = remember(uiState) {
+            buildList {
+                uiState.note?.id?.let(::add)
+                addAll(uiState.origins.map { it.id })
+                addAll(uiState.previousVersions.map { it.id })
+                addAll(uiState.nextVersions.map { it.id })
+                addAll(uiState.replies.map { it.id })
+            }.distinct()
         }
+
+        ShareExportSheet(
+            noteIds = noteIdsToShare,
+            onDismiss = { showShareBottomSheet = false },
+            exportShare = onExportShare,
+        )
     }
 
     // ========== 预返回手势核心状态 ==========

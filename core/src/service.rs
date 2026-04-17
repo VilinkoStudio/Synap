@@ -1,14 +1,26 @@
-use std::{collections::HashSet, path::Path, sync::Mutex};
+use std::{
+    collections::HashSet,
+    io::{Read, Write},
+    path::Path,
+    sync::Mutex,
+};
 
 use crate::{
-    dto::{NoteDTO, TimelineNotesPageDTO, TimelineSessionDTO, TimelineSessionsPageDTO},
+    crypto,
+    dto::{
+        LocalIdentityDTO, NoteDTO, PeerDTO, PeerTrustStatusDTO, PublicKeyInfoDTO, ShareStatsDTO,
+        SyncSessionDTO, SyncStatsDTO, SyncStatusDTO, TimelineNotesPageDTO, TimelineSessionDTO,
+        TimelineSessionsPageDTO,
+    },
     error::ServiceError,
     models::{
+        crypto::{CryptoReader, CryptoWriter},
         note::{Note, NoteReader, NoteRef},
         tag::{Tag, TagReader, TagWriter},
     },
     nlp::{NlpDocument, NlpTagIndex},
     search::searcher::FuzzyIndex,
+    sync::{ShareService, SyncService},
     views::{
         note_view::NoteView,
         timeline_view::{SessionDetectionConfig, SessionSpan, TimelinePoint, TimelineView},
@@ -64,6 +76,12 @@ pub enum TimelineDirection {
 const DEFAULT_SESSION_DETECTION_CONFIG: SessionDetectionConfig =
     SessionDetectionConfig::new(5 * 60 * 1000);
 
+#[derive(Debug, Clone, Copy)]
+enum ServiceSyncRole {
+    Initiator,
+    Listener,
+}
+
 impl SynapService {
     /// 封装只读事务的生命周期
     pub(crate) fn with_read<F, T>(&self, f: F) -> Result<T, ServiceError>
@@ -90,6 +108,10 @@ impl SynapService {
     // UUID 解析辅助函数，告别满屏的 Uuid::parse_str
     fn parse_id(id: &str) -> Result<Uuid, ServiceError> {
         Uuid::parse_str(id).map_err(Into::into)
+    }
+
+    fn parse_ids(ids: &[String]) -> Result<Vec<Uuid>, ServiceError> {
+        ids.iter().map(|id| Self::parse_id(id)).collect()
     }
 
     fn normalize_tag_inputs(tags: Vec<String>) -> Vec<String> {
@@ -216,6 +238,11 @@ impl SynapService {
             .map_err(|err| ServiceError::Db(err.into()))?;
         Note::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
         TagWriter::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
+        CryptoWriter::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
+        crypto::ensure_local_identity(&CryptoWriter::new(&tx))
+            .map_err(|err| ServiceError::Db(err.into()))?;
+        crypto::ensure_local_signing_identity(&CryptoWriter::new(&tx))
+            .map_err(|err| ServiceError::Db(err.into()))?;
         tx.commit().map_err(ServiceError::CommitErr)?;
 
         let tag_searcher = FuzzyIndex::<Tag>::new();
@@ -238,6 +265,189 @@ impl SynapService {
 
     pub fn open_memory() -> Result<Self, ServiceError> {
         Self::new(None)
+    }
+
+    pub fn get_local_identity(&self) -> Result<LocalIdentityDTO, ServiceError> {
+        let tx = self.db.begin_read()?;
+        let reader = CryptoReader::new(&tx)?;
+        let identity_public_key = crypto::local_identity_public_key(&reader)?
+            .ok_or_else(|| ServiceError::NotFound("local identity public key".into()))?;
+        let signing_public_key = crypto::local_signing_public_key(&reader)?
+            .ok_or_else(|| ServiceError::NotFound("local signing public key".into()))?;
+
+        Ok(LocalIdentityDTO {
+            identity: Self::public_key_info_to_dto(
+                crypto::local_identity_key_id().to_string(),
+                "x25519".into(),
+                identity_public_key,
+            ),
+            signing: Self::public_key_info_to_dto(
+                crypto::local_signing_key_id().to_string(),
+                "ed25519".into(),
+                signing_public_key,
+            ),
+        })
+    }
+
+    pub fn get_peers(&self) -> Result<Vec<PeerDTO>, ServiceError> {
+        let tx = self.db.begin_read()?;
+        let reader = CryptoReader::new(&tx)?;
+        crypto::list_known_public_keys(&reader)
+            .map(|records| records.into_iter().map(Self::peer_to_dto).collect())
+            .map_err(Into::into)
+    }
+
+    pub fn trust_peer(
+        &self,
+        public_key: &[u8],
+        note: Option<String>,
+    ) -> Result<PeerDTO, ServiceError> {
+        let public_key: [u8; 32] = public_key.try_into().map_err(|_| {
+            ServiceError::Other(anyhow::anyhow!("peer public key must be 32 bytes"))
+        })?;
+        let tx = self.db.begin_write()?;
+        let writer = CryptoWriter::new(&tx);
+        let record = crypto::import_trusted_public_key(&writer, public_key, note)?;
+        tx.commit()?;
+        Ok(Self::peer_to_dto(record))
+    }
+
+    pub fn export_share(&self, note_ids: &[String]) -> Result<Vec<u8>, ServiceError> {
+        let note_ids = Self::parse_ids(note_ids)?;
+        ShareService::new(self).export_bytes(&note_ids)
+    }
+
+    pub fn import_share(&self, bytes: &[u8]) -> Result<ShareStatsDTO, ServiceError> {
+        ShareService::new(self)
+            .import_bytes(bytes)
+            .map(Self::share_stats_to_dto)
+    }
+
+    pub fn initiate_sync<T>(&self, transport: T) -> Result<SyncSessionDTO, ServiceError>
+    where
+        T: Read + Write + Send,
+    {
+        self.run_sync_session(transport, ServiceSyncRole::Initiator)
+    }
+
+    pub fn listen_sync<T>(&self, transport: T) -> Result<SyncSessionDTO, ServiceError>
+    where
+        T: Read + Write + Send,
+    {
+        self.run_sync_session(transport, ServiceSyncRole::Listener)
+    }
+
+    fn run_sync_session<T>(
+        &self,
+        transport: T,
+        role: ServiceSyncRole,
+    ) -> Result<SyncSessionDTO, ServiceError>
+    where
+        T: Read + Write + Send,
+    {
+        let channel = {
+            let tx = self.db.begin_read()?;
+            let reader = CryptoReader::new(&tx)?;
+            match role {
+                ServiceSyncRole::Initiator => {
+                    crypto::CryptoChannel::connect(transport, &reader, Default::default())
+                }
+                ServiceSyncRole::Listener => {
+                    crypto::CryptoChannel::accept(transport, &reader, Default::default())
+                }
+            }
+        };
+
+        let mut channel = match channel {
+            Ok(channel) => channel,
+            Err(crypto::CryptoChannelError::UntrustedPeer {
+                public_key,
+                fingerprint: _fingerprint,
+            }) => {
+                let tx = self.db.begin_write()?;
+                let writer = CryptoWriter::new(&tx);
+                let record = crypto::remember_untrusted_public_key(&writer, public_key, None)?;
+                tx.commit()?;
+                return Ok(SyncSessionDTO {
+                    status: SyncStatusDTO::PendingTrust,
+                    peer: Self::peer_to_dto(record),
+                    stats: None,
+                });
+            }
+            Err(err) => return Err(ServiceError::Other(anyhow::anyhow!(err))),
+        };
+
+        let peer = channel.peer().clone();
+        let sync_service = SyncService::new(self, Default::default());
+        let stats = match role {
+            ServiceSyncRole::Initiator => sync_service
+                .sync_as_initiator(&mut channel)
+                .map_err(|err| ServiceError::Other(anyhow::anyhow!(err)))?,
+            ServiceSyncRole::Listener => sync_service
+                .sync_as_responder(&mut channel)
+                .map_err(|err| ServiceError::Other(anyhow::anyhow!(err)))?,
+        };
+
+        Ok(SyncSessionDTO {
+            status: SyncStatusDTO::Completed,
+            peer: Self::peer_to_dto(peer.trust_record),
+            stats: Some(Self::sync_stats_to_dto(stats)),
+        })
+    }
+
+    fn public_key_info_to_dto(
+        id: String,
+        algorithm: String,
+        public_key: [u8; 32],
+    ) -> PublicKeyInfoDTO {
+        let fingerprint = crypto::public_key_fingerprint(&public_key);
+        PublicKeyInfoDTO {
+            id,
+            algorithm,
+            public_key: public_key.to_vec(),
+            fingerprint: fingerprint.to_vec(),
+            kaomoji_fingerprint: crypto::generate_kaomoji_fingerprint(&fingerprint),
+        }
+    }
+
+    fn peer_to_dto(record: crypto::TrustedPublicKeyRecord) -> PeerDTO {
+        let status = match record.status {
+            crate::models::crypto::KeyStatus::Pending => PeerTrustStatusDTO::Pending,
+            crate::models::crypto::KeyStatus::Active => PeerTrustStatusDTO::Trusted,
+            crate::models::crypto::KeyStatus::Retired => PeerTrustStatusDTO::Retired,
+            crate::models::crypto::KeyStatus::Revoked => PeerTrustStatusDTO::Revoked,
+        };
+
+        PeerDTO {
+            id: record.id.to_string(),
+            algorithm: record.algorithm,
+            public_key: record.public_key.to_vec(),
+            fingerprint: record.fingerprint.to_vec(),
+            kaomoji_fingerprint: crypto::generate_kaomoji_fingerprint(&record.fingerprint),
+            note: record.note,
+            status,
+        }
+    }
+
+    fn sync_stats_to_dto(stats: crate::sync::SyncStats) -> SyncStatsDTO {
+        SyncStatsDTO {
+            records_sent: stats.records_sent as u64,
+            records_received: stats.records_received as u64,
+            records_applied: stats.records_applied as u64,
+            records_skipped: stats.records_skipped as u64,
+            bytes_sent: stats.bytes_sent as u64,
+            bytes_received: stats.bytes_received as u64,
+            duration_ms: stats.duration_ms,
+        }
+    }
+
+    fn share_stats_to_dto(stats: crate::sync::ShareStats) -> ShareStatsDTO {
+        ShareStatsDTO {
+            records: stats.records as u64,
+            records_applied: stats.applied as u64,
+            bytes: stats.bytes as u64,
+            duration_ms: stats.duration_ms,
+        }
     }
 
     fn init_search(&self) -> Result<(), ServiceError> {
@@ -1146,6 +1356,27 @@ mod tests {
     }
 
     #[test]
+    fn test_open_existing_db_auto_creates_crypto_schema_and_identity() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("synap.redb");
+        seed_db(&db_path, &["rust"]);
+
+        let service = SynapService::new(Some(db_path.to_string_lossy().into_owned())).unwrap();
+        let local_identity = service.get_local_identity().unwrap();
+        assert_eq!(local_identity.identity.public_key.len(), 32);
+        assert_eq!(local_identity.signing.public_key.len(), 32);
+        assert!(!local_identity.identity.kaomoji_fingerprint.is_empty());
+        assert!(!local_identity.signing.kaomoji_fingerprint.is_empty());
+
+        drop(service);
+
+        let reopened = SynapService::new(Some(db_path.to_string_lossy().into_owned())).unwrap();
+        let reopened_identity = reopened.get_local_identity().unwrap();
+        assert_eq!(reopened_identity.identity.public_key, local_identity.identity.public_key);
+        assert_eq!(reopened_identity.signing.public_key, local_identity.signing.public_key);
+    }
+
+    #[test]
     fn test_recommend_tag_returns_related_tags() {
         let service = SynapService::new(None).unwrap();
 
@@ -1782,5 +2013,50 @@ mod tests {
 
         let image_hits = service.search("AAAA", 10).unwrap();
         assert!(image_hits.is_empty());
+    }
+
+    #[test]
+    fn test_share_export_and_import_are_exposed_via_service() {
+        let dir = tempdir().unwrap();
+        let path_a = dir.path().join("share-service-a.redb");
+        let path_b = dir.path().join("share-service-b.redb");
+
+        let service_a = SynapService::new(Some(path_a.to_string_lossy().into_owned())).unwrap();
+        let service_b = SynapService::new(Some(path_b.to_string_lossy().into_owned())).unwrap();
+
+        let root = service_a
+            .create_note("share root".to_string(), vec!["rust".into()])
+            .unwrap();
+        let reply = service_a
+            .reply_note(&root.id, "share child".to_string(), vec!["thread".into()])
+            .unwrap();
+
+        let exported = service_a
+            .export_share(&vec![root.id.clone(), reply.id.clone()])
+            .unwrap();
+        assert!(!exported.is_empty());
+
+        let stats = service_b.import_share(&exported).unwrap();
+        assert_eq!(stats.records, 2);
+        assert_eq!(stats.records_applied, 2);
+        assert_eq!(stats.bytes, exported.len() as u64);
+
+        let imported_root = service_b.get_note(&root.id).unwrap();
+        let imported_reply = service_b.get_note(&reply.id).unwrap();
+        assert_eq!(imported_root.content, "share root");
+        assert_eq!(imported_reply.content, "share child");
+    }
+
+    #[test]
+    fn test_export_share_rejects_invalid_note_ids() {
+        let service = SynapService::new(None).unwrap();
+
+        let err = service
+            .export_share(&vec!["bad-id".to_string()])
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            ServiceError::InvalidId | ServiceError::UuidErr(_)
+        ));
     }
 }

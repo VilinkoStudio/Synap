@@ -34,3 +34,77 @@ pub struct TimelineSessionsPageDTO {
     pub sessions: Vec<TimelineSessionDTO>,
     pub next_cursor: Option<String>,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum PeerTrustStatusDTO {
+    Pending,
+    Trusted,
+    Retired,
+    Revoked,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PublicKeyInfoDTO {
+    pub id: String,
+    pub algorithm: String,
+    pub public_key: Vec<u8>,
+    pub fingerprint: Vec<u8>,
+    pub kaomoji_fingerprint: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalIdentityDTO {
+    pub identity: PublicKeyInfoDTO,
+    pub signing: PublicKeyInfoDTO,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PeerDTO {
+    pub id: String,
+    pub algorithm: String,
+    pub public_key: Vec<u8>,
+    pub fingerprint: Vec<u8>,
+    pub kaomoji_fingerprint: String,
+    pub note: Option<String>,
+    pub status: PeerTrustStatusDTO,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncStatsDTO {
+    pub records_sent: u64,
+    pub records_received: u64,
+    pub records_applied: u64,
+    pub records_skipped: u64,
+    pub bytes_sent: u64,
+    pub bytes_received: u64,
+    pub duration_ms: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareStatsDTO {
+    pub records: u64,
+    pub records_applied: u64,
+    pub bytes: u64,
+    pub duration_ms: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum SyncStatusDTO {
+    Completed,
+    PendingTrust,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncSessionDTO {
+    pub status: SyncStatusDTO,
+    pub peer: PeerDTO,
+    pub stats: Option<SyncStatsDTO>,
+}

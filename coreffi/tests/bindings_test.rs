@@ -220,6 +220,46 @@ fn test_recent_note_cursor_skips_superseded_versions() {
 }
 
 #[test]
+fn test_share_export_and_import_round_trip() {
+    let source = open_memory().unwrap();
+    let target = open_memory().unwrap();
+
+    let root = source
+        .create_note("share root".to_string(), vec!["rust".to_string()])
+        .unwrap();
+    let reply = source
+        .reply_note(
+            root.id.clone(),
+            "share reply".to_string(),
+            vec!["thread".to_string()],
+        )
+        .unwrap();
+
+    let bytes = source
+        .export_share(vec![root.id.clone(), reply.id.clone()])
+        .unwrap();
+    assert!(!bytes.is_empty());
+
+    let stats = target.import_share(bytes.clone()).unwrap();
+    assert_eq!(stats.records, 2);
+    assert_eq!(stats.records_applied, 2);
+    assert_eq!(stats.bytes, bytes.len() as u64);
+
+    let imported_root = target.get_note(root.id).unwrap();
+    let imported_reply = target.get_note(reply.id).unwrap();
+    assert_eq!(imported_root.content, "share root");
+    assert_eq!(imported_reply.content, "share reply");
+}
+
+#[test]
+fn test_export_share_invalid_id_maps_to_ffi_error() {
+    let service = open_memory().unwrap();
+
+    let result = service.export_share(vec!["bad-id".to_string()]);
+    assert!(matches!(result, Err(FfiError::InvalidId)));
+}
+
+#[test]
 fn test_recommend_tag_is_exposed() {
     let service = open_memory().unwrap();
 

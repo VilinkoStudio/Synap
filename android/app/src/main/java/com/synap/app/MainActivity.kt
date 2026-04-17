@@ -3,13 +3,14 @@ package com.synap.app
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.synap.app.data.service.SynapServiceApi
 import com.synap.app.ui.viewmodel.HomeViewModel
+import com.synap.app.ui.viewmodel.ShareImportViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -22,6 +23,7 @@ class MainActivity : AppCompatActivity() {
     lateinit var synapService: SynapServiceApi
 
     private val homeViewModel: HomeViewModel by viewModels()
+    private val shareImportViewModel: ShareImportViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
@@ -36,8 +38,7 @@ class MainActivity : AppCompatActivity() {
             uiState.isLoading && uiState.errorMessage == null && (currentTime - startTime < timeout)
         }
 
-        // ========== 修改：处理冷启动时的外部文字传入 ==========
-        handleExternalTextIntent(intent)
+        handleIncomingIntent(intent)
 
         setContent {
             SynapApp(activity = this)
@@ -45,15 +46,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onNewIntent(intent: Intent) {
-        // ========== 修改：处理热启动（App在后台）时的外部文字传入 ==========
-        handleExternalTextIntent(intent)
+        handleIncomingIntent(intent)
         setIntent(intent)
         super.onNewIntent(intent)
     }
 
-    // ========== 核心逻辑升级：同时兼容“选词菜单”和“系统分享” ==========
-    private fun handleExternalTextIntent(intent: Intent?) {
+    private fun handleIncomingIntent(intent: Intent?) {
         if (intent == null) return
+
+        if (handleImportShareIntent(intent)) {
+            return
+        }
 
         var extractedText: String? = null
 
@@ -71,6 +74,17 @@ class MainActivity : AppCompatActivity() {
             intent.action = Intent.ACTION_VIEW
             intent.data = Uri.parse("synap://editor?initialContent=${Uri.encode(extractedText)}")
         }
+    }
+
+    private fun handleImportShareIntent(intent: Intent): Boolean {
+        val data = intent.data ?: return false
+        if (intent.action != Intent.ACTION_VIEW || data.host != "import_share") {
+            return false
+        }
+
+        shareImportViewModel.importFromDeepLink(data)
+        intent.data = null
+        return true
     }
 
     suspend fun exportDatabaseToUri(uri: Uri): Result<Unit> = withContext(Dispatchers.IO) {

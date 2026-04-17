@@ -94,6 +94,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.synap.app.R
+import com.synap.app.ui.components.ShareExportSheet
 import com.synap.app.ui.components.HomeNoteFeed
 import com.synap.app.ui.components.HomeSessionFeed
 import com.synap.app.ui.model.Note
@@ -124,6 +125,7 @@ fun HomeScreen(
     onToggleTagFilter: (String) -> Unit,
     onToggleUntaggedFilter: () -> Unit,
     onToggleAllTags: () -> Unit,
+    onExportShare: suspend (List<String>) -> ByteArray,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
 ) {
@@ -169,7 +171,6 @@ fun HomeScreen(
 
     // 分享 BottomSheet 状态
     var showShareBottomSheet by remember { mutableStateOf(false) }
-    val shareSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     BackHandler(enabled = isSelectionMode) {
         isSelectionMode = false
@@ -379,65 +380,11 @@ fun HomeScreen(
 
     // ========== 分享 BottomSheet ==========
     if (showShareBottomSheet && selectedNoteIds.isNotEmpty()) {
-        ModalBottomSheet(
-            onDismissRequest = { showShareBottomSheet = false },
-            sheetState = shareSheetState,
-            containerColor = MaterialTheme.colorScheme.surface
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "扫码分享",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // 合并所有选中的文本生成二维码
-                val fullTextToShare = remember(selectedNoteIds, displayNotes, displaySessionGroups) {
-                    val notesToShare = displayNotes.filter { it.id in selectedNoteIds } +
-                            displaySessionGroups.flatMap { it.notes }.filter { it.id in selectedNoteIds }
-                    notesToShare.distinctBy { it.id }.joinToString("\n\n---\n\n") { it.content }
-                }
-
-                val qrPrimaryColor = MaterialTheme.colorScheme.primary.toArgb()
-                val qrBgColor = MaterialTheme.colorScheme.surface.toArgb()
-
-                val qrBitmap = remember(fullTextToShare, qrPrimaryColor, qrBgColor) {
-                    generateQRCodeBitmapForHome(fullTextToShare, 800, qrPrimaryColor, qrBgColor)
-                }
-
-                if (qrBitmap != null) {
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 8.dp,
-                        shadowElevation = 4.dp
-                    ) {
-                        Image(
-                            bitmap = qrBitmap.asImageBitmap(),
-                            contentDescription = "笔记分享二维码",
-                            modifier = Modifier
-                                .size(280.dp)
-                                .padding(16.dp)
-                        )
-                    }
-                } else {
-                    Box(
-                        modifier = Modifier.size(280.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("二维码内容过长，生成失败", color = MaterialTheme.colorScheme.error)
-                    }
-                }
-                Spacer(modifier = Modifier.height(48.dp))
-            }
-        }
+        ShareExportSheet(
+            noteIds = selectedNoteIds.toList(),
+            onDismiss = { showShareBottomSheet = false },
+            exportShare = onExportShare,
+        )
     }
 
     Scaffold(

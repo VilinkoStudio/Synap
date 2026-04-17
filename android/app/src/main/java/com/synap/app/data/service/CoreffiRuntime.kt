@@ -12,8 +12,10 @@ import com.synap.app.data.error.SynapError
 import com.synap.app.data.model.NoteFeedFilter
 import com.synap.app.data.model.NoteFeedStatus
 import com.synap.app.data.model.NoteRecord
+import com.synap.app.data.model.ShareImportStats
 import com.synap.app.data.model.TimelineDirection
 import com.synap.app.data.model.TimelineSessionRecord
+import com.synap.app.data.model.toShareImportStats
 import com.synap.app.data.model.toCursorPage
 import com.synap.app.data.model.toNoteRecord
 import com.synap.app.data.model.toNoteRecords
@@ -163,6 +165,14 @@ class CoreffiRuntime @Inject constructor(
             )
         }
     }
+
+    override suspend fun exportShare(noteIds: List<String>): Result<ByteArray> =
+        withService { service -> service.exportShare(noteIds) }
+
+    override suspend fun importShare(bytes: ByteArray): Result<ShareImportStats> =
+        withService { service ->
+            service.importShare(bytes).toShareImportStats()
+        }
 
     override suspend fun getNote(idOrShortId: String): Result<NoteRecord> =
         withService { service -> service.getNote(idOrShortId).toNoteRecord() }

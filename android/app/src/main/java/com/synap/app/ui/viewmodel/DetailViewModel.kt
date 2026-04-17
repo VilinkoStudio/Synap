@@ -97,6 +97,7 @@ class DetailViewModel @Inject constructor(
                     is SynapMutation.Restored -> if (mutation.targetId == noteId) {
                         refreshAll()
                     }
+                    is SynapMutation.Imported -> refreshAll()
                     is SynapMutation.Created -> Unit
                 }
             }
@@ -127,6 +128,9 @@ class DetailViewModel @Inject constructor(
             }
         }
     }
+
+    suspend fun exportShare(noteIds: List<String>): ByteArray =
+        repository.exportShare(noteIds)
 
     private suspend fun loadSnapshot() {
         snapshot.value = snapshot.value.copy(isLoading = true, errorMessage = null)

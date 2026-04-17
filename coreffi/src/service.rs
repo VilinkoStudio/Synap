@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::error::FfiError;
 use crate::types::{
-    BuildInfo, FilteredNoteStatus, NoteDTO, TimelineDirection, TimelineNotesPageDTO,
+    BuildInfo, FilteredNoteStatus, NoteDTO, ShareStatsDTO, TimelineDirection, TimelineNotesPageDTO,
     TimelineSessionsPageDTO,
 };
 use synap_core::dto::NoteDTO as CoreNoteDTO;
@@ -34,6 +34,10 @@ impl SynapService {
 
     fn map_session_page(page: synap_core::dto::TimelineSessionsPageDTO) -> TimelineSessionsPageDTO {
         page.into()
+    }
+
+    fn map_share_stats(stats: synap_core::dto::ShareStatsDTO) -> ShareStatsDTO {
+        stats.into()
     }
 
     pub fn get_note(&self, id_or_short_id: String) -> Result<NoteDTO, FfiError> {
@@ -250,6 +254,17 @@ impl SynapService {
 
     pub fn restore_note(&self, target_id: String) -> Result<(), FfiError> {
         self.inner.restore_note(&target_id).map_err(Into::into)
+    }
+
+    pub fn export_share(&self, note_ids: Vec<String>) -> Result<Vec<u8>, FfiError> {
+        self.inner.export_share(&note_ids).map_err(Into::into)
+    }
+
+    pub fn import_share(&self, bytes: Vec<u8>) -> Result<ShareStatsDTO, FfiError> {
+        self.inner
+            .import_share(&bytes)
+            .map(Self::map_share_stats)
+            .map_err(Into::into)
     }
 }
 

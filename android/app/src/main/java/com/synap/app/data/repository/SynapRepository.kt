@@ -3,6 +3,7 @@ package com.synap.app.data.repository
 import com.synap.app.data.model.NoteFeedFilter
 import com.synap.app.data.model.NoteRecord
 import com.synap.app.data.model.ReplyItem
+import com.synap.app.data.model.ShareImportStats
 import com.synap.app.data.model.TimelineDirection
 import com.synap.app.data.model.TimelineSessionRecord
 import com.synap.app.data.portal.CursorPortal
@@ -19,6 +20,7 @@ sealed interface SynapMutation {
     data class Edited(val oldId: String, val newId: String) : SynapMutation
     data class Deleted(val targetId: String) : SynapMutation
     data class Restored(val targetId: String) : SynapMutation
+    data class Imported(val stats: ShareImportStats) : SynapMutation
 }
 
 interface SynapRepository {
@@ -68,6 +70,10 @@ interface SynapRepository {
         cursor: String?,
         limit: UInt? = 20u,
     ): List<NoteRecord>
+
+    suspend fun exportShare(noteIds: List<String>): ByteArray
+
+    suspend fun importShare(bytes: ByteArray): ShareImportStats
 
     suspend fun createNote(content: String, tags: List<String>): NoteRecord
 
@@ -195,6 +201,18 @@ class SynapRepositoryImpl @Inject constructor(
         cursor: String?,
         limit: UInt?,
     ): List<NoteRecord> = service.getFilteredNotes(filter, cursor, limit).unwrap()
+
+    override suspend fun exportShare(noteIds: List<String>): ByteArray =
+        service.exportShare(noteIds).unwrap()
+
+    override suspend fun importShare(bytes: ByteArray): ShareImportStats {
+        if (!service.isInitialized) {
+            service.initialize().unwrap()
+        }
+        val stats = service.importShare(bytes).unwrap()
+        _mutations.tryEmit(SynapMutation.Imported(stats))
+        return stats
+    }
 
     override suspend fun createNote(content: String, tags: List<String>): NoteRecord {
         val created = service.createNote(content, tags).unwrap()
