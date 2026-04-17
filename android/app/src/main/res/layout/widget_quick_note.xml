@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="4dp">
+
+    <ImageView
+        android:id="@+id/widget_btn_add"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_gravity="center"
+        android:background="@drawable/widget_bg_round"
+        android:contentDescription="一键记笔记"
+        android:padding="12dp" 
+        android:src="@android:drawable/ic_menu_edit"
+        android:tint="@android:color/white" />
+        
+</FrameLayout>
+

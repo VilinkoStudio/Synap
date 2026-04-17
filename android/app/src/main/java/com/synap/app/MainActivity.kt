@@ -21,14 +21,12 @@ class MainActivity : AppCompatActivity() {
     @Inject
     lateinit var synapService: SynapServiceApi
 
-    // 引入 HomeViewModel 以便监听首页数据的加载状态
     private val homeViewModel: HomeViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
 
-        // 记录启动时间
         val startTime = System.currentTimeMillis()
         val timeout = 100L
 
@@ -39,8 +37,17 @@ class MainActivity : AppCompatActivity() {
         }
 
         setContent {
+            // 确保应用能实时响应当前 Activity 的 Intent
             SynapApp(activity = this)
         }
+    }
+
+    // ========== 核心修复：先更新 Intent，再调用父类 ==========
+    override fun onNewIntent(intent: Intent) {
+        // 重要：顺序不能错！必须在 super 之前 setIntent
+        // 这样 Jetpack Compose 导航框架在 super 内部执行路由检查时，才能拿到最新的跳转参数
+        setIntent(intent)
+        super.onNewIntent(intent)
     }
 
     suspend fun exportDatabaseToUri(uri: Uri): Result<Unit> = withContext(Dispatchers.IO) {
@@ -55,11 +62,9 @@ class MainActivity : AppCompatActivity() {
         runCatching {
             val cachePath = File(cacheDir, "exports").apply { mkdirs() }
             val exportFile = File(cachePath, "synap_database.redb")
-
             exportFile.outputStream().use { output ->
                 synapService.exportDatabase(output).getOrThrow()
             }
-
             val authority = "$packageName.fileprovider"
             val uri = FileProvider.getUriForFile(this@MainActivity, authority, exportFile)
             val shareIntent = Intent(Intent.ACTION_SEND).apply {
@@ -67,7 +72,6 @@ class MainActivity : AppCompatActivity() {
                 putExtra(Intent.EXTRA_STREAM, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-
             withContext(Dispatchers.Main) {
                 startActivity(Intent.createChooser(shareIntent, "分享数据库"))
             }

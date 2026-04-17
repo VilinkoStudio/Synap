@@ -21,6 +21,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.navigation.navDeepLink // ===== 新增导入 =====
 import com.synap.app.MainActivity
 import com.synap.app.ui.screens.*
 import com.synap.app.ui.viewmodel.*
@@ -174,14 +175,13 @@ fun SynapNavGraph(
                         databaseActivity = databaseActivity,
                         onNavigateToTypographySettings = { navController.navigate("typography_settings") },
                         onNavigateToLanguageSelection = { navController.navigate("language_selection") },
-                        onNavigateToAppIcon = { navController.navigate("app_icon") }, // ===== 新增：跳转到图标设置 =====
+                        onNavigateToAppIcon = { navController.navigate("app_icon") },
                         onNavigateToTeam = { navController.navigate("team") },
                         onNavigateToTutorial = { navController.navigate("tutorial") },
                         onNavigateBack = { navController.popBackStack() }
                     )
                 }
 
-                // ==================== 新增：图标设置页的路由节点 ====================
                 composable("app_icon") {
                     SettingLogoScreen(
                         onNavigateBack = { navController.popBackStack() }
@@ -218,6 +218,10 @@ fun SynapNavGraph(
                         navArgument("parentSummary") { nullable = true; type = NavType.StringType },
                         navArgument("editNoteId") { nullable = true; type = NavType.StringType },
                     ),
+                    // ========== 新增：注册深度链接拦截 ==========
+                    deepLinks = listOf(
+                        navDeepLink { uriPattern = "synap://editor" }
+                    )
                 ) {
                     val viewModel: EditorViewModel = hiltViewModel()
                     val uiState by viewModel.uiState.collectAsState()
