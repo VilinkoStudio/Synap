@@ -2,18 +2,24 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="4dp">
+    android:paddingTop="10dp"
+    android:paddingBottom="12dp"
+    android:paddingLeft="4dp"
+    android:paddingRight="4dp">
 
-    <ImageView
-        android:id="@+id/widget_btn_add"
-        android:layout_width="64dp"
-        android:layout_height="64dp"
-        android:layout_gravity="center"
-        android:background="@drawable/widget_bg_round"
-        android:contentDescription="一键记笔记"
-        android:padding="12dp" 
-        android:src="@android:drawable/ic_menu_edit"
-        android:tint="@android:color/white" />
-        
+    <FrameLayout
+        android:id="@+id/widget_root"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_bg_round">
+
+        <ImageView
+            android:layout_width="32dp" 
+            android:layout_height="32dp"
+            android:layout_gravity="center"
+            android:contentDescription="一键记笔记"
+            android:src="@android:drawable/ic_menu_edit"
+            android:tint="@android:color/white" />
+
+    </FrameLayout>
 </FrameLayout>
-

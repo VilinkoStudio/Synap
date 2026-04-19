@@ -10,22 +10,19 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Apps // 新增图标导入
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FormatSize
@@ -38,12 +35,8 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.SmartButton
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -54,12 +47,10 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -98,7 +89,7 @@ fun SettingsScreen(
     onImportDatabase: () -> Unit,
     onNavigateToTypographySettings: () -> Unit,
     onNavigateToLanguageSelection: () -> Unit,
-    onNavigateToAppIcon: () -> Unit, // ===== 新增：跳转到图标设置页 =====
+    onNavigateToAppIcon: () -> Unit,
     onNavigateToSync: () -> Unit,
     onNavigateToTeam: () -> Unit,
     onNavigateToTutorial: () -> Unit,
@@ -352,7 +343,6 @@ fun SettingsScreen(
                     )
                 }
 
-                // ==================== 新增：应用图标选项 ====================
                 HorizontalDivider(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
                     modifier = Modifier.padding(horizontal = 16.dp),
@@ -387,8 +377,9 @@ fun SettingsScreen(
             }
             Spacer(modifier = Modifier.height(24.dp))
 
+            // ==================== 3. 备份与同步 ====================
             Text(
-                text = "同步",
+                text = stringResource(R.string.backup_and_sync), // 已修改标题
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
@@ -399,6 +390,7 @@ fun SettingsScreen(
                     .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             ) {
+                // ---------- 已移入的“同步与设备” ----------
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -442,133 +434,13 @@ fun SettingsScreen(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            }
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // ==================== 3. 无障碍 ====================
-            Text(
-                text = "无障碍",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                var showHandednessMenu by remember { mutableStateOf(false) }
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showHandednessMenu = true }
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.TouchApp,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(end = 16.dp)
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stringResource(R.string.handedness),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = stringResource(R.string.handedness_desc),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        val handednessText = if (handedness == "靠左") stringResource(R.string.left_handed) else stringResource(R.string.right_handed)
-                        Text(
-                            text = handednessText,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(end = 8.dp)
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = showHandednessMenu,
-                        onDismissRequest = { showHandednessMenu = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.left_handed)) },
-                            onClick = {
-                                onHandednessChange("靠左")
-                                showHandednessMenu = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.right_handed)) },
-                            onClick = {
-                                onHandednessChange("靠右")
-                                showHandednessMenu = false
-                            }
-                        )
-                    }
-                }
 
                 HorizontalDivider(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
 
-                // --- 纯 UI 预留：显示按钮上的文字 ---
-                var showButtonTextUI by remember { mutableStateOf(false) }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showButtonTextUI = !showButtonTextUI }
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.SmartButton,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(end = 16.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "显示按钮上的文字",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "手机上打开此按钮可能会造成无法显示所有内容。",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Switch(
-                        checked = showButtonTextUI,
-                        onCheckedChange = { showButtonTextUI = it },
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // ==================== 4. 备份与恢复 ====================
-            Text(
-                text = stringResource(R.string.backup_and_restore),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            ) {
+                // ---------- 导出备份 ----------
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -601,6 +473,7 @@ fun SettingsScreen(
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
 
+                // ---------- 导出并分享 ----------
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -633,6 +506,7 @@ fun SettingsScreen(
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
 
+                // ---------- 导入备份 ----------
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -662,7 +536,7 @@ fun SettingsScreen(
             }
             Spacer(modifier = Modifier.height(24.dp))
 
-            // ==================== 5. 关于 ====================
+            // ==================== 4. 关于 ====================
             Text(
                 text = stringResource(R.string.about),
                 style = MaterialTheme.typography.titleSmall,

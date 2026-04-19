@@ -24,6 +24,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -42,6 +44,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 private const val MAX_SHARE_QR_URL_LENGTH = 1800
@@ -103,7 +106,7 @@ fun ShareExportSheet(
             }
         }.getOrElse { throwable ->
             ShareExportSheetState.Error(
-                throwable.message ?: "生成分享包失败",
+                throwable.message ?: "分享失败，请检查您的笔记数据",
             )
         }
     }
@@ -135,7 +138,7 @@ fun ShareExportSheet(
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "分享内容会导出为 Synap 分享包，并生成可导入链接。",
+                text = "请选择您分享笔记的方式",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -145,7 +148,7 @@ fun ShareExportSheet(
                 ShareExportSheetState.Loading -> {
                     CircularProgressIndicator()
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("正在生成分享包，请稍候。")
+                    Text("正在生成分享，请稍候……")
                 }
 
                 is ShareExportSheetState.Error -> {
@@ -157,41 +160,41 @@ fun ShareExportSheet(
 
                 is ShareExportSheetState.TooLarge -> {
                     Text(
-                        text = "暂不支持导出过大体积的包",
+                        text = "笔记数据过大，暂不支持二维码或链接分享。如需导出全部笔记，请使用备份功能。",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.error,
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "当前包体约 ${Formatter.formatShortFileSize(context, state.packageBytes.toLong())}，生成后的链接长度为 ${state.importUrlLength}，已超过 URL 导出限制。",
+                        text = "当前所选笔记数据约 ${Formatter.formatShortFileSize(context, state.packageBytes.toLong())}，生成后的链接长度为 ${state.importUrlLength} 字符，暂时无法导出，建议您可以分成多次分享。",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
 
                 is ShareExportSheetState.Ready -> {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        OutlinedButton(
-                            onClick = { mode = ShareExportMode.QrCode },
-                            enabled = state.qrSupported,
-                            modifier = Modifier.weight(1f),
+                    if (state.qrSupported) {
+                        TabRow(
+                            selectedTabIndex = mode.ordinal,
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(if (state.qrSupported) "二维码" else "二维码超限")
+                            Tab(
+                                selected = mode == ShareExportMode.QrCode,
+                                onClick = { mode = ShareExportMode.QrCode },
+                                text = { Text("二维码") }
+                            )
+                            Tab(
+                                selected = mode == ShareExportMode.Url,
+                                onClick = { mode = ShareExportMode.Url },
+                                text = { Text("链接") }
+                            )
                         }
-                        Button(
-                            onClick = { mode = ShareExportMode.Url },
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text("URL")
-                        }
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    // ========== 修改：更新显示文案 ==========
                     Text(
-                        text = "包体大小：${Formatter.formatShortFileSize(context, state.packageBytes.toLong())}",
+                        text = "所选笔记的数据大小：${Formatter.formatShortFileSize(context, state.packageBytes.toLong())}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -199,7 +202,7 @@ fun ShareExportSheet(
                     if (!state.qrSupported) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "当前分享包超过二维码容量限制，请改用 URL 导出。",
+                            text = "当前所选笔记数据超过二维码存储容量限制，请使用链接导出",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
                         )
@@ -221,18 +224,30 @@ fun ShareExportSheet(
                             }
 
                             if (qrBitmap != null) {
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = MaterialTheme.colorScheme.surface,
-                                    tonalElevation = 8.dp,
-                                    shadowElevation = 4.dp,
-                                ) {
-                                    Image(
-                                        bitmap = qrBitmap.asImageBitmap(),
-                                        contentDescription = "笔记分享二维码",
-                                        modifier = Modifier
-                                            .size(280.dp)
-                                            .padding(16.dp),
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = MaterialTheme.colorScheme.surface,
+                                        tonalElevation = 8.dp,
+                                        shadowElevation = 4.dp,
+                                    ) {
+                                        Image(
+                                            bitmap = qrBitmap.asImageBitmap(),
+                                            contentDescription = "笔记分享二维码",
+                                            modifier = Modifier
+                                                .size(280.dp)
+                                                .padding(16.dp),
+                                        )
+                                    }
+
+                                    // ========== 新增：二维码下方的提示文字 ==========
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = "请在接收分享的设备上打开系统扫一扫app，扫描此二维码即可接收。",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(horizontal = 16.dp)
                                     )
                                 }
                             } else {
@@ -241,7 +256,7 @@ fun ShareExportSheet(
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     Text(
-                                        text = "二维码生成失败，请改用 URL。",
+                                        text = "二维码生成失败，请使用链接分享",
                                         color = MaterialTheme.colorScheme.error,
                                     )
                                 }
@@ -272,12 +287,12 @@ fun ShareExportSheet(
                                 Button(
                                     onClick = {
                                         clipboardManager.setText(AnnotatedString(state.importUrl))
-                                        Toast.makeText(context, "已复制分享 URL", Toast.LENGTH_SHORT)
+                                        Toast.makeText(context, "已复制分享链接", Toast.LENGTH_SHORT)
                                             .show()
                                     },
                                     modifier = Modifier.weight(1f),
                                 ) {
-                                    Text("复制 URL")
+                                    Text("复制链接")
                                 }
                                 TextButton(
                                     onClick = onDismiss,

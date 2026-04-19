@@ -21,9 +21,7 @@ class QuickNoteWidget : AppWidgetProvider() {
             // 2. 构造意图
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse("synap://editor")).apply {
                 component = componentName
-                // ========== 终极修复：使用 CLEAR_TASK ==========
-                // NEW_TASK + CLEAR_TASK 的组合，会瞬间清空 App 之前的所有后台页面，
-                // 完美模拟了“杀掉进程重新打开”的干净状态，每次点击 100% 触发全新启动的 DeepLink！
+                // 使用 CLEAR_TASK 保证像冷启动一样拉起全新页面
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             }
 
@@ -35,7 +33,9 @@ class QuickNoteWidget : AppWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            views.setOnClickPendingIntent(R.id.widget_btn_add, pendingIntent)
+            // ========== 核心修复：把点击事件绑在外层容器上 ==========
+            views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
+
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
     }

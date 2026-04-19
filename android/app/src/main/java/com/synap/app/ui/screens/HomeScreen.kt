@@ -813,7 +813,6 @@ fun HomeScreen(
                 exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    // 【核心修改 2】：将间距调小，改为 8.dp，让它更靠近小白条
                     .padding(bottom = 8.dp + innerPadding.calculateBottomPadding())
                     .offset(y = fabDodgeOffset)
             ) {
