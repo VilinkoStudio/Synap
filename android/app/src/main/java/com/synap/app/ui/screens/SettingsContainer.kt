@@ -44,6 +44,7 @@ fun SettingsContainer(
     onNavigateToTypographySettings: () -> Unit,
     onNavigateToLanguageSelection: () -> Unit,
     onNavigateToAppIcon: () -> Unit, // ===== 新增：接收跳转到图标设置的事件 =====
+    onNavigateToSync: () -> Unit,
     onNavigateToTeam: () -> Unit,
     onNavigateToTutorial: () -> Unit,
     onNavigateBack: () -> Unit
@@ -148,6 +149,9 @@ fun SettingsContainer(
         onHandednessChange = onHandednessChange,
         buildVersion = settingsUiState.buildVersion,
         buildVersionDetails = settingsUiState.buildVersionDetails,
+        syncStatus = settingsUiState.syncStatus,
+        syncPort = settingsUiState.syncPort,
+        syncAddresses = settingsUiState.syncAddresses,
         onExportNotes = {
             scope.launch(Dispatchers.IO) {
                 val testJsonData = "[\n  {\n    \"id\": \"1\",\n    \"content\": \"这是一条导出测试笔记。\"\n  }\n]"
@@ -175,6 +179,7 @@ fun SettingsContainer(
         onNavigateToTypographySettings = onNavigateToTypographySettings,
         onNavigateToLanguageSelection = onNavigateToLanguageSelection,
         onNavigateToAppIcon = onNavigateToAppIcon, // ===== 传递事件 =====
+        onNavigateToSync = onNavigateToSync,
         onNavigateToTeam = onNavigateToTeam,
         onNavigateToTutorial = onNavigateToTutorial,
         onNavigateBack = onNavigateBack,

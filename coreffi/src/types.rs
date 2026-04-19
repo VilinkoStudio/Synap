@@ -1,8 +1,12 @@
 //! FFI-compatible type conversions for Synap.
 
 use synap_core::dto::{
-    NoteDTO as CoreNoteDto, TimelineNotesPageDTO as CoreTimelineNotesPageDto,
-    TimelineSessionDTO as CoreTimelineSessionDto,
+    LocalIdentityDTO as CoreLocalIdentityDto, NoteDTO as CoreNoteDto, PeerDTO as CorePeerDto,
+    PeerTrustStatusDTO as CorePeerTrustStatusDto, PublicKeyInfoDTO as CorePublicKeyInfoDto,
+    ShareStatsDTO as CoreShareStatsDto, SyncSessionDTO as CoreSyncSessionDto,
+    SyncSessionRecordDTO as CoreSyncSessionRecordDto, SyncSessionRoleDTO as CoreSyncSessionRoleDto,
+    SyncStatsDTO as CoreSyncStatsDto, SyncStatusDTO as CoreSyncStatusDto,
+    TimelineNotesPageDTO as CoreTimelineNotesPageDto, TimelineSessionDTO as CoreTimelineSessionDto,
     TimelineSessionsPageDTO as CoreTimelineSessionsPageDto,
 };
 use synap_core::service::FilteredNoteStatus as CoreFilteredNoteStatus;
@@ -76,6 +80,235 @@ impl From<CoreTimelineSessionsPageDto> for TimelineSessionsPageDTO {
         Self {
             sessions: page.sessions.into_iter().map(Into::into).collect(),
             next_cursor: page.next_cursor,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShareStatsDTO {
+    pub records: u64,
+    pub records_applied: u64,
+    pub bytes: u64,
+    pub duration_ms: u64,
+}
+
+impl From<CoreShareStatsDto> for ShareStatsDTO {
+    fn from(stats: CoreShareStatsDto) -> Self {
+        Self {
+            records: stats.records,
+            records_applied: stats.records_applied,
+            bytes: stats.bytes,
+            duration_ms: stats.duration_ms,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SyncStatusDTO {
+    Completed,
+    PendingTrust,
+    Failed,
+}
+
+impl From<CoreSyncStatusDto> for SyncStatusDTO {
+    fn from(status: CoreSyncStatusDto) -> Self {
+        match status {
+            CoreSyncStatusDto::Completed => Self::Completed,
+            CoreSyncStatusDto::PendingTrust => Self::PendingTrust,
+            CoreSyncStatusDto::Failed => Self::Failed,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SyncStatsDTO {
+    pub records_sent: u64,
+    pub records_received: u64,
+    pub records_applied: u64,
+    pub records_skipped: u64,
+    pub bytes_sent: u64,
+    pub bytes_received: u64,
+    pub duration_ms: u64,
+}
+
+impl From<CoreSyncStatsDto> for SyncStatsDTO {
+    fn from(stats: CoreSyncStatsDto) -> Self {
+        Self {
+            records_sent: stats.records_sent,
+            records_received: stats.records_received,
+            records_applied: stats.records_applied,
+            records_skipped: stats.records_skipped,
+            bytes_sent: stats.bytes_sent,
+            bytes_received: stats.bytes_received,
+            duration_ms: stats.duration_ms,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SyncSessionRoleDTO {
+    Initiator,
+    Listener,
+}
+
+impl From<CoreSyncSessionRoleDto> for SyncSessionRoleDTO {
+    fn from(role: CoreSyncSessionRoleDto) -> Self {
+        match role {
+            CoreSyncSessionRoleDto::Initiator => Self::Initiator,
+            CoreSyncSessionRoleDto::Listener => Self::Listener,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PeerTrustStatusDTO {
+    Pending,
+    Trusted,
+    Retired,
+    Revoked,
+}
+
+impl From<CorePeerTrustStatusDto> for PeerTrustStatusDTO {
+    fn from(status: CorePeerTrustStatusDto) -> Self {
+        match status {
+            CorePeerTrustStatusDto::Pending => Self::Pending,
+            CorePeerTrustStatusDto::Trusted => Self::Trusted,
+            CorePeerTrustStatusDto::Retired => Self::Retired,
+            CorePeerTrustStatusDto::Revoked => Self::Revoked,
+        }
+    }
+}
+
+impl From<PeerTrustStatusDTO> for CorePeerTrustStatusDto {
+    fn from(status: PeerTrustStatusDTO) -> Self {
+        match status {
+            PeerTrustStatusDTO::Pending => Self::Pending,
+            PeerTrustStatusDTO::Trusted => Self::Trusted,
+            PeerTrustStatusDTO::Retired => Self::Retired,
+            PeerTrustStatusDTO::Revoked => Self::Revoked,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PublicKeyInfoDTO {
+    pub id: String,
+    pub algorithm: String,
+    pub public_key: Vec<u8>,
+    pub fingerprint: Vec<u8>,
+    pub display_public_key_base64: String,
+    pub kaomoji_fingerprint: String,
+}
+
+impl From<CorePublicKeyInfoDto> for PublicKeyInfoDTO {
+    fn from(info: CorePublicKeyInfoDto) -> Self {
+        Self {
+            id: info.id,
+            algorithm: info.algorithm,
+            public_key: info.public_key,
+            fingerprint: info.fingerprint,
+            display_public_key_base64: info.display_public_key_base64,
+            kaomoji_fingerprint: info.kaomoji_fingerprint,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalIdentityDTO {
+    pub identity: PublicKeyInfoDTO,
+    pub signing: PublicKeyInfoDTO,
+}
+
+impl From<CoreLocalIdentityDto> for LocalIdentityDTO {
+    fn from(identity: CoreLocalIdentityDto) -> Self {
+        Self {
+            identity: identity.identity.into(),
+            signing: identity.signing.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PeerDTO {
+    pub id: String,
+    pub algorithm: String,
+    pub public_key: Vec<u8>,
+    pub fingerprint: Vec<u8>,
+    pub kaomoji_fingerprint: String,
+    pub note: Option<String>,
+    pub status: PeerTrustStatusDTO,
+}
+
+impl From<CorePeerDto> for PeerDTO {
+    fn from(peer: CorePeerDto) -> Self {
+        Self {
+            id: peer.id,
+            algorithm: peer.algorithm,
+            public_key: peer.public_key,
+            fingerprint: peer.fingerprint,
+            kaomoji_fingerprint: peer.kaomoji_fingerprint,
+            note: peer.note,
+            status: peer.status.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SyncSessionDTO {
+    pub status: SyncStatusDTO,
+    pub peer: PeerDTO,
+    pub stats: Option<SyncStatsDTO>,
+}
+
+impl From<CoreSyncSessionDto> for SyncSessionDTO {
+    fn from(session: CoreSyncSessionDto) -> Self {
+        Self {
+            status: session.status.into(),
+            peer: session.peer.into(),
+            stats: session.stats.map(Into::into),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SyncSessionRecordDTO {
+    pub id: String,
+    pub role: SyncSessionRoleDTO,
+    pub status: SyncStatusDTO,
+    pub peer_label: Option<String>,
+    pub peer_public_key: Option<Vec<u8>>,
+    pub peer_fingerprint: Option<Vec<u8>>,
+    pub started_at_ms: u64,
+    pub finished_at_ms: u64,
+    pub records_sent: u64,
+    pub records_received: u64,
+    pub records_applied: u64,
+    pub records_skipped: u64,
+    pub bytes_sent: u64,
+    pub bytes_received: u64,
+    pub duration_ms: u64,
+    pub error_message: Option<String>,
+}
+
+impl From<CoreSyncSessionRecordDto> for SyncSessionRecordDTO {
+    fn from(record: CoreSyncSessionRecordDto) -> Self {
+        Self {
+            id: record.id,
+            role: record.role.into(),
+            status: record.status.into(),
+            peer_label: record.peer_label,
+            peer_public_key: record.peer_public_key,
+            peer_fingerprint: record.peer_fingerprint,
+            started_at_ms: record.started_at_ms,
+            finished_at_ms: record.finished_at_ms,
+            records_sent: record.records_sent,
+            records_received: record.records_received,
+            records_applied: record.records_applied,
+            records_skipped: record.records_skipped,
+            bytes_sent: record.bytes_sent,
+            bytes_received: record.bytes_received,
+            duration_ms: record.duration_ms,
+            error_message: record.error_message,
         }
     }
 }
@@ -190,6 +423,26 @@ mod tests {
         assert_eq!(
             CoreFilteredNoteStatus::from(FilteredNoteStatus::Deleted),
             CoreFilteredNoteStatus::Deleted
+        );
+    }
+
+    #[test]
+    fn test_peer_trust_status_conversion() {
+        assert_eq!(
+            PeerTrustStatusDTO::from(CorePeerTrustStatusDto::Pending),
+            PeerTrustStatusDTO::Pending
+        );
+        assert_eq!(
+            PeerTrustStatusDTO::from(CorePeerTrustStatusDto::Trusted),
+            PeerTrustStatusDTO::Trusted
+        );
+        assert_eq!(
+            PeerTrustStatusDTO::from(CorePeerTrustStatusDto::Retired),
+            PeerTrustStatusDTO::Retired
+        );
+        assert_eq!(
+            PeerTrustStatusDTO::from(CorePeerTrustStatusDto::Revoked),
+            PeerTrustStatusDTO::Revoked
         );
     }
 }

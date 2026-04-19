@@ -1,6 +1,7 @@
 //! FFI-compatible error types for Synap.
 
 use synap_core::error::{NoteError, ServiceError};
+use uniffi::UnexpectedUniFFICallbackError;
 
 /// FFI-compatible error type.
 #[derive(Debug, Clone, thiserror::Error)]
@@ -53,6 +54,12 @@ impl From<NoteError> for FfiError {
 impl From<std::io::Error> for FfiError {
     fn from(_err: std::io::Error) -> Self {
         FfiError::Io
+    }
+}
+
+impl From<UnexpectedUniFFICallbackError> for FfiError {
+    fn from(_err: UnexpectedUniFFICallbackError) -> Self {
+        FfiError::Other
     }
 }
 

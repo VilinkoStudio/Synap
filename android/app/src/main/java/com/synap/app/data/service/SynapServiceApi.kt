@@ -1,8 +1,14 @@
 package com.synap.app.data.service
 
 import com.synap.app.data.model.NoteFeedFilter
-import com.synap.app.data.model.TimelineDirection
+import com.synap.app.data.model.LocalIdentity
 import com.synap.app.data.model.NoteRecord
+import com.synap.app.data.model.PeerRecord
+import com.synap.app.data.model.PeerTrustStatus
+import com.synap.app.data.model.ShareImportStats
+import com.synap.app.data.model.SyncSession
+import com.synap.app.data.model.SyncSessionRecord
+import com.synap.app.data.model.TimelineDirection
 import com.synap.app.data.model.TimelineSessionRecord
 import com.synap.app.data.portal.CursorPage
 import java.io.InputStream
@@ -20,6 +26,28 @@ interface SynapServiceApi {
     suspend fun exportDatabase(outputStream: OutputStream): Result<Unit>
 
     suspend fun replaceDatabase(inputStream: InputStream): Result<Unit>
+
+    suspend fun exportShare(noteIds: List<String>): Result<ByteArray>
+
+    suspend fun importShare(bytes: ByteArray): Result<ShareImportStats>
+
+    suspend fun getLocalIdentity(): Result<LocalIdentity>
+
+    suspend fun getPeers(): Result<List<PeerRecord>>
+
+    suspend fun trustPeer(publicKey: ByteArray, note: String?): Result<PeerRecord>
+
+    suspend fun updatePeerNote(peerId: String, note: String?): Result<PeerRecord>
+
+    suspend fun setPeerStatus(peerId: String, status: PeerTrustStatus): Result<PeerRecord>
+
+    suspend fun deletePeer(peerId: String): Result<Unit>
+
+    suspend fun getRecentSyncSessions(limit: UInt? = null): Result<List<SyncSessionRecord>>
+
+    suspend fun initiateSync(transport: SyncTransportChannel): Result<SyncSession>
+
+    suspend fun listenSync(transport: SyncTransportChannel): Result<SyncSession>
 
     suspend fun getNote(idOrShortId: String): Result<NoteRecord>
 

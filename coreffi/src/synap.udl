@@ -24,6 +24,13 @@ enum TimelineDirection {
     "Newer",
 };
 
+enum PeerTrustStatusDTO {
+    "Pending",
+    "Trusted",
+    "Retired",
+    "Revoked",
+};
+
 dictionary NoteDTO {
     string id;
     string content;
@@ -47,6 +54,89 @@ dictionary TimelineSessionDTO {
 dictionary TimelineSessionsPageDTO {
     sequence<TimelineSessionDTO> sessions;
     string? next_cursor;
+};
+
+dictionary ShareStatsDTO {
+    u64 records;
+    u64 records_applied;
+    u64 bytes;
+    u64 duration_ms;
+};
+
+enum SyncStatusDTO {
+    "Completed",
+    "PendingTrust",
+    "Failed",
+};
+
+enum SyncSessionRoleDTO {
+    "Initiator",
+    "Listener",
+};
+
+dictionary SyncStatsDTO {
+    u64 records_sent;
+    u64 records_received;
+    u64 records_applied;
+    u64 records_skipped;
+    u64 bytes_sent;
+    u64 bytes_received;
+    u64 duration_ms;
+};
+
+dictionary PublicKeyInfoDTO {
+    string id;
+    string algorithm;
+    bytes public_key;
+    bytes fingerprint;
+    string display_public_key_base64;
+    string kaomoji_fingerprint;
+};
+
+dictionary LocalIdentityDTO {
+    PublicKeyInfoDTO identity;
+    PublicKeyInfoDTO signing;
+};
+
+dictionary PeerDTO {
+    string id;
+    string algorithm;
+    bytes public_key;
+    bytes fingerprint;
+    string kaomoji_fingerprint;
+    string? note;
+    PeerTrustStatusDTO status;
+};
+
+dictionary SyncSessionDTO {
+    SyncStatusDTO status;
+    PeerDTO peer;
+    SyncStatsDTO? stats;
+};
+
+dictionary SyncSessionRecordDTO {
+    string id;
+    SyncSessionRoleDTO role;
+    SyncStatusDTO status;
+    string? peer_label;
+    bytes? peer_public_key;
+    bytes? peer_fingerprint;
+    u64 started_at_ms;
+    u64 finished_at_ms;
+    u64 records_sent;
+    u64 records_received;
+    u64 records_applied;
+    u64 records_skipped;
+    u64 bytes_sent;
+    u64 bytes_received;
+    u64 duration_ms;
+    string? error_message;
+};
+
+callback interface SyncTransport {
+    [Throws=FfiError] bytes read(u32 max_bytes);
+    [Throws=FfiError] void write(bytes payload);
+    [Throws=FfiError] void close();
 };
 
 dictionary BuildInfo {
@@ -103,4 +193,15 @@ interface SynapService {
     [Throws=FfiError] NoteDTO edit_note(string target_id, string new_content, sequence<string> tags);
     [Throws=FfiError] void delete_note(string target_id);
     [Throws=FfiError] void restore_note(string target_id);
+    [Throws=FfiError] bytes export_share(sequence<string> note_ids);
+    [Throws=FfiError] ShareStatsDTO import_share(bytes payload);
+    [Throws=FfiError] LocalIdentityDTO get_local_identity();
+    [Throws=FfiError] sequence<PeerDTO> get_peers();
+    [Throws=FfiError] PeerDTO trust_peer(bytes public_key, string? note);
+    [Throws=FfiError] PeerDTO update_peer_note(string peer_id, string? note);
+    [Throws=FfiError] PeerDTO set_peer_status(string peer_id, PeerTrustStatusDTO status);
+    [Throws=FfiError] void delete_peer(string peer_id);
+    [Throws=FfiError] sequence<SyncSessionRecordDTO> get_recent_sync_sessions(u32? limit);
+    [Throws=FfiError] SyncSessionDTO initiate_sync(SyncTransport transport);
+    [Throws=FfiError] SyncSessionDTO listen_sync(SyncTransport transport);
 };

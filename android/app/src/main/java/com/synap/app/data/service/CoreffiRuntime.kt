@@ -5,16 +5,29 @@ import android.util.Log
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.FfiException
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.FilteredNoteStatus as FfiFilteredNoteStatus
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.SynapService as FfiSynapService
+import com.fuwaki.synap.bindings.uniffi.synap_coreffi.SyncTransport as FfiSyncTransport
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.TimelineDirection as FfiTimelineDirection
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.open
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.openMemory
 import com.synap.app.data.error.SynapError
+import com.synap.app.data.model.LocalIdentity
 import com.synap.app.data.model.NoteFeedFilter
 import com.synap.app.data.model.NoteFeedStatus
 import com.synap.app.data.model.NoteRecord
+import com.synap.app.data.model.PeerRecord
+import com.synap.app.data.model.ShareImportStats
+import com.synap.app.data.model.SyncSession
+import com.synap.app.data.model.SyncSessionRecord
 import com.synap.app.data.model.TimelineDirection
 import com.synap.app.data.model.TimelineSessionRecord
+import com.synap.app.data.model.toLocalIdentity
+import com.synap.app.data.model.toPeerRecord
+import com.synap.app.data.model.toPeerRecords
+import com.synap.app.data.model.toSyncSession
+import com.synap.app.data.model.toSyncSessionRecords
+import com.synap.app.data.model.toShareImportStats
 import com.synap.app.data.model.toCursorPage
+import com.synap.app.data.model.toDto
 import com.synap.app.data.model.toNoteRecord
 import com.synap.app.data.model.toNoteRecords
 import com.synap.app.data.model.toCursorPage as toSessionCursorPage
@@ -39,6 +52,7 @@ class CoreffiRuntime @Inject constructor(
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : SynapServiceApi {
     private val mutex = Mutex()
+    @Volatile
     private var serviceInstance: FfiSynapService? = null
 
     override val isInitialized: Boolean
@@ -164,6 +178,53 @@ class CoreffiRuntime @Inject constructor(
         }
     }
 
+    override suspend fun exportShare(noteIds: List<String>): Result<ByteArray> =
+        withService { service -> service.exportShare(noteIds) }
+
+    override suspend fun importShare(bytes: ByteArray): Result<ShareImportStats> =
+        withService { service ->
+            service.importShare(bytes).toShareImportStats()
+        }
+
+    override suspend fun getLocalIdentity(): Result<LocalIdentity> =
+        withService { service -> service.getLocalIdentity().toLocalIdentity() }
+
+    override suspend fun getPeers(): Result<List<PeerRecord>> =
+        withService { service -> service.getPeers().toPeerRecords() }
+
+    override suspend fun trustPeer(publicKey: ByteArray, note: String?): Result<PeerRecord> =
+        withService { service -> service.trustPeer(publicKey, note).toPeerRecord() }
+
+    override suspend fun updatePeerNote(peerId: String, note: String?): Result<PeerRecord> =
+        withService { service -> service.updatePeerNote(peerId, note).toPeerRecord() }
+
+    override suspend fun setPeerStatus(
+        peerId: String,
+        status: com.synap.app.data.model.PeerTrustStatus,
+    ): Result<PeerRecord> =
+        withService { service -> service.setPeerStatus(peerId, status.toDto()).toPeerRecord() }
+
+    override suspend fun deletePeer(peerId: String): Result<Unit> =
+        withService { service ->
+            service.deletePeer(peerId)
+            Unit
+        }
+
+    override suspend fun getRecentSyncSessions(limit: UInt?): Result<List<SyncSessionRecord>> =
+        withService { service ->
+            service.getRecentSyncSessions(limit).toSyncSessionRecords()
+        }
+
+    override suspend fun initiateSync(transport: SyncTransportChannel): Result<SyncSession> =
+        withService { service ->
+            service.initiateSync(FfiSyncTransportAdapter(transport)).toSyncSession()
+        }
+
+    override suspend fun listenSync(transport: SyncTransportChannel): Result<SyncSession> =
+        withService { service ->
+            service.listenSync(FfiSyncTransportAdapter(transport)).toSyncSession()
+        }
+
     override suspend fun getNote(idOrShortId: String): Result<NoteRecord> =
         withService { service -> service.getNote(idOrShortId).toNoteRecord() }
 
@@ -286,21 +347,19 @@ class CoreffiRuntime @Inject constructor(
         withService { service -> service.restoreNote(targetId) }
 
     private suspend fun <T> withService(block: (FfiSynapService) -> T): Result<T> =
-        mutex.withLock {
-            withContext(ioDispatcher) {
-                runCatching {
-                    val service = serviceInstance ?: throw SynapError.Database(
-                        message = "Service not initialized. Call initialize() first.",
-                    )
-                    block(service)
-                }.fold(
-                    onSuccess = { Result.success(it) },
-                    onFailure = { throwable ->
-                        Log.e(TAG, "Coreffi call failed", throwable)
-                        Result.failure(throwable.toSynapError())
-                    },
+        withContext(ioDispatcher) {
+            runCatching {
+                val service = serviceInstance ?: throw SynapError.Database(
+                    message = "Service not initialized. Call initialize() first.",
                 )
-            }
+                block(service)
+            }.fold(
+                onSuccess = { Result.success(it) },
+                onFailure = { throwable ->
+                    Log.e(TAG, "Coreffi call failed", throwable)
+                    Result.failure(throwable.toSynapError())
+                },
+            )
         }
 
     private fun databaseFile(): File = context.getDatabasePath("synap.redb")
@@ -323,5 +382,26 @@ class CoreffiRuntime @Inject constructor(
             message = message ?: javaClass.simpleName,
             cause = this,
         )
+    }
+}
+
+private class FfiSyncTransportAdapter(
+    private val transport: SyncTransportChannel,
+) : FfiSyncTransport {
+    override fun read(maxBytes: UInt): ByteArray =
+        kotlinx.coroutines.runBlocking {
+            transport.read(maxBytes.toInt())
+        }
+
+    override fun write(payload: ByteArray) {
+        kotlinx.coroutines.runBlocking {
+            transport.write(payload)
+        }
+    }
+
+    override fun close() {
+        kotlinx.coroutines.runBlocking {
+            transport.close()
+        }
     }
 }

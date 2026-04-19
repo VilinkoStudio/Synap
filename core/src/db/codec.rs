@@ -5,19 +5,24 @@ use serde::{de::DeserializeOwned, Serialize};
 pub(crate) use crate::envelope::{EnvelopeError as ValueCodecError, ENVELOPE_MAGIC};
 
 pub(crate) fn encode_default<V: Serialize>(value: &V) -> Result<Vec<u8>, ValueCodecError> {
-    crate::envelope::encode_postcard(value)
+    let payload = postcard::to_allocvec(value).map_err(|_| {
+        ValueCodecError::InvalidEnvelope("failed to serialize value into postcard bytes")
+    })?;
+    crate::envelope::encode_bytes(&payload, &crate::envelope::EnvelopeConfig::DEFAULT)
 }
 
 pub(crate) fn decode_default<V: DeserializeOwned>(bytes: &[u8]) -> Result<V, ValueCodecError> {
-    crate::envelope::decode_postcard(bytes)
+    let payload = crate::envelope::decode_bytes(bytes, &crate::envelope::EnvelopeConfig::DEFAULT)?;
+    postcard::from_bytes(payload.as_ref())
+        .map_err(|_| ValueCodecError::InvalidEnvelope("failed to deserialize postcard payload"))
 }
 
 pub(crate) fn decode_default_bytes(bytes: &[u8]) -> Result<Cow<'_, [u8]>, ValueCodecError> {
-    crate::envelope::decode_bytes(bytes)
+    crate::envelope::decode_bytes(bytes, &crate::envelope::EnvelopeConfig::DEFAULT)
 }
 
 pub(crate) fn has_envelope_magic(bytes: &[u8]) -> bool {
-    crate::envelope::has_envelope_magic(bytes)
+    bytes.len() >= ENVELOPE_MAGIC.len() && bytes[..ENVELOPE_MAGIC.len()] == ENVELOPE_MAGIC
 }
 
 #[cfg(test)]

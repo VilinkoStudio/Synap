@@ -1,12 +1,16 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    time::Instant,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use uuid::Uuid;
 
 use crate::{
-    models::note::{Note, NoteRecord},
+    crypto::AuthenticatedPeer,
+    models::{
+        note::{Note, NoteRecord},
+        sync_stats::{SyncSessionRole, SyncSessionStatus, SyncStatsRecord, SyncStatsWriter},
+    },
     service::SynapService,
 };
 
@@ -222,90 +226,134 @@ struct ReceivedRecord {
 pub struct SyncService<'a> {
     core: &'a SynapService,
     config: SyncConfig,
+    peer_identity: Option<SyncPeerIdentity>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SyncPeerIdentity {
+    pub key_id: Uuid,
+    pub public_key: [u8; 32],
+    pub fingerprint: [u8; 32],
+    pub label: Option<String>,
+}
+
+impl SyncPeerIdentity {
+    pub fn from_authenticated_peer(peer: &AuthenticatedPeer) -> Self {
+        let identity = peer.identity();
+        Self {
+            key_id: identity.key_id,
+            public_key: identity.public_key,
+            fingerprint: identity.fingerprint,
+            label: identity.label,
+        }
+    }
 }
 
 impl<'a> SyncService<'a> {
     pub fn new(core: &'a SynapService, config: SyncConfig) -> Self {
-        Self { core, config }
+        Self {
+            core,
+            config,
+            peer_identity: None,
+        }
+    }
+
+    pub fn with_peer_identity(mut self, peer_identity: SyncPeerIdentity) -> Self {
+        self.peer_identity = Some(peer_identity);
+        self
     }
 
     pub fn sync_as_initiator<C: SyncChannel>(
         &self,
         channel: &mut C,
     ) -> Result<SyncStats, SyncError> {
-        let started = Instant::now();
         let mut stats = SyncStats::default();
-        let local = self.collect_local_archive()?;
-
-        self.send_hello(channel, &mut stats)?;
-        self.receive_hello(channel, &mut stats)?;
-
-        self.send_manifest(channel, &local, &mut stats)?;
-        let remote_manifest = self.receive_manifest(channel, &mut stats)?;
-
-        let mismatched_buckets = local.mismatched_buckets(&remote_manifest);
-        let expected_remote_buckets =
-            manifest_map_for_buckets(&remote_manifest, &mismatched_buckets);
-        self.send_bucket_entries(channel, &local, &mismatched_buckets, &mut stats)?;
-        let remote_inventory =
-            self.receive_bucket_entries(channel, &expected_remote_buckets, &mut stats)?;
-
-        let (need_from_remote, need_from_local) =
-            local.diff_against(&remote_inventory, &mismatched_buckets);
-        let expected_from_remote: BTreeSet<_> = need_from_remote.iter().copied().collect();
-        let outgoing = local.records_for(&need_from_local);
-
-        self.send_records(channel, &outgoing, &mut stats)?;
-        let incoming = self.receive_records(channel, &expected_from_remote, &mut stats)?;
-
-        let (applied, skipped) = self.apply_remote_records(incoming)?;
-        stats.records_applied += applied;
-        stats.records_skipped += skipped;
-
-        stats.bytes_sent += FrameCodec::write(channel, &SyncMessage::Done)?;
-        let (done, bytes) = FrameCodec::read::<SyncMessage>(channel)?;
-        stats.bytes_received += bytes;
-        match done {
-            SyncMessage::Done => {}
-            other => {
-                return Err(SyncError::UnexpectedMessage {
-                    expected: "Done",
-                    got: format!("{other:?}"),
-                });
-            }
-        }
-        stats.duration_ms = started.elapsed().as_millis() as u64;
-        Ok(stats)
+        let started_at_ms = now_ms();
+        let result = self.sync_as_initiator_inner(channel, &mut stats);
+        self.finish_sync_session(SyncSessionRole::Initiator, started_at_ms, stats, result)
     }
 
     pub fn sync_as_responder<C: SyncChannel>(
         &self,
         channel: &mut C,
     ) -> Result<SyncStats, SyncError> {
-        let started = Instant::now();
         let mut stats = SyncStats::default();
+        let started_at_ms = now_ms();
+        let result = self.sync_as_responder_inner(channel, &mut stats);
+        self.finish_sync_session(SyncSessionRole::Listener, started_at_ms, stats, result)
+    }
+
+    fn sync_as_initiator_inner<C: SyncChannel>(
+        &self,
+        channel: &mut C,
+        stats: &mut SyncStats,
+    ) -> Result<(), SyncError> {
         let local = self.collect_local_archive()?;
 
-        self.receive_hello(channel, &mut stats)?;
-        self.send_hello(channel, &mut stats)?;
+        self.send_hello(channel, stats)?;
+        self.receive_hello(channel, stats)?;
 
-        let remote_manifest = self.receive_manifest(channel, &mut stats)?;
-        self.send_manifest(channel, &local, &mut stats)?;
+        self.send_manifest(channel, &local, stats)?;
+        let remote_manifest = self.receive_manifest(channel, stats)?;
 
         let mismatched_buckets = local.mismatched_buckets(&remote_manifest);
         let expected_remote_buckets =
             manifest_map_for_buckets(&remote_manifest, &mismatched_buckets);
+        self.send_bucket_entries(channel, &local, &mismatched_buckets, stats)?;
         let remote_inventory =
-            self.receive_bucket_entries(channel, &expected_remote_buckets, &mut stats)?;
-        self.send_bucket_entries(channel, &local, &mismatched_buckets, &mut stats)?;
+            self.receive_bucket_entries(channel, &expected_remote_buckets, stats)?;
 
         let (need_from_remote, need_from_local) =
             local.diff_against(&remote_inventory, &mismatched_buckets);
         let expected_from_remote: BTreeSet<_> = need_from_remote.iter().copied().collect();
         let outgoing = local.records_for(&need_from_local);
 
-        let incoming = self.receive_records(channel, &expected_from_remote, &mut stats)?;
-        self.send_records(channel, &outgoing, &mut stats)?;
+        self.send_records(channel, &outgoing, stats)?;
+        let incoming = self.receive_records(channel, &expected_from_remote, stats)?;
+
+        let (applied, skipped) = self.apply_remote_records(incoming)?;
+        stats.records_applied += applied;
+        stats.records_skipped += skipped;
+
+        stats.bytes_sent += FrameCodec::write(channel, &SyncMessage::Done)?;
+        let (done, bytes) = FrameCodec::read::<SyncMessage>(channel)?;
+        stats.bytes_received += bytes;
+        match done {
+            SyncMessage::Done => Ok(()),
+            other => Err(SyncError::UnexpectedMessage {
+                expected: "Done",
+                got: format!("{other:?}"),
+            }),
+        }
+    }
+
+    fn sync_as_responder_inner<C: SyncChannel>(
+        &self,
+        channel: &mut C,
+        stats: &mut SyncStats,
+    ) -> Result<(), SyncError> {
+        let local = self.collect_local_archive()?;
+
+        self.receive_hello(channel, stats)?;
+        self.send_hello(channel, stats)?;
+
+        let remote_manifest = self.receive_manifest(channel, stats)?;
+        self.send_manifest(channel, &local, stats)?;
+
+        let mismatched_buckets = local.mismatched_buckets(&remote_manifest);
+        let expected_remote_buckets =
+            manifest_map_for_buckets(&remote_manifest, &mismatched_buckets);
+        let remote_inventory =
+            self.receive_bucket_entries(channel, &expected_remote_buckets, stats)?;
+        self.send_bucket_entries(channel, &local, &mismatched_buckets, stats)?;
+
+        let (need_from_remote, need_from_local) =
+            local.diff_against(&remote_inventory, &mismatched_buckets);
+        let expected_from_remote: BTreeSet<_> = need_from_remote.iter().copied().collect();
+        let outgoing = local.records_for(&need_from_local);
+
+        let incoming = self.receive_records(channel, &expected_from_remote, stats)?;
+        self.send_records(channel, &outgoing, stats)?;
 
         let (applied, skipped) = self.apply_remote_records(incoming)?;
         stats.records_applied += applied;
@@ -323,8 +371,7 @@ impl<'a> SyncService<'a> {
             }
         }
         stats.bytes_sent += FrameCodec::write(channel, &SyncMessage::Done)?;
-        stats.duration_ms = started.elapsed().as_millis() as u64;
-        Ok(stats)
+        Ok(())
     }
 
     fn collect_local_archive(&self) -> Result<LocalArchive, SyncError> {
@@ -570,6 +617,88 @@ impl<'a> SyncService<'a> {
 
         Ok(records)
     }
+
+    fn finish_sync_session(
+        &self,
+        role: SyncSessionRole,
+        started_at_ms: u64,
+        mut stats: SyncStats,
+        result: Result<(), SyncError>,
+    ) -> Result<SyncStats, SyncError> {
+        let finished_at_ms = now_ms();
+        stats.duration_ms = finished_at_ms.saturating_sub(started_at_ms);
+
+        let status = if result.is_ok() {
+            SyncSessionStatus::Completed
+        } else {
+            SyncSessionStatus::Failed
+        };
+        let error_message = result.as_ref().err().map(ToString::to_string);
+
+        if let Err(record_err) = self.record_sync_session(
+            role,
+            status,
+            started_at_ms,
+            finished_at_ms,
+            &stats,
+            error_message,
+        ) {
+            if result.is_ok() {
+                return Err(record_err);
+            }
+        }
+
+        result.map(|()| stats)
+    }
+
+    fn record_sync_session(
+        &self,
+        role: SyncSessionRole,
+        status: SyncSessionStatus,
+        started_at_ms: u64,
+        finished_at_ms: u64,
+        stats: &SyncStats,
+        error_message: Option<String>,
+    ) -> Result<(), SyncError> {
+        let Some(peer_identity) = self.peer_identity.clone() else {
+            return Ok(());
+        };
+
+        let stats_record = SyncStatsRecord {
+            id: Uuid::now_v7(),
+            role,
+            status,
+            peer_key_id: Some(peer_identity.key_id),
+            peer_public_key: Some(peer_identity.public_key.to_vec()),
+            peer_fingerprint: Some(peer_identity.fingerprint.to_vec()),
+            peer_label: peer_identity.label,
+            started_at_ms,
+            finished_at_ms,
+            records_sent: stats.records_sent as u64,
+            records_received: stats.records_received as u64,
+            records_applied: stats.records_applied as u64,
+            records_skipped: stats.records_skipped as u64,
+            bytes_sent: stats.bytes_sent as u64,
+            bytes_received: stats.bytes_received as u64,
+            duration_ms: stats.duration_ms,
+            error_message,
+        };
+
+        self.core
+            .with_write(|tx| {
+                let writer = SyncStatsWriter::new(tx);
+                writer.put(&stats_record)?;
+                Ok(())
+            })
+            .map_err(Into::into)
+    }
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
 }
 
 fn manifest_map_for_buckets(

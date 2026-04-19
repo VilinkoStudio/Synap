@@ -5,11 +5,13 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.synap.app.data.service.SynapServiceApi
 import com.synap.app.ui.viewmodel.HomeViewModel
+import com.synap.app.ui.viewmodel.ShareImportViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -22,6 +24,7 @@ class MainActivity : AppCompatActivity() {
     lateinit var synapService: SynapServiceApi
 
     private val homeViewModel: HomeViewModel by viewModels()
+    private val shareImportViewModel: ShareImportViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
@@ -62,6 +65,10 @@ class MainActivity : AppCompatActivity() {
     private fun handleExternalTextIntent(intent: Intent?): Boolean {
         if (intent == null) return false
 
+        if (handleImportShareIntent(intent)) {
+            return
+        }
+
         var extractedText: String? = null
 
         // 1. 处理系统选词菜单
@@ -73,6 +80,7 @@ class MainActivity : AppCompatActivity() {
             extractedText = intent.getStringExtra(Intent.EXTRA_TEXT)
         }
 
+        // 如果成功提取到文字，统一转换为新建笔记的 DeepLink
         if (!extractedText.isNullOrBlank()) {
             // 将 Intent 篡改为单纯的 DeepLink
             intent.action = Intent.ACTION_VIEW
@@ -84,6 +92,17 @@ class MainActivity : AppCompatActivity() {
             return true
         }
         return false
+    }
+
+    private fun handleImportShareIntent(intent: Intent): Boolean {
+        val data = intent.data ?: return false
+        if (intent.action != Intent.ACTION_VIEW || data.host != "import_share") {
+            return false
+        }
+
+        shareImportViewModel.importFromDeepLink(data)
+        intent.data = null
+        return true
     }
 
     suspend fun exportDatabaseToUri(uri: Uri): Result<Unit> = withContext(Dispatchers.IO) {

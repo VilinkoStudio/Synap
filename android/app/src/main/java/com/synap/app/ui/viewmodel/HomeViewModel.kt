@@ -240,6 +240,9 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    suspend fun exportShare(noteIds: List<String>): ByteArray =
+        repository.exportShare(noteIds)
+
     fun toggleDeleted(note: Note) {
         viewModelScope.launch {
             runCatching {

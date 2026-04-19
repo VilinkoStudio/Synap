@@ -11,6 +11,7 @@ use uuid::{Builder, Uuid};
 
 const ADAPTIVE_GAP_RATIO_NUMERATOR: u64 = 5;
 const ADAPTIVE_GAP_RATIO_DENOMINATOR: u64 = 2;
+const MIN_ADAPTIVE_SESSION_SPLIT_GAP_MS: u64 = 1_000;
 
 #[derive(Debug, Clone)]
 pub struct Session {
@@ -469,7 +470,11 @@ fn estimate_session_split_gap_ms(gaps: &[u64], config: SessionDetectionConfig) -
     sorted_gaps.sort_unstable();
 
     if let Some((lower_gap, upper_gap)) = strongest_adaptive_gap_jump(&sorted_gaps) {
-        return geometric_gap_midpoint(lower_gap, upper_gap).max(1);
+        let adaptive_floor = config
+            .split_gap_ms
+            .min(MIN_ADAPTIVE_SESSION_SPLIT_GAP_MS)
+            .max(1);
+        return geometric_gap_midpoint(lower_gap, upper_gap).max(adaptive_floor);
     }
 
     let typical_gap = sorted_gaps[(sorted_gaps.len() - 1) / 2];
@@ -808,6 +813,16 @@ mod tests {
     }
 
     #[test]
+    fn test_estimate_session_split_gap_ms_ignores_subsecond_gap_jump_by_default() {
+        let gaps = vec![1, 3];
+
+        assert_eq!(
+            estimate_session_split_gap_ms(&gaps, SessionDetectionConfig::default()),
+            MIN_ADAPTIVE_SESSION_SPLIT_GAP_MS
+        );
+    }
+
+    #[test]
     fn test_detect_session_spans_from_samples_basic() {
         let samples = vec![
             TimelineSample {
@@ -866,6 +881,32 @@ mod tests {
         assert_eq!(sessions[1].count(), 2);
         assert_eq!(sessions[0].oldest_id(), Uuid::from_u128(1));
         assert_eq!(sessions[1].oldest_id(), Uuid::from_u128(3));
+    }
+
+    #[test]
+    fn test_detect_session_spans_from_samples_ignores_subsecond_jitter() {
+        let samples = vec![
+            TimelineSample {
+                id: Uuid::from_u128(1),
+                timestamp_ms: 0,
+            },
+            TimelineSample {
+                id: Uuid::from_u128(2),
+                timestamp_ms: 1,
+            },
+            TimelineSample {
+                id: Uuid::from_u128(3),
+                timestamp_ms: 4,
+            },
+        ];
+
+        let sessions = detect_session_spans_from_samples(
+            samples.into_iter(),
+            SessionDetectionConfig::default(),
+        );
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].count(), 3);
     }
 
     #[test]

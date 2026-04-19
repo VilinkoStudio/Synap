@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{envelope, models::note::NoteRecord};
+use crate::{
+    envelope::{self, EnvelopeConfig},
+    models::note::NoteRecord,
+};
 
 pub const SHARE_VERSION: u8 = 2;
 
@@ -20,11 +23,18 @@ impl SharePackage {
     }
 
     pub(crate) fn encode(&self) -> Result<Vec<u8>, ShareError> {
-        envelope::encode_postcard(self).map_err(Into::into)
+        let payload = postcard::to_allocvec(self).map_err(|_| {
+            envelope::EnvelopeError::InvalidEnvelope("share postcard encode failed")
+        })?;
+        envelope::encode_bytes(&payload, &EnvelopeConfig::DEFAULT).map_err(Into::into)
     }
 
     pub(crate) fn decode(bytes: &[u8]) -> Result<Self, ShareError> {
-        let package: Self = envelope::decode_postcard(bytes).map_err(ShareError::from)?;
+        let payload =
+            envelope::decode_bytes(bytes, &EnvelopeConfig::DEFAULT).map_err(ShareError::from)?;
+        let package: Self = postcard::from_bytes(payload.as_ref())
+            .map_err(|_| envelope::EnvelopeError::InvalidEnvelope("share postcard decode failed"))
+            .map_err(ShareError::from)?;
         if package.version != SHARE_VERSION {
             return Err(ShareError::VersionMismatch {
                 expected: SHARE_VERSION,
@@ -70,7 +80,7 @@ mod tests {
     #[test]
     fn encode_wraps_package_in_envelope() {
         let bytes = SharePackage::new(Vec::new()).encode().unwrap();
-        assert!(envelope::has_envelope_magic(&bytes));
+        assert!(bytes.starts_with(&envelope::ENVELOPE_MAGIC));
     }
 
     #[test]
@@ -83,11 +93,12 @@ mod tests {
 
     #[test]
     fn decode_rejects_unknown_version() {
-        let bytes = envelope::encode_postcard(&SharePackage {
+        let payload = postcard::to_allocvec(&SharePackage {
             version: SHARE_VERSION + 1,
             records: Vec::new(),
         })
         .unwrap();
+        let bytes = envelope::encode_bytes(&payload, &EnvelopeConfig::DEFAULT).unwrap();
 
         assert!(matches!(
             SharePackage::decode(&bytes),

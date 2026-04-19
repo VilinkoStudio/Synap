@@ -1,6 +1,7 @@
 use std::{borrow::Cow, io};
 
-use serde::{de::DeserializeOwned, Serialize};
+use chacha20poly1305::{aead::Aead, KeyInit, XChaCha20Poly1305, XNonce};
+use rand::random;
 use thiserror::Error;
 
 pub const ENVELOPE_MAGIC: [u8; 4] = *b"SKV!";
@@ -8,12 +9,19 @@ pub const ENVELOPE_MAGIC: [u8; 4] = *b"SKV!";
 const ENVELOPE_VERSION: u8 = 1;
 const ENVELOPE_FLAGS: u16 = 0;
 const ENVELOPE_HEADER_LEN: usize = 24;
+const XCHACHA20_NONCE_LEN: usize = 24;
+
+#[derive(Debug, Clone, Copy)]
+pub struct EnvelopeEncryptionConfig {
+    pub key: [u8; 32],
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct EnvelopeConfig {
     pub compression_threshold_bytes: usize,
     pub max_decompressed_bytes: usize,
     pub max_envelope_depth: usize,
+    pub encryption: Option<EnvelopeEncryptionConfig>,
 }
 
 impl EnvelopeConfig {
@@ -21,7 +29,32 @@ impl EnvelopeConfig {
         compression_threshold_bytes: 256,
         max_decompressed_bytes: 64 * 1024 * 1024,
         max_envelope_depth: 4,
+        encryption: None,
     };
+
+    pub const fn with_encryption(mut self, encryption: EnvelopeEncryptionConfig) -> Self {
+        self.encryption = Some(encryption);
+        self
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Envelope {
+    config: EnvelopeConfig,
+}
+
+impl Envelope {
+    pub const fn new(config: EnvelopeConfig) -> Self {
+        Self { config }
+    }
+
+    pub fn encode_bytes(&self, payload: &[u8]) -> Result<Vec<u8>, EnvelopeError> {
+        encode_bytes(payload, &self.config)
+    }
+
+    pub fn decode_bytes<'a>(&self, bytes: &'a [u8]) -> Result<Cow<'a, [u8]>, EnvelopeError> {
+        decode_bytes(bytes, &self.config)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,6 +62,7 @@ impl EnvelopeConfig {
 enum EnvelopeKind {
     Plain = 0,
     Lz4 = 1,
+    XChaCha20Poly1305 = 2,
 }
 
 impl TryFrom<u8> for EnvelopeKind {
@@ -38,6 +72,7 @@ impl TryFrom<u8> for EnvelopeKind {
         match value {
             0 => Ok(Self::Plain),
             1 => Ok(Self::Lz4),
+            2 => Ok(Self::XChaCha20Poly1305),
             other => Err(EnvelopeError::UnknownEnvelopeKind(other)),
         }
     }
@@ -51,12 +86,6 @@ struct EnvelopeHeader {
 
 #[derive(Debug, Error)]
 pub enum EnvelopeError {
-    #[error("failed to serialize value: {0}")]
-    Serialize(postcard::Error),
-
-    #[error("failed to deserialize value: {0}")]
-    Deserialize(postcard::Error),
-
     #[error("unsupported envelope version: {0}")]
     UnsupportedEnvelopeVersion(u8),
 
@@ -74,6 +103,12 @@ pub enum EnvelopeError {
 
     #[error("lz4 decompression failed: {0}")]
     Decompress(lz4_flex::block::DecompressError),
+
+    #[error("envelope requires an encryption key but none was provided")]
+    MissingEncryptionKey,
+
+    #[error("xchacha20poly1305 operation failed")]
+    Aead,
 }
 
 impl From<EnvelopeError> for io::Error {
@@ -82,37 +117,29 @@ impl From<EnvelopeError> for io::Error {
     }
 }
 
-pub fn encode_postcard<V: Serialize>(value: &V) -> Result<Vec<u8>, EnvelopeError> {
-    let plain = postcard::to_allocvec(value).map_err(EnvelopeError::Serialize)?;
-    encode_bytes(&plain)
-}
+pub fn encode_bytes(payload: &[u8], config: &EnvelopeConfig) -> Result<Vec<u8>, EnvelopeError> {
+    let mut encoded = encode_envelope_layer(EnvelopeKind::Plain, payload, payload.len())?;
 
-pub fn decode_postcard<V: DeserializeOwned>(bytes: &[u8]) -> Result<V, EnvelopeError> {
-    let payload = decode_bytes(bytes)?;
-    postcard::from_bytes(payload.as_ref()).map_err(EnvelopeError::Deserialize)
-}
-
-pub fn encode_bytes(plain_payload: &[u8]) -> Result<Vec<u8>, EnvelopeError> {
-    let config = EnvelopeConfig::DEFAULT;
-    let plain_layer =
-        encode_envelope_layer(EnvelopeKind::Plain, plain_payload, plain_payload.len())?;
-
-    if plain_payload.len() < config.compression_threshold_bytes {
-        return Ok(plain_layer);
+    if payload.len() >= config.compression_threshold_bytes {
+        let compressed = lz4_flex::block::compress(&encoded);
+        if compressed.len() + ENVELOPE_HEADER_LEN < encoded.len() {
+            encoded = encode_envelope_layer(EnvelopeKind::Lz4, &compressed, encoded.len())?;
+        }
     }
 
-    let compressed = lz4_flex::block::compress(&plain_layer);
-
-    if compressed.len() + ENVELOPE_HEADER_LEN >= plain_layer.len() {
-        return Ok(plain_layer);
+    if let Some(encryption) = config.encryption {
+        encoded = encode_encrypted_layer(&encoded, encryption)?;
     }
 
-    encode_envelope_layer(EnvelopeKind::Lz4, &compressed, plain_layer.len())
+    Ok(encoded)
 }
 
-pub fn decode_bytes(bytes: &[u8]) -> Result<Cow<'_, [u8]>, EnvelopeError> {
+pub fn decode_bytes<'a>(
+    bytes: &'a [u8],
+    config: &EnvelopeConfig,
+) -> Result<Cow<'a, [u8]>, EnvelopeError> {
     if has_envelope_magic(bytes) {
-        decode_envelope_bytes(bytes, 0, &EnvelopeConfig::DEFAULT)
+        decode_envelope_bytes(bytes, 0, config)
     } else {
         Ok(Cow::Borrowed(bytes))
     }
@@ -120,6 +147,25 @@ pub fn decode_bytes(bytes: &[u8]) -> Result<Cow<'_, [u8]>, EnvelopeError> {
 
 pub fn has_envelope_magic(bytes: &[u8]) -> bool {
     bytes.len() >= ENVELOPE_MAGIC.len() && bytes[..ENVELOPE_MAGIC.len()] == ENVELOPE_MAGIC
+}
+
+fn encode_encrypted_layer(
+    inner: &[u8],
+    encryption: EnvelopeEncryptionConfig,
+) -> Result<Vec<u8>, EnvelopeError> {
+    let cipher =
+        XChaCha20Poly1305::new_from_slice(&encryption.key).map_err(|_| EnvelopeError::Aead)?;
+    let nonce_bytes = random::<[u8; XCHACHA20_NONCE_LEN]>();
+    let nonce = XNonce::from_slice(&nonce_bytes);
+    let ciphertext = cipher
+        .encrypt(nonce, inner)
+        .map_err(|_| EnvelopeError::Aead)?;
+
+    let mut payload = Vec::with_capacity(XCHACHA20_NONCE_LEN + ciphertext.len());
+    payload.extend_from_slice(&nonce_bytes);
+    payload.extend_from_slice(&ciphertext);
+
+    encode_envelope_layer(EnvelopeKind::XChaCha20Poly1305, &payload, inner.len())
 }
 
 fn decode_envelope_bytes<'a>(
@@ -156,6 +202,34 @@ fn decode_envelope_bytes<'a>(
             }
 
             let nested = decode_envelope_bytes(&decompressed, depth + 1, config)?;
+            Ok(Cow::Owned(nested.into_owned()))
+        }
+        EnvelopeKind::XChaCha20Poly1305 => {
+            let encryption = config
+                .encryption
+                .ok_or(EnvelopeError::MissingEncryptionKey)?;
+            let expected_len = usize::try_from(header.raw_len)
+                .map_err(|_| EnvelopeError::InvalidEnvelope("raw length does not fit usize"))?;
+            if payload.len() < XCHACHA20_NONCE_LEN {
+                return Err(EnvelopeError::InvalidEnvelope(
+                    "encrypted envelope missing nonce",
+                ));
+            }
+
+            let cipher = XChaCha20Poly1305::new_from_slice(&encryption.key)
+                .map_err(|_| EnvelopeError::Aead)?;
+            let nonce = XNonce::from_slice(&payload[..XCHACHA20_NONCE_LEN]);
+            let decrypted = cipher
+                .decrypt(nonce, &payload[XCHACHA20_NONCE_LEN..])
+                .map_err(|_| EnvelopeError::Aead)?;
+
+            if decrypted.len() != expected_len {
+                return Err(EnvelopeError::InvalidEnvelope(
+                    "decrypted payload length mismatch",
+                ));
+            }
+
+            let nested = decode_envelope_bytes(&decrypted, depth + 1, config)?;
             Ok(Cow::Owned(nested.into_owned()))
         }
     }
@@ -197,9 +271,9 @@ fn parse_envelope(bytes: &[u8]) -> Result<(EnvelopeHeader, &[u8]), EnvelopeError
                 "plain envelope raw length mismatch",
             ));
         }
-        EnvelopeKind::Lz4 if raw_len == 0 => {
+        EnvelopeKind::Lz4 | EnvelopeKind::XChaCha20Poly1305 if raw_len == 0 => {
             return Err(EnvelopeError::InvalidEnvelope(
-                "compressed envelope raw length cannot be zero",
+                "wrapped envelope raw length cannot be zero",
             ));
         }
         _ => {}
@@ -236,48 +310,71 @@ fn encode_envelope_layer(
 mod tests {
     use super::*;
 
-    #[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-    struct Sample {
-        title: String,
+    #[test]
+    fn legacy_plain_payload_still_decodes() {
+        let payload = b"legacy-payload";
+        let decoded = decode_bytes(payload, &EnvelopeConfig::DEFAULT).unwrap();
+        assert_eq!(decoded.as_ref(), payload);
     }
 
     #[test]
-    fn legacy_plain_postcard_still_decodes() {
-        let bytes = postcard::to_allocvec(&Sample {
-            title: "legacy".into(),
-        })
+    fn envelope_struct_wraps_free_functions() {
+        let payload = b"hello envelope";
+        let envelope = Envelope::new(EnvelopeConfig::DEFAULT);
+        let encoded = envelope.encode_bytes(payload).unwrap();
+        let decoded = envelope.decode_bytes(&encoded).unwrap();
+
+        assert!(has_envelope_magic(&encoded));
+        assert_eq!(decoded.as_ref(), payload);
+    }
+
+    #[test]
+    fn compressed_payload_must_decode_to_original_payload() {
+        let payload = b"x".repeat(4096);
+        let encoded = encode_bytes(&payload, &EnvelopeConfig::DEFAULT).unwrap();
+        let decoded = decode_bytes(&encoded, &EnvelopeConfig::DEFAULT).unwrap();
+
+        assert!(encoded.len() < payload.len() + ENVELOPE_HEADER_LEN);
+        assert_eq!(decoded.as_ref(), payload.as_slice());
+    }
+
+    #[test]
+    fn encrypted_payload_must_decode_to_original_payload() {
+        let payload = b"synap-secret-payload";
+        let config =
+            EnvelopeConfig::DEFAULT.with_encryption(EnvelopeEncryptionConfig { key: [9u8; 32] });
+
+        let encoded = encode_bytes(payload, &config).unwrap();
+        let decoded = decode_bytes(&encoded, &config).unwrap();
+
+        assert!(has_envelope_magic(&encoded));
+        assert_eq!(decoded.as_ref(), payload);
+    }
+
+    #[test]
+    fn encrypted_and_compressed_payload_must_decode_to_original_payload() {
+        let payload = b"secret-".repeat(1024);
+        let config =
+            EnvelopeConfig::DEFAULT.with_encryption(EnvelopeEncryptionConfig { key: [3u8; 32] });
+
+        let encoded = encode_bytes(&payload, &config).unwrap();
+        let decoded = decode_bytes(&encoded, &config).unwrap();
+
+        assert_eq!(decoded.as_ref(), payload.as_slice());
+    }
+
+    #[test]
+    fn encrypted_envelope_requires_key() {
+        let payload = b"secret";
+        let encrypted = encode_bytes(
+            payload,
+            &EnvelopeConfig::DEFAULT.with_encryption(EnvelopeEncryptionConfig { key: [7u8; 32] }),
+        )
         .unwrap();
 
-        let decoded: Sample = decode_postcard(&bytes).unwrap();
-        assert_eq!(
-            decoded,
-            Sample {
-                title: "legacy".into()
-            }
-        );
-    }
-
-    #[test]
-    fn new_payloads_always_have_envelope_magic() {
-        let bytes = encode_postcard(&Sample {
-            title: "new".into(),
-        })
-        .unwrap();
-
-        assert!(has_envelope_magic(&bytes));
-    }
-
-    #[test]
-    fn compressed_payload_must_decode_to_nested_plain_envelope() {
-        let sample = Sample {
-            title: "x".repeat(4096),
-        };
-        let plain = postcard::to_allocvec(&sample).unwrap();
-        let bytes = encode_postcard(&sample).unwrap();
-
-        assert!(bytes.len() < plain.len());
-
-        let decoded: Sample = decode_postcard(&bytes).unwrap();
-        assert_eq!(decoded, sample);
+        assert!(matches!(
+            decode_bytes(&encrypted, &EnvelopeConfig::DEFAULT),
+            Err(EnvelopeError::MissingEncryptionKey)
+        ));
     }
 }

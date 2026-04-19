@@ -42,6 +42,41 @@ fn test_open_memory_database() {
 }
 
 #[test]
+fn test_peer_management_workflow() {
+    let service = open_memory().unwrap();
+    let public_key = vec![7u8; 32];
+
+    let pending = service
+        .trust_peer(public_key.clone(), Some("peer-a".to_string()))
+        .unwrap();
+    assert_eq!(pending.note.as_deref(), Some("peer-a"));
+    assert_eq!(
+        pending.status,
+        uniffi_synap_coreffi::PeerTrustStatusDTO::Trusted
+    );
+
+    let updated = service
+        .update_peer_note(pending.id.clone(), Some("peer-a-updated".to_string()))
+        .unwrap();
+    assert_eq!(updated.note.as_deref(), Some("peer-a-updated"));
+
+    let revoked = service
+        .set_peer_status(
+            pending.id.clone(),
+            uniffi_synap_coreffi::PeerTrustStatusDTO::Revoked,
+        )
+        .unwrap();
+    assert_eq!(
+        revoked.status,
+        uniffi_synap_coreffi::PeerTrustStatusDTO::Revoked
+    );
+
+    service.delete_peer(pending.id.clone()).unwrap();
+    let peers = service.get_peers().unwrap();
+    assert!(peers.into_iter().all(|peer| peer.id != pending.id));
+}
+
+#[test]
 fn test_error_handling() {
     let service = open_memory().unwrap();
 
@@ -217,6 +252,73 @@ fn test_recent_note_cursor_skips_superseded_versions() {
         .unwrap();
     assert_eq!(page_two.len(), 1);
     assert_eq!(page_two[0].id, first.id);
+}
+
+#[test]
+fn test_share_export_and_import_round_trip() {
+    let source = open_memory().unwrap();
+    let target = open_memory().unwrap();
+
+    let root = source
+        .create_note("share root".to_string(), vec!["rust".to_string()])
+        .unwrap();
+    let reply = source
+        .reply_note(
+            root.id.clone(),
+            "share reply".to_string(),
+            vec!["thread".to_string()],
+        )
+        .unwrap();
+
+    let bytes = source
+        .export_share(vec![root.id.clone(), reply.id.clone()])
+        .unwrap();
+    assert!(!bytes.is_empty());
+
+    let stats = target.import_share(bytes.clone()).unwrap();
+    assert_eq!(stats.records, 2);
+    assert_eq!(stats.records_applied, 2);
+    assert_eq!(stats.bytes, bytes.len() as u64);
+
+    let imported_root = target.get_note(root.id).unwrap();
+    let imported_reply = target.get_note(reply.id).unwrap();
+    assert_eq!(imported_root.content, "share root");
+    assert_eq!(imported_reply.content, "share reply");
+}
+
+#[test]
+fn test_export_share_invalid_id_maps_to_ffi_error() {
+    let service = open_memory().unwrap();
+
+    let result = service.export_share(vec!["bad-id".to_string()]);
+    assert!(matches!(result, Err(FfiError::InvalidId)));
+}
+
+#[test]
+fn test_local_identity_and_peers_round_trip() {
+    let source = open_memory().unwrap();
+    let target = open_memory().unwrap();
+
+    let local = source.get_local_identity().unwrap();
+    assert_eq!(local.identity.algorithm, "x25519");
+    assert_eq!(local.signing.algorithm, "ed25519");
+    assert_eq!(local.identity.public_key.len(), 32);
+    assert_eq!(local.signing.public_key.len(), 32);
+    assert!(!local.identity.kaomoji_fingerprint.is_empty());
+    assert!(!local.signing.kaomoji_fingerprint.is_empty());
+
+    let trusted = target
+        .trust_peer(
+            local.signing.public_key.clone(),
+            Some("source device".to_string()),
+        )
+        .unwrap();
+    assert_eq!(trusted.public_key, local.signing.public_key);
+    assert_eq!(trusted.note.as_deref(), Some("source device"));
+
+    let peers = target.get_peers().unwrap();
+    assert_eq!(peers.len(), 1);
+    assert_eq!(peers[0], trusted);
 }
 
 #[test]

@@ -10,6 +10,6 @@ mod share_tests;
 mod tests;
 
 pub use protocol::{SyncChannel, SyncConfig, SyncError, SyncStats, PROTOCOL_VERSION};
-pub use service::SyncService;
+pub use service::{SyncPeerIdentity, SyncService};
 pub use share::{ShareStats, SHARE_VERSION};
 pub use share_service::ShareService;

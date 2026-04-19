@@ -2,7 +2,7 @@ use std::io::{self, Read, Write};
 
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::envelope;
+use crate::envelope::{self, EnvelopeConfig};
 
 const MAX_FRAME_SIZE: usize = 16 * 1024 * 1024;
 
@@ -13,7 +13,11 @@ impl FrameCodec {
         writer: &mut impl Write,
         message: &T,
     ) -> Result<usize, io::Error> {
-        let payload = envelope::encode_postcard(message).map_err(io::Error::from)?;
+        let raw = postcard::to_allocvec(message).map_err(|_| {
+            io::Error::new(io::ErrorKind::InvalidData, "frame postcard encode failed")
+        })?;
+        let payload =
+            envelope::encode_bytes(&raw, &EnvelopeConfig::DEFAULT).map_err(io::Error::from)?;
 
         if payload.len() > MAX_FRAME_SIZE {
             return Err(io::Error::new(
@@ -25,6 +29,7 @@ impl FrameCodec {
         let len = payload.len() as u32;
         writer.write_all(&len.to_be_bytes())?;
         writer.write_all(&payload)?;
+        writer.flush()?;
 
         Ok(payload.len() + 4)
     }
@@ -45,7 +50,11 @@ impl FrameCodec {
 
         let mut payload = vec![0_u8; len];
         reader.read_exact(&mut payload)?;
-        let message = envelope::decode_postcard(&payload).map_err(io::Error::from)?;
+        let raw =
+            envelope::decode_bytes(&payload, &EnvelopeConfig::DEFAULT).map_err(io::Error::from)?;
+        let message = postcard::from_bytes(raw.as_ref()).map_err(|_| {
+            io::Error::new(io::ErrorKind::InvalidData, "frame postcard decode failed")
+        })?;
 
         Ok((message, len + 4))
     }
@@ -77,7 +86,7 @@ mod tests {
         let bytes = channel.into_inner();
 
         assert_eq!(written, bytes.len());
-        assert!(envelope::has_envelope_magic(&bytes[4..]));
+        assert!(bytes[4..].starts_with(&envelope::ENVELOPE_MAGIC));
     }
 
     #[test]

@@ -1,14 +1,63 @@
 //! FFI-compatible service wrapper for Synap using UniFFI.
 
-use std::sync::Arc;
+use std::{
+    io::{Read, Write},
+    sync::Arc,
+};
 
 use crate::error::FfiError;
 use crate::types::{
-    BuildInfo, FilteredNoteStatus, NoteDTO, TimelineDirection, TimelineNotesPageDTO,
+    BuildInfo, FilteredNoteStatus, LocalIdentityDTO, NoteDTO, PeerDTO, ShareStatsDTO,
+    SyncSessionDTO, SyncSessionRecordDTO, TimelineDirection, TimelineNotesPageDTO,
     TimelineSessionsPageDTO,
 };
 use synap_core::dto::NoteDTO as CoreNoteDTO;
 use synap_core::service::SynapService as CoreSynapService;
+
+struct ForeignSyncTransport {
+    inner: Box<dyn crate::SyncTransport>,
+}
+
+impl ForeignSyncTransport {
+    fn new(inner: Box<dyn crate::SyncTransport>) -> Self {
+        Self { inner }
+    }
+}
+
+impl Read for ForeignSyncTransport {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
+
+        let bytes = self
+            .inner
+            .read(buf.len().try_into().unwrap_or(u32::MAX))
+            .map_err(std::io::Error::other)?;
+        let len = bytes.len().min(buf.len());
+        buf[..len].copy_from_slice(&bytes[..len]);
+        Ok(len)
+    }
+}
+
+impl Write for ForeignSyncTransport {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.inner
+            .write(buf.to_vec())
+            .map_err(std::io::Error::other)?;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl Drop for ForeignSyncTransport {
+    fn drop(&mut self) {
+        let _ = self.inner.close();
+    }
+}
 
 /// FFI-compatible Synap service wrapper.
 pub struct SynapService {
@@ -34,6 +83,32 @@ impl SynapService {
 
     fn map_session_page(page: synap_core::dto::TimelineSessionsPageDTO) -> TimelineSessionsPageDTO {
         page.into()
+    }
+
+    fn map_share_stats(stats: synap_core::dto::ShareStatsDTO) -> ShareStatsDTO {
+        stats.into()
+    }
+
+    fn map_sync_session(session: synap_core::dto::SyncSessionDTO) -> SyncSessionDTO {
+        session.into()
+    }
+
+    fn map_sync_session_records(
+        records: Vec<synap_core::dto::SyncSessionRecordDTO>,
+    ) -> Vec<SyncSessionRecordDTO> {
+        records.into_iter().map(Into::into).collect()
+    }
+
+    fn map_local_identity(identity: synap_core::dto::LocalIdentityDTO) -> LocalIdentityDTO {
+        identity.into()
+    }
+
+    fn map_peer(peer: synap_core::dto::PeerDTO) -> PeerDTO {
+        peer.into()
+    }
+
+    fn map_peers(peers: Vec<synap_core::dto::PeerDTO>) -> Vec<PeerDTO> {
+        peers.into_iter().map(Into::into).collect()
     }
 
     pub fn get_note(&self, id_or_short_id: String) -> Result<NoteDTO, FfiError> {
@@ -250,6 +325,98 @@ impl SynapService {
 
     pub fn restore_note(&self, target_id: String) -> Result<(), FfiError> {
         self.inner.restore_note(&target_id).map_err(Into::into)
+    }
+
+    pub fn export_share(&self, note_ids: Vec<String>) -> Result<Vec<u8>, FfiError> {
+        self.inner.export_share(&note_ids).map_err(Into::into)
+    }
+
+    pub fn import_share(&self, bytes: Vec<u8>) -> Result<ShareStatsDTO, FfiError> {
+        self.inner
+            .import_share(&bytes)
+            .map(Self::map_share_stats)
+            .map_err(Into::into)
+    }
+
+    pub fn get_local_identity(&self) -> Result<LocalIdentityDTO, FfiError> {
+        self.inner
+            .get_local_identity()
+            .map(Self::map_local_identity)
+            .map_err(Into::into)
+    }
+
+    pub fn get_peers(&self) -> Result<Vec<PeerDTO>, FfiError> {
+        self.inner
+            .get_peers()
+            .map(Self::map_peers)
+            .map_err(Into::into)
+    }
+
+    pub fn trust_peer(
+        &self,
+        public_key: Vec<u8>,
+        note: Option<String>,
+    ) -> Result<PeerDTO, FfiError> {
+        self.inner
+            .trust_peer(&public_key, note)
+            .map(Self::map_peer)
+            .map_err(Into::into)
+    }
+
+    pub fn update_peer_note(
+        &self,
+        peer_id: String,
+        note: Option<String>,
+    ) -> Result<PeerDTO, FfiError> {
+        self.inner
+            .update_peer_note(&peer_id, note)
+            .map(Self::map_peer)
+            .map_err(Into::into)
+    }
+
+    pub fn set_peer_status(
+        &self,
+        peer_id: String,
+        status: crate::types::PeerTrustStatusDTO,
+    ) -> Result<PeerDTO, FfiError> {
+        self.inner
+            .set_peer_status(&peer_id, status.into())
+            .map(Self::map_peer)
+            .map_err(Into::into)
+    }
+
+    pub fn delete_peer(&self, peer_id: String) -> Result<(), FfiError> {
+        self.inner.delete_peer(&peer_id).map_err(Into::into)
+    }
+
+    pub fn get_recent_sync_sessions(
+        &self,
+        limit: Option<u32>,
+    ) -> Result<Vec<SyncSessionRecordDTO>, FfiError> {
+        self.inner
+            .get_recent_sync_sessions(limit.map(|value| value as usize))
+            .map(Self::map_sync_session_records)
+            .map_err(Into::into)
+    }
+
+    pub fn initiate_sync(
+        &self,
+        transport: Box<dyn crate::SyncTransport>,
+    ) -> Result<SyncSessionDTO, FfiError> {
+        self.inner
+            .initiate_sync(ForeignSyncTransport::new(transport))
+            .map(Self::map_sync_session)
+            .map_err(Into::into)
+    }
+
+    pub fn listen_sync(
+        &self,
+        transport: Box<dyn crate::SyncTransport>,
+    ) -> Result<SyncSessionDTO, FfiError> {
+        self.inner
+            .listen_sync(ForeignSyncTransport::new(transport))
+            .map(Self::map_sync_session)
+            .map_err(Into::into)
     }
 }
 
@@ -478,6 +645,44 @@ mod tests {
             .unwrap();
         assert_eq!(travel_notes.len(), 1);
         assert_eq!(travel_notes[0].id, third.id);
+    }
+
+    #[test]
+    fn test_sync_identity_and_peers_are_exposed() {
+        let service = open_memory().unwrap();
+
+        let identity = service.get_local_identity().unwrap();
+        assert_eq!(identity.identity.algorithm, "x25519");
+        assert_eq!(identity.identity.public_key.len(), 32);
+        assert!(!identity.identity.kaomoji_fingerprint.is_empty());
+        assert_eq!(identity.signing.algorithm, "ed25519");
+        assert_eq!(identity.signing.public_key.len(), 32);
+        assert!(!identity.signing.kaomoji_fingerprint.is_empty());
+
+        let peers = service.get_peers().unwrap();
+        assert!(peers.is_empty());
+    }
+
+    #[test]
+    fn test_trust_peer_is_exposed() {
+        let service = open_memory().unwrap();
+        let peer_service = open_memory().unwrap();
+
+        let peer_identity = peer_service.get_local_identity().unwrap();
+        let peer = service
+            .trust_peer(
+                peer_identity.signing.public_key.clone(),
+                Some("android phone".to_string()),
+            )
+            .unwrap();
+
+        assert_eq!(peer.algorithm, "ed25519");
+        assert_eq!(peer.public_key, peer_identity.signing.public_key);
+        assert_eq!(peer.note.as_deref(), Some("android phone"));
+
+        let peers = service.get_peers().unwrap();
+        assert_eq!(peers.len(), 1);
+        assert_eq!(peers[0], peer);
     }
 
     #[test]
