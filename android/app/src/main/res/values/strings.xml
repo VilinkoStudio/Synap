@@ -41,7 +41,7 @@
     <string name="handedness_desc">更改浮动按钮和页面出现的位置</string>
     <string name="left_handed">靠左</string>
     <string name="right_handed">靠右</string>
-    <string name="backup_and_restore">备份与恢复</string>
+    <string name="backup_and_sync">备份与同步</string>
     <string name="export_backup">导出为备份文件(.redb)</string>
     <string name="export_and_share">导出备份文件(.redb)并分享</string>
     <string name="export_and_share_desc">将完整数据备份并分享到其他软件或设备</string>
