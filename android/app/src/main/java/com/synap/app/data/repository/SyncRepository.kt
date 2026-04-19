@@ -5,6 +5,7 @@ import com.synap.app.data.model.DiscoveredSyncPeer
 import com.synap.app.data.model.LocalIdentity
 import com.synap.app.data.model.PeerRecord
 import com.synap.app.data.model.PeerTrustStatus
+import com.synap.app.data.model.ShareImportStats
 import com.synap.app.data.model.SyncConnectionRecord
 import com.synap.app.data.model.SyncConnectionStatus
 import com.synap.app.data.model.SyncListenerState
@@ -69,6 +70,7 @@ class SyncRepositoryImpl @Inject constructor(
     private val runtime: SyncNetworkRuntime,
     private val discoveryRuntime: SyncDiscoveryRuntime,
     private val connectionStore: SyncConnectionStore,
+    private val mutationStore: SynapMutationStore,
 ) : SyncRepository {
     private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
     override val runtimeState: StateFlow<SyncListenerState> = runtime.state
@@ -88,6 +90,7 @@ class SyncRepositoryImpl @Inject constructor(
                         }
                     }.onSuccess { session ->
                         Log.i(TAG, "Inbound sync completed with status=${session.status}")
+                        emitImportedMutationIfNeeded(session)
                     }.onFailure { throwable ->
                         Log.e(TAG, "Inbound sync failed", throwable)
                     }
@@ -204,10 +207,27 @@ class SyncRepositoryImpl @Inject constructor(
             ),
         ).unwrap()
         try {
-            service.initiateSync(channel).unwrap()
+            service.initiateSync(channel).unwrap().also(::emitImportedMutationIfNeeded)
         } finally {
             channel.close()
         }
+    }
+
+    private fun emitImportedMutationIfNeeded(session: SyncSession) {
+        if (session.status != SyncStatus.Completed) {
+            return
+        }
+        val stats = session.stats ?: return
+        mutationStore.emit(
+            SynapMutation.Imported(
+                ShareImportStats(
+                    records = stats.recordsReceived.toLong(),
+                    recordsApplied = stats.recordsApplied.toLong(),
+                    bytes = stats.bytesReceived.toLong(),
+                    durationMs = stats.durationMs.toLong(),
+                ),
+            ),
+        )
     }
 
     private fun <T> Result<T>.unwrap(): T = getOrElse { throw it }

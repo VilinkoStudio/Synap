@@ -10,9 +10,7 @@ import com.synap.app.data.portal.CursorPortal
 import com.synap.app.data.service.SynapServiceApi
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
 
 sealed interface SynapMutation {
     data class Created(val noteId: String) : SynapMutation
@@ -89,9 +87,9 @@ interface SynapRepository {
 @Singleton
 class SynapRepositoryImpl @Inject constructor(
     private val service: SynapServiceApi,
+    private val mutationStore: SynapMutationStore,
 ) : SynapRepository {
-    private val _mutations = MutableSharedFlow<SynapMutation>(extraBufferCapacity = 32)
-    override val mutations: SharedFlow<SynapMutation> = _mutations.asSharedFlow()
+    override val mutations: SharedFlow<SynapMutation> = mutationStore.mutations
 
     override suspend fun initialize() {
         service.initialize().unwrap()
@@ -210,36 +208,36 @@ class SynapRepositoryImpl @Inject constructor(
             service.initialize().unwrap()
         }
         val stats = service.importShare(bytes).unwrap()
-        _mutations.tryEmit(SynapMutation.Imported(stats))
+        mutationStore.emit(SynapMutation.Imported(stats))
         return stats
     }
 
     override suspend fun createNote(content: String, tags: List<String>): NoteRecord {
         val created = service.createNote(content, tags).unwrap()
-        _mutations.tryEmit(SynapMutation.Created(created.id))
+        mutationStore.emit(SynapMutation.Created(created.id))
         return created
     }
 
     override suspend fun replyToNote(parentId: String, content: String, tags: List<String>): NoteRecord {
         val created = service.replyNote(parentId, content, tags).unwrap()
-        _mutations.tryEmit(SynapMutation.Replied(parentId = parentId, noteId = created.id))
+        mutationStore.emit(SynapMutation.Replied(parentId = parentId, noteId = created.id))
         return created
     }
 
     override suspend fun editNote(targetId: String, newContent: String, tags: List<String>): NoteRecord {
         val edited = service.editNote(targetId, newContent, tags).unwrap()
-        _mutations.tryEmit(SynapMutation.Edited(oldId = targetId, newId = edited.id))
+        mutationStore.emit(SynapMutation.Edited(oldId = targetId, newId = edited.id))
         return edited
     }
 
     override suspend fun deleteNote(targetId: String) {
         service.deleteNote(targetId).unwrap()
-        _mutations.tryEmit(SynapMutation.Deleted(targetId))
+        mutationStore.emit(SynapMutation.Deleted(targetId))
     }
 
     override suspend fun restoreNote(targetId: String) {
         service.restoreNote(targetId).unwrap()
-        _mutations.tryEmit(SynapMutation.Restored(targetId))
+        mutationStore.emit(SynapMutation.Restored(targetId))
     }
 
     private fun <T> Result<T>.unwrap(): T = getOrElse { throw it }
