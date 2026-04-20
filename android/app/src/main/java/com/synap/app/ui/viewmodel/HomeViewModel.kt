@@ -257,31 +257,70 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    // ==================== 核心修复：完美支持“多选”的正选逻辑 ====================
+
     fun toggleTag(tag: String) {
-        unselectedTags.value = if (tag in unselectedTags.value) {
-            unselectedTags.value - tag
+        val allTags = availableTags.value.toSet()
+        val isAllSelected = unselectedTags.value.isEmpty() && !isUntaggedUnselected.value
+
+        if (isAllSelected) {
+            // 当前是“全部”状态，点击某个标签后，变成“仅选中该标签”
+            // 做法：将其他所有标签放入排除列表
+            unselectedTags.value = allTags - tag
+            isUntaggedUnselected.value = true
         } else {
-            unselectedTags.value + tag
+            // 当前已经是多选状态，反转这个标签的选中状态
+            val currentUnselected = unselectedTags.value.toMutableSet()
+            if (tag in currentUnselected) {
+                // 如果之前没被选中(在排除列表里)，现在选中它
+                currentUnselected.remove(tag)
+            } else {
+                // 如果之前被选中了(不在排除列表里)，现在取消选中它
+                currentUnselected.add(tag)
+            }
+
+            // 触底判断：如果取消选中后，所有的标签和“未分类”都处于未选中状态，则恢复“全部”亮起
+            if (currentUnselected.size == allTags.size && isUntaggedUnselected.value) {
+                unselectedTags.value = emptySet()
+                isUntaggedUnselected.value = false
+            } else {
+                unselectedTags.value = currentUnselected
+            }
         }
         triggerFilterRefresh()
     }
 
     fun toggleUntagged() {
-        isUntaggedUnselected.value = !isUntaggedUnselected.value
+        val allTags = availableTags.value.toSet()
+        val isAllSelected = unselectedTags.value.isEmpty() && !isUntaggedUnselected.value
+
+        if (isAllSelected) {
+            // 当前是“全部”状态，点击未分类后，变成“仅选中未分类”
+            unselectedTags.value = allTags
+            isUntaggedUnselected.value = false
+        } else {
+            // 当前已经是多选状态，反转未分类的选中状态
+            val newUntaggedUnselected = !isUntaggedUnselected.value
+
+            // 触底判断：如果取消选中后，什么都没选中了，则恢复“全部”亮起
+            if (unselectedTags.value.size == allTags.size && newUntaggedUnselected) {
+                unselectedTags.value = emptySet()
+                isUntaggedUnselected.value = false
+            } else {
+                isUntaggedUnselected.value = newUntaggedUnselected
+            }
+        }
         triggerFilterRefresh()
     }
 
     fun toggleAllTags() {
-        val isAllSelected = unselectedTags.value.isEmpty() && !isUntaggedUnselected.value
-        if (isAllSelected) {
-            unselectedTags.value = availableTags.value.toSet()
-            isUntaggedUnselected.value = true
-        } else {
-            unselectedTags.value = emptySet()
-            isUntaggedUnselected.value = false
-        }
+        // 点击“全部”，意味着清空所有过滤排除条件，显示全部
+        unselectedTags.value = emptySet()
+        isUntaggedUnselected.value = false
         triggerFilterRefresh()
     }
+
+    // ================================================================
 
     fun setFilterPanelOpen(isOpen: Boolean) {
         if (isFilterPanelOpen.value == isOpen) {

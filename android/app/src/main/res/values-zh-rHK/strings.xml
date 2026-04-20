@@ -1,11 +1,11 @@
 <resources>
+    <string name="app_name">Synap</string>
     <string name="home">主頁</string>
     <string name="delete">刪除</string>
     <string name="cancel">取消</string>
     <string name="edit">編輯</string>
     <string name="reply">回覆</string>
     <string name="retry">重試</string>
-    <string name="app_name">Synap</string>
     <string name="back">返回</string>
     <string name="clear">清空</string>
     <string name="selected">已選擇</string>
@@ -41,7 +41,7 @@
     <string name="handedness_desc">更改浮動按鈕和頁面出現的位置</string>
     <string name="left_handed">靠左</string>
     <string name="right_handed">靠右</string>
-    <string name="backup_and_restore">備份與還原</string>
+    <string name="backup_and_sync">備份與同步</string>
     <string name="export_backup">匯出為備份檔 (.redb)</string>
     <string name="export_and_share">匯出備份檔 (.redb) 並分享</string>
     <string name="export_and_share_desc">將完整資料備份並分享到其他軟件或設備</string>
@@ -96,7 +96,11 @@
     <string name="creative_team">創作團隊</string>
     <string name="bilibili">嗶哩嗶哩</string>
     <string name="tiktok">抖音</string>
-    <string name="role_frontend_ui">前端 &amp; UI設計</string>
     <string name="edit_reply_context_title">接續這條思路</string>
-    <string name="role_backend">後端開發</string>
+    <string name="share_import_in_progress_title">正在匯入分享內容</string>
+    <string name="share_import_in_progress_message">請稍候，Synap 正在處理這份分享數據。</string>
+    <string name="share_import_success_title">匯入完成</string>
+    <string name="share_import_error_title">匯入失敗</string>
+    <string name="share_import_confirm">知道了</string>
+    <string name="share_import_close">關閉</string>
 </resources>

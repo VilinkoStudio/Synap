@@ -1,11 +1,11 @@
 <resources>
+    <string name="app_name">Synap</string>
     <string name="home">Home</string>
     <string name="delete">Delete</string>
     <string name="cancel">Cancel</string>
     <string name="edit">Edit</string>
     <string name="reply">Reply</string>
     <string name="retry">Retry</string>
-    <string name="app_name">Synap</string>
     <string name="back">Back</string>
     <string name="clear">Clear</string>
     <string name="selected">Selected</string>
@@ -41,7 +41,6 @@
     <string name="handedness_desc">Change the position of floating buttons and pages</string>
     <string name="left_handed">Left-aligned</string>
     <string name="right_handed">Right-aligned</string>
-    <string name="backup_and_restore">Backup &amp; Restore</string>
     <string name="export_backup">Export as backup file (.redb)</string>
     <string name="export_and_share">Export and share backup file (.redb)</string>
     <string name="export_and_share_desc">Backup and share full data to other apps or devices</string>
@@ -96,8 +95,6 @@
     <string name="creative_team">Creator</string>
     <string name="bilibili">bilibili</string>
     <string name="tiktok">TikTok</string>
-    <string name="role_backend">Backend Developer</string>
-    <string name="role_frontend_ui">Frontend &amp; UI Design</string>
     <string name="edit_reply_context_title">Continue this thought</string>
     <string name="share_import_in_progress_title">Importing shared content</string>
     <string name="share_import_in_progress_message">Please wait while Synap imports the shared data.</string>
@@ -105,4 +102,5 @@
     <string name="share_import_error_title">Import failed</string>
     <string name="share_import_confirm">OK</string>
     <string name="share_import_close">Close</string>
+    <string name="backup_and_sync">备份与同步</string>
 </resources>

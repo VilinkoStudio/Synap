@@ -406,7 +406,7 @@ fun SettingsScreen(
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "同步与设备",
+                            text = "同步",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                         )

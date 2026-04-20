@@ -4,6 +4,7 @@ import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -57,6 +58,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.synap.app.data.model.LocalIdentity
 import com.synap.app.data.model.SyncConnectionRecord
@@ -97,6 +99,9 @@ fun SyncScreen(
     var connectionHost by remember { mutableStateOf("") }
     var connectionPort by remember { mutableStateOf("") }
 
+    // ========== 新增：控制监听状态弹窗的开关 ==========
+    var showListeningInfoDialog by remember { mutableStateOf(false) }
+
     LaunchedEffect(uiState.pendingTrustPeer?.id) {
         uiState.pendingTrustPeer?.let { peer ->
             activePeer = peer
@@ -127,7 +132,16 @@ fun SyncScreen(
             },
         topBar = {
             TopAppBar(
-                title = { Text("同步") },
+                title = {
+                    // ========== 核心修改 1：在标题旁增加监听状态文字按钮 ==========
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("同步")
+                        Spacer(modifier = Modifier.width(12.dp))
+                        TextButton(onClick = { showListeningInfoDialog = true }) {
+                            Text(if (uiState.listenerState.isListening) "正在监听" else "未监听")
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
@@ -151,15 +165,7 @@ fun SyncScreen(
         ) {
             Spacer(modifier = Modifier.height(4.dp))
 
-            SyncOverviewCard(
-                status = uiState.listenerState.status,
-                protocol = uiState.listenerState.protocol,
-                backend = uiState.listenerState.backend,
-                port = uiState.listenerState.listenPort,
-                localAddresses = uiState.listenerState.localAddresses,
-                isListening = uiState.listenerState.isListening,
-                onRefresh = onRefresh,
-            )
+            // 原本的 SyncOverviewCard 已经被移除，内容已转移至下方的 showListeningInfoDialog 中
 
             uiState.errorMessage?.let { message ->
                 Card(
@@ -203,6 +209,32 @@ fun SyncScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+
+    // ========== 核心修改 1 延伸：监听信息的弹窗 ==========
+    if (showListeningInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showListeningInfoDialog = false },
+            icon = { Icon(Icons.Filled.Wifi, contentDescription = null) },
+            title = { Text("监听状态") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SyncInfoLine("协议", uiState.listenerState.protocol)
+                    SyncInfoLine("实现", uiState.listenerState.backend)
+                    SyncInfoLine("监听端口", uiState.listenerState.listenPort?.toString() ?: "未分配")
+                    SyncInfoLine(
+                        "局域网地址",
+                        uiState.listenerState.localAddresses.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "未获取到局域网地址",
+                    )
+                    SyncInfoLine("状态", if (uiState.listenerState.isListening) "正在监听" else "未监听")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showListeningInfoDialog = false }) {
+                    Text("关闭")
+                }
+            }
+        )
     }
 
     if (showAddConnectionDialog) {
@@ -270,7 +302,7 @@ fun SyncScreen(
                 Text(if (peer.status == PeerTrustStatus.Pending) "处理设备信任" else "管理设备")
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(
                         if (peer.status == PeerTrustStatus.Pending) {
                             "这是刚刚连接到的设备。你可以直接确认信任、拒绝，或者先修改备注。"
@@ -279,21 +311,47 @@ fun SyncScreen(
                         },
                     )
                     Text("当前状态：${peer.status.displayLabel()}")
-                    Text("颜文字指纹：${peer.kaomojiFingerprint}")
-                    Text("摘要：${fingerprintHex(peer.fingerprint)}")
-                    OutlinedTextField(
-                        value = peerNoteDraft,
-                        onValueChange = { peerNoteDraft = it },
-                        label = { Text("备注") },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    FilledTonalButton(
-                        onClick = { onUpdatePeerNote(peer.id, peerNoteDraft) },
-                        enabled = !uiState.isManagingPeer,
-                        modifier = Modifier.fillMaxWidth(),
+
+                    // ========== 核心修改 2：包装的设备信息 ==========
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("保存备注")
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text("设备信息", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SyncInfoLine("颜文字指纹", peer.kaomojiFingerprint)
+                                SyncInfoLine("设备摘要", fingerprintHex(peer.fingerprint))
+                            }
+                        }
                     }
+
+                    // ========== 核心修改 3：备注输入框与保存按钮排成一行 ==========
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = peerNoteDraft,
+                            onValueChange = { peerNoteDraft = it },
+                            label = { Text("备注") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        FilledTonalButton(
+                            onClick = { onUpdatePeerNote(peer.id, peerNoteDraft) },
+                            enabled = !uiState.isManagingPeer,
+                        ) {
+                            Text("保存")
+                        }
+                    }
+
                     if (peer.status == PeerTrustStatus.Pending) {
                         Button(
                             onClick = {
@@ -338,18 +396,22 @@ fun SyncScreen(
                             Text(actionLabel)
                         }
                     }
-                    TextButton(
-                        onClick = {
-                            onDeletePeer(peer.id)
-                            if (uiState.pendingTrustPeer?.id == peer.id) {
-                                onDismissPendingTrustPrompt()
-                            }
-                            activePeer = null
-                            peerNoteDraft = ""
-                        },
-                        enabled = !uiState.isManagingPeer,
-                    ) {
-                        Text("删除这个设备")
+
+                    // ========== 核心修改 4：居中且带有警示色的删除按钮 ==========
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        TextButton(
+                            onClick = {
+                                onDeletePeer(peer.id)
+                                if (uiState.pendingTrustPeer?.id == peer.id) {
+                                    onDismissPendingTrustPrompt()
+                                }
+                                activePeer = null
+                                peerNoteDraft = ""
+                            },
+                            enabled = !uiState.isManagingPeer,
+                        ) {
+                            Text("删除这个设备", color = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
             },
@@ -406,66 +468,11 @@ fun SyncScreen(
 }
 
 @Composable
-private fun SyncOverviewCard(
-    status: String,
-    protocol: String,
-    backend: String,
-    port: Int?,
-    localAddresses: List<String>,
-    isListening: Boolean,
-    onRefresh: () -> Unit,
-) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Filled.Wifi,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "监听状态",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = status,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                FilledTonalButton(onClick = onRefresh) {
-                    Text("刷新")
-                }
-            }
-
-            SyncInfoLine("协议", protocol)
-            SyncInfoLine("实现", backend)
-            SyncInfoLine("监听端口", port?.toString() ?: "未分配")
-            SyncInfoLine(
-                "局域网地址",
-                localAddresses.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "未获取到局域网地址",
-            )
-            SyncInfoLine("状态", if (isListening) "已监听" else "未监听")
-        }
-    }
-}
-
-@Composable
 private fun IdentitySection(identity: LocalIdentity?) {
-    SectionTitle(title = "本机身份", subtitle = "展示当前设备的身份与签名密钥，方便人工核对和复制")
+    SectionTitle(title = "此设备秘钥信息", subtitle = "根据当前设备的数据生成唯一身份和签名密钥")
 
     if (identity == null) {
-        EmptySectionCard("正在读取本机身份信息")
+        EmptySectionCard("正在读取此设备信息")
         return
     }
 
@@ -602,7 +609,7 @@ private fun ConnectionSection(
             }
 
             if (discoveredPeers.isEmpty() && connections.isEmpty()) {
-                EmptySectionCard("还没有任何可用连接，等待局域网发现或手动添加地址和端口")
+                EmptySectionCard("暂无可用连接，请确保和其他设备处于同一局域网下，或者您可以尝试手动添加地址和端口。")
             } else {
                 discoveredPeers.forEachIndexed { index, peer ->
                     if (index > 0) {
@@ -699,7 +706,7 @@ private fun PeerSection(
     SectionTitle(title = "设备列表", subtitle = "包含已信任、待确认和已撤销的对端公钥")
 
     if (peers.isEmpty()) {
-        EmptySectionCard("还没有发现任何对端设备")
+        EmptySectionCard("还没有发现任何局域网内的设备")
         return
     }
 
@@ -1045,6 +1052,8 @@ private fun SyncInfoLine(label: String, value: String) {
             text = value,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f)
         )
     }
 }

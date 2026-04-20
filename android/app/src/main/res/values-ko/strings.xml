@@ -1,11 +1,11 @@
 <resources>
+    <string name="app_name">Synap</string>
     <string name="home">홈</string>
     <string name="delete">삭제</string>
     <string name="cancel">취소</string>
     <string name="edit">편집</string>
     <string name="reply">답글</string>
     <string name="retry">다시 시도</string>
-    <string name="app_name">Synap</string>
     <string name="back">뒤로</string>
     <string name="clear">지우기</string>
     <string name="selected">선택됨</string>
@@ -41,7 +41,6 @@
     <string name="handedness_desc">플로팅 버튼과 페이지가 나타나는 위치를 변경합니다</string>
     <string name="left_handed">왼쪽 맞춤</string>
     <string name="right_handed">오른쪽 맞춤</string>
-    <string name="backup_and_restore">백업 및 복원</string>
     <string name="export_backup">백업 파일로 내보내기 (.redb)</string>
     <string name="export_and_share">백업 파일 내보내기 및 공유 (.redb)</string>
     <string name="export_and_share_desc">전체 데이터를 백업하여 다른 앱이나 기기와 공유합니다</string>
@@ -96,7 +95,12 @@
     <string name="creative_team">제작 팀</string>
     <string name="bilibili">bilibili</string>
     <string name="tiktok">TikTok</string>
-    <string name="role_backend">백엔드 개발</string>
-    <string name="role_frontend_ui">프런트엔드 &amp; UI 디자인</string>
     <string name="edit_reply_context_title">이 생각 이어서 쓰기</string>
+    <string name="backup_and_sync">백업 및 동기화</string>
+    <string name="share_import_in_progress_title">공유 콘텐츠 가져오는 중</string>
+    <string name="share_import_in_progress_message">잠시 기다려 주세요. Synap이 공유 데이터를 처리하고 있습니다.</string>
+    <string name="share_import_success_title">가져오기 완료</string>
+    <string name="share_import_error_title">가져오기 실패</string>
+    <string name="share_import_confirm">확인</string>
+    <string name="share_import_close">닫기</string>
 </resources>

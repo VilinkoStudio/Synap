@@ -1,6 +1,7 @@
 package com.synap.app.ui.screens
 
 import android.content.Context
+import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -43,6 +44,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
@@ -169,7 +171,6 @@ fun HomeScreen(
     var showMultiDeleteDialog by remember { mutableStateOf(false) }
     var noteToCopy by remember { mutableStateOf<Note?>(null) }
 
-    // 分享 BottomSheet 状态
     var showShareBottomSheet by remember { mutableStateOf(false) }
 
     BackHandler(enabled = isSelectionMode) {
@@ -378,7 +379,6 @@ fun HomeScreen(
         )
     }
 
-    // ========== 分享 BottomSheet ==========
     if (showShareBottomSheet && selectedNoteIds.isNotEmpty()) {
         ShareExportSheet(
             noteIds = selectedNoteIds.toList(),
@@ -393,7 +393,6 @@ fun HomeScreen(
                 if (isSelectionMode) {
                     TopAppBar(
                         title = {
-                            // 【核心修改 1】：去掉了背景色，恢复为原生的纯文字样式
                             Text(
                                 text = "${stringResource(R.string.selected)} ${selectedNoteIds.size}",
                                 style = MaterialTheme.typography.titleLarge,
@@ -423,6 +422,42 @@ fun HomeScreen(
                             }
                         },
                         actions = {
+                            IconButton(
+                                onClick = {
+                                    val scannerPackages = listOf(
+                                        "com.xiaomi.scanner",
+                                        "com.huawei.scanner",
+                                        "com.huawei.hms.image.vision",
+                                        "com.coloros.ocrscanner",
+                                        "com.vivo.scan",
+                                        "com.bbk.vision",
+                                        "com.hihonor.vision",
+                                        "com.meizu.media.camera",
+                                        "com.samsung.android.visionintelligence",
+                                        "com.nubia.vision",
+                                        "com.google.ar.lens"
+                                    )
+                                    var opened = false
+                                    for (pkg in scannerPackages) {
+                                        try {
+                                            val intent = context.packageManager.getLaunchIntentForPackage(pkg)
+                                            if (intent != null) {
+                                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                context.startActivity(intent)
+                                                opened = true
+                                                break
+                                            }
+                                        } catch (e: Exception) {
+                                        }
+                                    }
+                                    if (!opened) {
+                                        Toast.makeText(context, "未找到系统扫一扫应用", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Filled.QrCodeScanner, contentDescription = "扫一扫")
+                            }
+
                             AnimatedVisibility(
                                 visible = !isAtTop,
                                 enter = fadeIn(),
@@ -611,8 +646,11 @@ fun HomeScreen(
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        // 1. 判断“全部”是否该亮：排除列表全空，就是“全部”亮
+                        val isAllSelected =
+                            uiState.unselectedTags.isEmpty() && !uiState.isUntaggedUnselected
+
                         item {
-                            val isAllSelected = uiState.unselectedTags.isEmpty() && !uiState.isUntaggedUnselected
                             FilterChip(
                                 selected = isAllSelected,
                                 onClick = onToggleAllTags,
@@ -621,14 +659,16 @@ fun HomeScreen(
                         }
                         item {
                             FilterChip(
-                                selected = !uiState.isUntaggedUnselected,
+                                // 2. 正选映射：如果“全部”没亮，且“未分类”没有被后端排除，那它就该亮
+                                selected = !isAllSelected && !uiState.isUntaggedUnselected,
                                 onClick = onToggleUntaggedFilter,
                                 label = { Text(stringResource(R.string.home_filter_untagged)) }
                             )
                         }
                         items(uiState.availableTags) { tag ->
                             FilterChip(
-                                selected = tag !in uiState.unselectedTags,
+                                // 3. 正选映射：如果“全部”没亮，且这个标签没有被后端排除(!in)，那它就该亮
+                                selected = !isAllSelected && tag !in uiState.unselectedTags,
                                 onClick = { onToggleTagFilter(tag) },
                                 label = { Text(tag) }
                             )
@@ -855,7 +895,6 @@ fun HomeScreen(
                             }
                         }
 
-                        // 【核心修改 4】：触发分享弹窗
                         IconButton(
                             onClick = { showShareBottomSheet = true },
                             enabled = selectedNoteIds.isNotEmpty()

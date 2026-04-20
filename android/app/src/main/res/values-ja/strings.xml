@@ -1,11 +1,11 @@
 <resources>
+    <string name="app_name">Synap</string>
     <string name="home">ホーム</string>
     <string name="delete">削除</string>
     <string name="cancel">キャンセル</string>
     <string name="edit">編集</string>
     <string name="reply">返信</string>
     <string name="retry">再試行</string>
-    <string name="app_name">Synap</string>
     <string name="back">戻る</string>
     <string name="clear">クリア</string>
     <string name="selected">選択済み</string>
@@ -41,7 +41,6 @@
     <string name="handedness_desc">フローティングボタンとページが表示される位置を変更します</string>
     <string name="left_handed">左寄せ</string>
     <string name="right_handed">右寄せ</string>
-    <string name="backup_and_restore">バックアップと復元</string>
     <string name="export_backup">バックアップファイルとしてエクスポート (.redb)</string>
     <string name="export_and_share">バックアップファイルをエクスポートして共有 (.redb)</string>
     <string name="export_and_share_desc">完全なデータをバックアップし、他のアプリやデバイスと共有します</string>
@@ -96,7 +95,12 @@
     <string name="creative_team">制作チーム</string>
     <string name="bilibili">bilibili</string>
     <string name="tiktok">TikTok</string>
-    <string name="role_backend">バックエンド開発</string>
-    <string name="role_frontend_ui">フロントエンド &amp; UI デザイン</string>
     <string name="edit_reply_context_title">この考えを続ける</string>
+    <string name="backup_and_sync">バックアップと同期</string>
+    <string name="share_import_in_progress_title">共有コンテンツをインポート中</string>
+    <string name="share_import_in_progress_message">お待ちください。Synap が共有データを処理しています。</string>
+    <string name="share_import_success_title">インポート完了</string>
+    <string name="share_import_error_title">インポートに失敗しました</string>
+    <string name="share_import_confirm">了解しました</string>
+    <string name="share_import_close">閉じる</string>
 </resources>

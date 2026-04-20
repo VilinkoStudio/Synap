@@ -5,6 +5,20 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <queries>
+        <package android:name="com.xiaomi.scanner" />
+        <package android:name="com.huawei.scanner" />
+        <package android:name="com.huawei.hms.image.vision" />
+        <package android:name="com.coloros.ocrscanner" />
+        <package android:name="com.vivo.scan" />
+        <package android:name="com.bbk.vision" />
+        <package android:name="com.hihonor.vision" />
+        <package android:name="com.meizu.media.camera" />
+        <package android:name="com.samsung.android.visionintelligence" />
+        <package android:name="com.nubia.vision" />
+        <package android:name="com.google.ar.lens" />
+    </queries>
+
     <application
         android:name=".SynapApplication"
         android:allowBackup="true"
