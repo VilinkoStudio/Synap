@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -56,8 +57,11 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingToolbarDefaults
+import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -110,7 +114,7 @@ import kotlin.math.PI
 import kotlin.math.sin
 import androidx.compose.runtime.saveable.rememberSaveable
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(
     uiState: HomeUiState,
@@ -146,6 +150,7 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         val savedMode = prefs.getBoolean("is_waterfall_mode", true)
         onSetFilterPanelOpen(savedMode)
+        onRefresh()
     }
 
     fun switchFeedMode(waterfall: Boolean) {
@@ -422,6 +427,18 @@ fun HomeScreen(
                             }
                         },
                         actions = {
+                            // ========== 修改：将搜索按钮放在扫码按钮前面 ==========
+                            AnimatedVisibility(
+                                visible = !isAtTop,
+                                enter = fadeIn(),
+                                exit = fadeOut()
+                            ) {
+                                IconButton(onClick = onOpenSearch) {
+                                    Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.content_desc_search))
+                                }
+                            }
+
+                            // 扫码按钮
                             IconButton(
                                 onClick = {
                                     val scannerPackages = listOf(
@@ -456,16 +473,6 @@ fun HomeScreen(
                                 }
                             ) {
                                 Icon(Icons.Filled.QrCodeScanner, contentDescription = "扫一扫")
-                            }
-
-                            AnimatedVisibility(
-                                visible = !isAtTop,
-                                enter = fadeIn(),
-                                exit = fadeOut()
-                            ) {
-                                IconButton(onClick = onOpenSearch) {
-                                    Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.content_desc_search))
-                                }
                             }
 
                             Box {
@@ -605,8 +612,9 @@ fun HomeScreen(
 
                     FloatingActionButton(
                         onClick = onComposeNote,
+                        shape = CircleShape, // ========== 修改：将加号按钮设为圆形 ==========
                         modifier = Modifier
-                            .size(56.dp)
+                            .size(72.dp)
                             .let {
                                 if (sharedTransitionScope != null && navVisibilityScope != null) {
                                     with(sharedTransitionScope) {
@@ -620,7 +628,11 @@ fun HomeScreen(
                                 }
                             }
                     ) {
-                        Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.home_creatnote))
+                        Icon(
+                            Icons.Filled.Add,
+                            contentDescription = stringResource(R.string.home_creatnote),
+                            modifier = Modifier.size(36.dp)
+                        )
                     }
                 }
             }
@@ -646,7 +658,6 @@ fun HomeScreen(
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // 1. 判断“全部”是否该亮：排除列表全空，就是“全部”亮
                         val isAllSelected =
                             uiState.unselectedTags.isEmpty() && !uiState.isUntaggedUnselected
 
@@ -659,7 +670,6 @@ fun HomeScreen(
                         }
                         item {
                             FilterChip(
-                                // 2. 正选映射：如果“全部”没亮，且“未分类”没有被后端排除，那它就该亮
                                 selected = !isAllSelected && !uiState.isUntaggedUnselected,
                                 onClick = onToggleUntaggedFilter,
                                 label = { Text(stringResource(R.string.home_filter_untagged)) }
@@ -667,7 +677,6 @@ fun HomeScreen(
                         }
                         items(uiState.availableTags) { tag ->
                             FilterChip(
-                                // 3. 正选映射：如果“全部”没亮，且这个标签没有被后端排除(!in)，那它就该亮
                                 selected = !isAllSelected && tag !in uiState.unselectedTags,
                                 onClick = { onToggleTagFilter(tag) },
                                 label = { Text(tag) }
@@ -853,69 +862,69 @@ fun HomeScreen(
                 exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 8.dp + innerPadding.calculateBottomPadding())
+                    .padding(bottom = 24.dp + innerPadding.calculateBottomPadding())
                     .offset(y = fabDodgeOffset)
             ) {
-                Surface(
-                    shape = RoundedCornerShape(percent = 50),
-                    shadowElevation = 8.dp,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                HorizontalFloatingToolbar(
+                    expanded = true,
+                    colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
+                        toolbarContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        toolbarContentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (selectedNoteIds.size == 1) {
-                            IconButton(
-                                onClick = {
-                                    val noteId = selectedNoteIds.first()
-                                    val note = displayNotes.find { it.id == noteId }
-                                        ?: displaySessionGroups.flatMap { it.notes }.find { it.id == noteId }
+                    val iconTint = MaterialTheme.colorScheme.onSecondaryContainer
 
-                                    if (note != null) {
-                                        val hasMarkdown = Regex("(\\*\\*\\*|\\*\\*|\\*|~~|<u>|==|^#{1,6} |^> |^-\\s+\\[[ x]\\]\\s|^-\\s|^\\d+\\.\\s)", RegexOption.MULTILINE).containsMatchIn(note.content)
-                                        if (hasMarkdown) {
-                                            noteToCopy = note
-                                        } else {
-                                            clipboardManager.setText(AnnotatedString(note.content))
-                                            Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
-                                            isSelectionMode = false
-                                            selectedNoteIds = emptySet()
-                                        }
+                    if (selectedNoteIds.size == 1) {
+                        IconButton(
+                            onClick = {
+                                val noteId = selectedNoteIds.first()
+                                val note = displayNotes.find { it.id == noteId }
+                                    ?: displaySessionGroups.flatMap { it.notes }.find { it.id == noteId }
+
+                                if (note != null) {
+                                    val hasMarkdown = Regex("(\\*\\*\\*|\\*\\*|\\*|~~|<u>|==|^#{1,6} |^> |^-\\s+\\[[ x]\\]\\s|^-\\s|^\\d+\\.\\s)", RegexOption.MULTILINE).containsMatchIn(note.content)
+                                    if (hasMarkdown) {
+                                        noteToCopy = note
+                                    } else {
+                                        clipboardManager.setText(AnnotatedString(note.content))
+                                        Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                                        isSelectionMode = false
+                                        selectedNoteIds = emptySet()
                                     }
                                 }
-                            ) {
-                                Icon(
-                                    Icons.Filled.ContentCopy,
-                                    contentDescription = "复制",
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
                             }
-                        }
-
-                        IconButton(
-                            onClick = { showShareBottomSheet = true },
-                            enabled = selectedNoteIds.isNotEmpty()
                         ) {
                             Icon(
-                                Icons.Filled.Share,
-                                contentDescription = "Share",
-                                tint = if (selectedNoteIds.isNotEmpty()) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
+                                Icons.Filled.ContentCopy,
+                                contentDescription = "复制",
+                                modifier = Modifier.size(24.dp),
+                                tint = iconTint
                             )
                         }
+                    }
 
-                        IconButton(
-                            onClick = { showMultiDeleteDialog = true },
-                            enabled = selectedNoteIds.isNotEmpty()
-                        ) {
-                            Icon(
-                                Icons.Filled.Delete,
-                                contentDescription = stringResource(R.string.delete),
-                                tint = if (selectedNoteIds.isNotEmpty()) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
-                            )
-                        }
+                    IconButton(
+                        onClick = { showShareBottomSheet = true },
+                        enabled = selectedNoteIds.isNotEmpty()
+                    ) {
+                        Icon(
+                            Icons.Filled.Share,
+                            contentDescription = "Share",
+                            modifier = Modifier.size(24.dp),
+                            tint = if (selectedNoteIds.isNotEmpty()) iconTint else iconTint.copy(alpha = 0.38f)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { showMultiDeleteDialog = true },
+                        enabled = selectedNoteIds.isNotEmpty()
+                    ) {
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = stringResource(R.string.delete),
+                            modifier = Modifier.size(24.dp),
+                            tint = if (selectedNoteIds.isNotEmpty()) iconTint else iconTint.copy(alpha = 0.38f)
+                        )
                     }
                 }
             }
