@@ -5,6 +5,9 @@ pub enum ContentView {
     Notes,
     NoteDetail,
     Trash,
+    Tags,
+    TagNotes,
+    Timeline,
     Settings,
 }
 
@@ -14,6 +17,9 @@ impl ContentView {
             Self::Notes => "笔记列表",
             Self::NoteDetail => "笔记详情",
             Self::Trash => "回收站",
+            Self::Tags => "标签",
+            Self::TagNotes => "标签笔记",
+            Self::Timeline => "时间线",
             Self::Settings => "设置",
         }
     }
@@ -83,6 +89,10 @@ impl NoteLayout {
 pub struct HomeData {
     pub notes: Vec<NoteDTO>,
     pub deleted_notes: Vec<NoteDTO>,
+    pub notes_cursor: Option<String>,
+    pub deleted_notes_cursor: Option<String>,
+    pub has_more_notes: bool,
+    pub has_more_deleted_notes: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -97,6 +107,26 @@ pub struct NoteDetailViewModel {
     pub tags: Vec<String>,
     pub created_at_label: String,
     pub deleted: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct NoteDetailData {
+    pub note: NoteDTO,
+    pub replies: Vec<NoteDTO>,
+    pub origins: Vec<NoteDTO>,
+    pub other_versions: Vec<NoteDTO>,
+}
+
+impl NoteDetailData {
+    pub fn to_view_model(&self) -> NoteDetailViewModel {
+        NoteDetailViewModel {
+            id: self.note.id.clone(),
+            content: self.note.content.clone(),
+            tags: self.note.tags.clone(),
+            created_at_label: format_timestamp(self.note.created_at),
+            deleted: self.note.deleted,
+        }
+    }
 }
 
 impl From<&NoteDTO> for NoteListItemViewModel {
@@ -127,8 +157,17 @@ pub struct AppState {
     pub layout: NoteLayout,
     pub selected_note_id: Option<String>,
     pub selected_note_detail: Option<NoteDetailViewModel>,
+    pub selected_note_full: Option<NoteDetailData>,
     pub status: Option<String>,
     pub theme: Theme,
+    pub is_loading_more: bool,
+    pub selected_tag: Option<String>,
+    pub tag_notes: Vec<NoteDTO>,
+    pub all_tags: Vec<String>,
+    pub tag_suggestions: Vec<String>,
+    pub timeline_sessions: Vec<synap_core::dto::TimelineSessionDTO>,
+    pub timeline_cursor: Option<String>,
+    pub has_more_timeline: bool,
 }
 
 impl Default for AppState {
@@ -140,8 +179,17 @@ impl Default for AppState {
             layout: NoteLayout::Waterfall,
             selected_note_id: None,
             selected_note_detail: None,
+            selected_note_full: None,
             status: None,
             theme: Theme::default(),
+            is_loading_more: false,
+            selected_tag: None,
+            tag_notes: Vec::new(),
+            all_tags: Vec::new(),
+            tag_suggestions: Vec::new(),
+            timeline_sessions: Vec::new(),
+            timeline_cursor: None,
+            has_more_timeline: false,
         }
     }
 }
@@ -164,6 +212,9 @@ impl AppState {
             ContentView::Trash => {
                 filter_deleted_notes(&self.home.deleted_notes, &self.search_query)
             }
+            ContentView::Tags => self.home.notes.clone(),
+            ContentView::TagNotes => self.tag_notes.clone(),
+            ContentView::Timeline => Vec::new(),
             ContentView::Settings => Vec::new(),
         }
     }
@@ -188,6 +239,13 @@ impl AppState {
             .as_ref()
             .and_then(|selected_id| visible.iter().find(|note| note.id == *selected_id))
             .map(NoteDetailViewModel::from);
+
+        // If we have full detail data but the note changed, clear it
+        if let Some(full) = &self.selected_note_full {
+            if self.selected_note_id.as_deref() != Some(&full.note.id) {
+                self.selected_note_full = None;
+            }
+        }
     }
 
     pub fn selected_index_in(&self, notes: &[NoteDTO]) -> Option<usize> {
@@ -233,7 +291,7 @@ fn build_preview(content: &str) -> String {
     }
 }
 
-fn format_timestamp(timestamp_ms: u64) -> String {
+pub fn format_timestamp(timestamp_ms: u64) -> String {
     use std::time::{Duration, UNIX_EPOCH};
 
     let timestamp = UNIX_EPOCH + Duration::from_millis(timestamp_ms);

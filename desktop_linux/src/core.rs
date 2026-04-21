@@ -1,11 +1,25 @@
-use synap_core::{dto::NoteDTO, error::ServiceError, service::SynapService};
+use synap_core::{
+    dto::{NoteDTO, TimelineNotesPageDTO, TimelineSessionsPageDTO},
+    error::ServiceError,
+    service::{SynapService, TimelineDirection},
+};
 
 pub type CoreResult<T> = Result<T, ServiceError>;
 
 pub trait DesktopCore {
     fn recent_notes(&self, cursor: Option<&str>, limit: Option<usize>) -> CoreResult<Vec<NoteDTO>>;
+    fn recent_notes_page(
+        &self,
+        cursor: Option<&str>,
+        limit: Option<usize>,
+    ) -> CoreResult<TimelineNotesPageDTO>;
     fn deleted_notes(&self, cursor: Option<&str>, limit: Option<usize>)
         -> CoreResult<Vec<NoteDTO>>;
+    fn deleted_notes_page(
+        &self,
+        cursor: Option<&str>,
+        limit: Option<usize>,
+    ) -> CoreResult<TimelineNotesPageDTO>;
     fn search(&self, query: &str, limit: usize) -> CoreResult<Vec<NoteDTO>>;
 
     fn get_note(&self, id: &str) -> CoreResult<NoteDTO>;
@@ -28,6 +42,16 @@ pub trait DesktopCore {
     fn edit_note(&self, note_id: &str, content: String, tags: Vec<String>) -> CoreResult<NoteDTO>;
     fn delete_note(&self, note_id: &str) -> CoreResult<()>;
     fn restore_note(&self, note_id: &str) -> CoreResult<()>;
+
+    fn search_tags(&self, query: &str, limit: usize) -> CoreResult<Vec<String>>;
+    fn recommend_tags(&self, content: &str, limit: usize) -> CoreResult<Vec<String>>;
+    fn get_all_tags(&self) -> CoreResult<Vec<String>>;
+    fn get_notes_by_tag(&self, tag: &str, limit: usize) -> CoreResult<Vec<NoteDTO>>;
+    fn get_recent_sessions(
+        &self,
+        cursor: Option<&str>,
+        limit: Option<usize>,
+    ) -> CoreResult<TimelineSessionsPageDTO>;
 }
 
 pub struct SynapCoreAdapter {
@@ -48,12 +72,37 @@ impl DesktopCore for SynapCoreAdapter {
         self.service.get_recent_note(cursor, limit)
     }
 
+    fn recent_notes_page(
+        &self,
+        cursor: Option<&str>,
+        limit: Option<usize>,
+    ) -> CoreResult<TimelineNotesPageDTO> {
+        self.service
+            .get_recent_notes_page(cursor, TimelineDirection::Older, limit)
+    }
+
     fn deleted_notes(
         &self,
         cursor: Option<&str>,
         limit: Option<usize>,
     ) -> CoreResult<Vec<NoteDTO>> {
         self.service.get_deleted_notes(cursor, limit)
+    }
+
+    fn deleted_notes_page(
+        &self,
+        cursor: Option<&str>,
+        limit: Option<usize>,
+    ) -> CoreResult<TimelineNotesPageDTO> {
+        self.service.get_filtered_notes_page(
+            vec![],
+            false,
+            false,
+            synap_core::service::FilteredNoteStatus::Deleted,
+            cursor,
+            TimelineDirection::Older,
+            limit,
+        )
     }
 
     fn search(&self, query: &str, limit: usize) -> CoreResult<Vec<NoteDTO>> {
@@ -104,5 +153,29 @@ impl DesktopCore for SynapCoreAdapter {
 
     fn restore_note(&self, note_id: &str) -> CoreResult<()> {
         self.service.restore_note(note_id)
+    }
+
+    fn search_tags(&self, query: &str, limit: usize) -> CoreResult<Vec<String>> {
+        self.service.search_tags(query, limit)
+    }
+
+    fn recommend_tags(&self, content: &str, limit: usize) -> CoreResult<Vec<String>> {
+        self.service.recommend_tag(content, limit)
+    }
+
+    fn get_all_tags(&self) -> CoreResult<Vec<String>> {
+        self.service.get_all_tags()
+    }
+
+    fn get_notes_by_tag(&self, tag: &str, limit: usize) -> CoreResult<Vec<NoteDTO>> {
+        self.service.get_notes_by_tag(tag, None, Some(limit))
+    }
+
+    fn get_recent_sessions(
+        &self,
+        cursor: Option<&str>,
+        limit: Option<usize>,
+    ) -> CoreResult<TimelineSessionsPageDTO> {
+        self.service.get_recent_sessions(cursor, limit)
     }
 }
