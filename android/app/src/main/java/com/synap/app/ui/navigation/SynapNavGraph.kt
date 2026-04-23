@@ -82,6 +82,16 @@ fun SynapNavGraph(
             ) {
                 composable("tutorial") {
                     TutorialScreen(
+                        currentThemeMode = themeMode,
+                        onThemeModeChange = onThemeModeChange,
+                        useMonet = useMonet,
+                        supportsMonet = supportsMonet,
+                        onUseMonetChange = onUseMonetChange,
+                        customThemeHue = customThemeHue,
+                        onCustomThemeHueChange = onCustomThemeHueChange,
+                        availableLanguages = languages,
+                        currentLanguageIndex = selectedLanguageIndex,
+                        onLanguageSelect = onLanguageSelect,
                         onFinishTutorial = {
                             onTutorialFinished()
                             navController.navigate("home") { popUpTo("tutorial") { inclusive = true } }
@@ -231,7 +241,6 @@ fun SynapNavGraph(
                     TeamScreen(onNavigateBack = { navController.popBackStack() })
                 }
 
-                // ========== 修改：接收 initialContent ==========
                 composable(
                     route = "editor?parentId={parentId}&parentSummary={parentSummary}&editNoteId={editNoteId}&initialContent={initialContent}",
                     arguments = listOf(
@@ -249,7 +258,6 @@ fun SynapNavGraph(
                     val uiState by viewModel.uiState.collectAsState()
 
                     // ========== 核心自动填充逻辑 ==========
-                    // 仅在新建笔记模式且正文为空时，自动填充选取的文字
                     val initialContent = backStackEntry.arguments?.getString("initialContent")
                     LaunchedEffect(initialContent) {
                         if (!initialContent.isNullOrBlank() && uiState.mode !is EditorMode.Edit && uiState.content.isBlank()) {

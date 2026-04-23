@@ -1,39 +1,43 @@
 package com.synap.app.ui.screens
 
-import android.content.Context
-import android.text.Editable
-import android.text.TextWatcher
-import android.view.Gravity
-import android.view.inputmethod.InputMethodManager
 import androidx.activity.compose.PredictiveBackHandler
-import androidx.appcompat.widget.AppCompatEditText
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FormatBold
 import androidx.compose.material.icons.filled.FormatColorText
@@ -42,6 +46,7 @@ import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.FormatStrikethrough
 import androidx.compose.material.icons.filled.FormatUnderlined
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -55,12 +60,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,23 +75,56 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.ParagraphStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.unit.sp
+import com.synap.app.LocalNoteFontFamily
+import com.synap.app.LocalNoteFontWeight
+import com.synap.app.LocalNoteLineSpacing
 import com.synap.app.LocalNoteTextSize
 import com.synap.app.R
 import com.synap.app.ui.viewmodel.EditorMode
 import com.synap.app.ui.viewmodel.EditorUiState
-import io.noties.markwon.Markwon
-import io.noties.markwon.editor.MarkwonEditor
-import io.noties.markwon.editor.MarkwonEditorTextWatcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+
+// ==================== 独立私有颜色解析 ====================
+private fun parseColorLocal(tag: String): Color? {
+    val t = tag.trim().lowercase()
+    if (t.startsWith("#")) {
+        return try { Color(android.graphics.Color.parseColor(t)) } catch (e: Exception) { null }
+    }
+    val rgbRegex = Regex("""rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)""")
+    val match = rgbRegex.matchEntire(t)
+    if (match != null) {
+        val r = match.groupValues[1].toIntOrNull()?.coerceIn(0, 255) ?: 0
+        val g = match.groupValues[2].toIntOrNull()?.coerceIn(0, 255) ?: 0
+        val b = match.groupValues[3].toIntOrNull()?.coerceIn(0, 255) ?: 0
+        return Color(r, g, b)
+    }
+    return try { Color(android.graphics.Color.parseColor(t)) } catch (e: Exception) { null }
+}
+
+data class CheckboxInfo(val range: IntRange, val isChecked: Boolean, val rect: Rect)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -101,68 +141,85 @@ fun NewNoteScreen(
     var tagInputText by remember { mutableStateOf("") }
     var isTagInputVisible by remember { mutableStateOf(false) }
     val tagFocusRequester = remember { FocusRequester() }
-
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    // 引用原生的 EditText 实例
-    var nativeEditText by remember { mutableStateOf<AppCompatEditText?>(null) }
+    var textFieldValue by remember {
+        mutableStateOf(TextFieldValue(text = uiState.content, selection = TextRange(uiState.content.length)))
+    }
 
-    // 工具栏逻辑适配
+    LaunchedEffect(uiState.content) {
+        if (uiState.content != textFieldValue.text) {
+            textFieldValue = textFieldValue.copy(text = uiState.content)
+        }
+    }
+
     val applyStyle: (String, String) -> Unit = { prefix, suffix ->
-        nativeEditText?.let { et ->
-            val start = et.selectionStart
-            val end = et.selectionEnd
-            val text = et.text ?: return@let
-            if (start == end) {
-                text.insert(start, prefix + suffix)
-                et.setSelection(start + prefix.length)
+        val start = textFieldValue.selection.min
+        val end = textFieldValue.selection.max
+        val text = textFieldValue.text
+        val newText = text.substring(0, start) + prefix + text.substring(start, end) + suffix + text.substring(end)
+        val newSelection = TextRange(start + prefix.length, end + prefix.length)
+        textFieldValue = textFieldValue.copy(text = newText, selection = newSelection)
+        onContentChange(newText)
+    }
+
+    // 智能行首格式替换与有序列表打断逻辑
+    val applyLinePrefix: (String) -> Unit = { newPrefix ->
+        val text = textFieldValue.text
+        val selection = textFieldValue.selection
+        var lineStart = selection.min
+        while (lineStart > 0 && text[lineStart - 1] != '\n') lineStart--
+        var lineEnd = selection.max
+        while (lineEnd < text.length && text[lineEnd] != '\n') lineEnd++
+
+        val currentLine = text.substring(lineStart, lineEnd)
+        val regex = Regex("^(#{1,6}\\s|>\\s|-\\s\\[[ xX]\\]\\s|-\\s|\\d+\\.\\s)")
+        val match = regex.find(currentLine)
+
+        if (match != null) {
+            val existingPrefix = match.value
+            // 如果已存在且相同 -> 取消格式
+            if (existingPrefix == newPrefix || (Regex("^\\d+\\.\\s").matches(existingPrefix) && Regex("^\\d+\\.\\s").matches(newPrefix))) {
+                val newText = text.substring(0, lineStart) + currentLine.substring(existingPrefix.length) + text.substring(lineEnd)
+                val diff = newText.length - text.length
+                textFieldValue = textFieldValue.copy(text = newText, selection = TextRange((selection.start + diff).coerceAtLeast(0)))
+                onContentChange(newText)
             } else {
-                text.insert(end, suffix)
-                text.insert(start, prefix)
+                // 如果存在但不同 -> 替换格式
+                val newText = text.substring(0, lineStart) + newPrefix + currentLine.substring(existingPrefix.length) + text.substring(lineEnd)
+                val diff = newPrefix.length - existingPrefix.length
+                textFieldValue = textFieldValue.copy(text = newText, selection = TextRange((selection.start + diff).coerceAtLeast(0)))
+                onContentChange(newText)
             }
+        } else {
+            // 没有格式，直接应用 (特殊处理有序列表的自增)
+            val prefixToApply = if (newPrefix == "1. ") {
+                var prevNum = 0
+                if (lineStart > 0) {
+                    var prevLineStart = lineStart - 1
+                    while (prevLineStart > 0 && text[prevLineStart - 1] != '\n') prevLineStart--
+                    val prevLine = text.substring(prevLineStart, lineStart - 1)
+                    val prevMatch = Regex("^(\\d+)\\.\\s").find(prevLine)
+                    if (prevMatch != null) prevNum = prevMatch.groups[1]!!.value.toIntOrNull() ?: 0
+                }
+                "${prevNum + 1}. "
+            } else newPrefix
+
+            val newText = text.substring(0, lineStart) + prefixToApply + currentLine + text.substring(lineEnd)
+            textFieldValue = textFieldValue.copy(text = newText, selection = TextRange(selection.start + prefixToApply.length))
+            onContentChange(newText)
         }
     }
 
-    val applyLinePrefix: (String) -> Unit = { prefix ->
-        nativeEditText?.let { et ->
-            val start = et.selectionStart
-            val text = et.text ?: return@let
-            val layout = et.layout
-            val line = layout.getLineForOffset(start)
-            val lineStart = layout.getLineStart(line)
-            text.insert(lineStart, prefix)
-        }
-    }
-
-    // 自动获取焦点
-    LaunchedEffect(nativeEditText) {
-        nativeEditText?.let { et ->
-            delay(300)
-            et.requestFocus()
-            val imm = et.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-            imm.showSoftInput(et, InputMethodManager.SHOW_IMPLICIT)
-        }
-    }
-
-    // 处理降下键盘
     fun hideKeyboardAndNavigate(action: () -> Unit) {
         keyboardController?.hide()
-        nativeEditText?.let { et ->
-            val imm = et.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-            imm.hideSoftInputFromWindow(et.windowToken, 0)
-            et.clearFocus()
-        }
         action()
     }
 
-    // 预返回手势
     var backProgress by remember { mutableFloatStateOf(0f) }
-
     PredictiveBackHandler { progressFlow ->
         try {
-            progressFlow.collect { backEvent ->
-                backProgress = backEvent.progress
-            }
+            progressFlow.collect { backEvent -> backProgress = backEvent.progress }
             hideKeyboardAndNavigate { onNavigateBack() }
         } catch (e: CancellationException) {
             backProgress = 0f
@@ -204,15 +261,11 @@ fun NewNoteScreen(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .imePadding(), // 键盘弹出时顶起整个工具栏
+                    .imePadding(),
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 3.dp,
                 shadowElevation = 8.dp
             ) {
-                // ========== 核心修改 ==========
-                // 在 Surface 内部应用 navigationBarsPadding。
-                // 这样 Surface 的背景色会延伸到最底部（小白条区域），
-                // 而 Row 内容会被垫高，避开小白条，达到视觉统一。
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -234,24 +287,26 @@ fun NewNoteScreen(
                     IconButton(onClick = { applyLinePrefix("## ") }) { Text("H2", style = textStyle) }
                     IconButton(onClick = { applyLinePrefix("- ") }) { Icon(Icons.Filled.FormatListBulleted, null, tint = iconColor) }
                     IconButton(onClick = { applyLinePrefix("1. ") }) { Text("1.", style = textStyle) }
+                    IconButton(onClick = { applyLinePrefix("- [ ] ") }) { Icon(Icons.Filled.CheckBox, null, tint = iconColor) }
                 }
             }
         }
     ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.fillMaxSize().padding(innerPadding).consumeWindowInsets(innerPadding)) {
 
-                // 标签区域
+        // ========== 响应式双栏布局适配 ==========
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
+        ) {
+            val isTablet = maxWidth >= 700.dp
+
+            val TagSectionContent: @Composable () -> Unit = {
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                     if (isTagInputVisible) {
                         var hasGainedFocus by remember { mutableStateOf(false) }
-
-                        LaunchedEffect(Unit) {
-                            try {
-                                tagFocusRequester.requestFocus()
-                            } catch (e: Exception) {
-                            }
-                        }
+                        LaunchedEffect(Unit) { try { tagFocusRequester.requestFocus() } catch (e: Exception) {} }
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -295,34 +350,50 @@ fun NewNoteScreen(
                                     isTagInputVisible = false
                                 }
                             ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Check,
-                                    contentDescription = "确认添加",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
+                                Icon(Icons.Filled.Check, contentDescription = "确认添加", tint = MaterialTheme.colorScheme.primary)
                             }
                         }
                     } else {
-                        Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // 提取标签项逻辑，方便根据屏幕状态选用 Row 还是 FlowRow
+                        val chipsContent: @Composable () -> Unit = {
                             uiState.tags.forEachIndexed { i, tag ->
-                                InputChip(selected = true, onClick = {}, label = { Text(tag) },
-                                    trailingIcon = { Icon(Icons.Filled.Close, null, Modifier.size(InputChipDefaults.AvatarSize).clickable { onRemoveTag(i) }) })
+                                val parsedColor = parseColorLocal(tag)
+                                InputChip(
+                                    selected = true,
+                                    onClick = {},
+                                    label = { Text(tag) },
+                                    leadingIcon = parsedColor?.let { color ->
+                                        { Box(modifier = Modifier.size(8.dp).background(color, CircleShape)) }
+                                    },
+                                    trailingIcon = { Icon(Icons.Filled.Close, null, Modifier.size(InputChipDefaults.AvatarSize).clickable { onRemoveTag(i) }) }
+                                )
                             }
                             InputChip(selected = false, onClick = { isTagInputVisible = true }, label = { Text("添加标签") }, trailingIcon = { Icon(Icons.Filled.Add, null, Modifier.size(16.dp)) })
+                        }
+
+                        if (isTablet) {
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                chipsContent()
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                chipsContent()
+                            }
                         }
                     }
 
                     if (uiState.recommendedTags.isNotEmpty() || uiState.isRecommendingTags) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp, bottom = 8.dp)
-                                .horizontalScroll(rememberScrollState()),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("推荐标签：", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        val recommendedContent: @Composable () -> Unit = {
+                            Text("推荐标签：", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
                             if (uiState.isRecommendingTags) {
-                                CircularProgressIndicator(modifier = Modifier.size(14.dp).padding(start = 4.dp), strokeWidth = 2.dp)
+                                CircularProgressIndicator(modifier = Modifier.size(14.dp).padding(start = 4.dp, top = 4.dp), strokeWidth = 2.dp)
                             } else {
                                 uiState.recommendedTags.forEach { tag ->
                                     Text(
@@ -334,56 +405,308 @@ fun NewNoteScreen(
                                 }
                             }
                         }
+
+                        if (isTablet) {
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                recommendedContent()
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp).horizontalScroll(rememberScrollState()),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                recommendedContent()
+                            }
+                        }
                     }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    if (!isTablet) {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    }
                 }
+            }
 
-                // 正文编辑区
-                Box(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
+            val EditorSectionContent: @Composable () -> Unit = {
+                Box(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
                     if (uiState.isLoading) {
                         CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                     } else {
-                        val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
-                        val hintColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f).toArgb()
-                        val fontSize = LocalNoteTextSize.current.value
+                        val primaryColor = MaterialTheme.colorScheme.primary
+                        val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
+                        val baseFontSizeUnit = LocalNoteTextSize.current
+                        val baseFontSize = baseFontSizeUnit.value
 
-                        AndroidView(
-                            modifier = Modifier.fillMaxSize(),
-                            factory = { context ->
-                                AppCompatEditText(context).apply {
-                                    nativeEditText = this
-                                    background = null
-                                    gravity = Gravity.TOP
-                                    setPadding(0, 0, 0, 0)
-                                    textSize = fontSize
-                                    setTextColor(textColor)
-                                    setHintTextColor(hintColor)
-                                    hint = "开始记录你的灵感..."
+                        var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+                        val focusRequester = remember { FocusRequester() }
+                        val textScrollState = rememberScrollState()
 
-                                    val markwon = Markwon.create(context)
-                                    val editor = MarkwonEditor.create(markwon)
-                                    addTextChangedListener(MarkwonEditorTextWatcher.withProcess(editor))
+                        var checkboxRects by remember { mutableStateOf<List<CheckboxInfo>>(emptyList()) }
+                        val checkboxRegexPattern = "^-\\s+\\[([ xX])\\]\\s?"
+                        val currentSelection by rememberUpdatedState(textFieldValue.selection)
 
-                                    addTextChangedListener(object : TextWatcher {
-                                        override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
-                                        override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {
-                                            onContentChange(s?.toString() ?: "")
-                                        }
-                                        override fun afterTextChanged(s: Editable?) {}
-                                    })
+                        LaunchedEffect(Unit) {
+                            delay(300)
+                            focusRequester.requestFocus()
+                            keyboardController?.show()
+                        }
 
-                                    setText(uiState.content)
-                                    setSelection(uiState.content.length)
-                                }
-                            },
-                            update = { view ->
-                                if (view.text.toString() != uiState.content) {
-                                    view.setText(uiState.content)
-                                }
+                        Box(modifier = Modifier.fillMaxSize().verticalScroll(textScrollState)) {
+                            if (textFieldValue.text.isEmpty()) {
+                                Text(
+                                    text = "开始记录你的灵感...",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                        fontFamily = LocalNoteFontFamily.current,
+                                        fontSize = baseFontSize.sp
+                                    ),
+                                )
                             }
-                        )
+
+                            BasicTextField(
+                                value = textFieldValue,
+                                onValueChange = { newValue ->
+                                    val oldText = textFieldValue.text
+                                    val newText = newValue.text
+                                    var finalValue = newValue
+
+                                    // ========== 智能回车：列表自动延续与打断 ==========
+                                    if (newText.length == oldText.length + 1 && newValue.selection.start > 0 && newText[newValue.selection.start - 1] == '\n') {
+                                        val beforeNewline = newText.substring(0, newValue.selection.start - 1)
+                                        val lastLineStart = beforeNewline.lastIndexOf('\n').let { if (it == -1) 0 else it + 1 }
+                                        val lastLine = beforeNewline.substring(lastLineStart)
+
+                                        var handled = false
+
+                                        // 检查有序列表
+                                        val orderedMatch = Regex("^(\\d+)\\.\\s(.*)").find(lastLine)
+                                        if (orderedMatch != null) {
+                                            handled = true
+                                            if (orderedMatch.groups[2]!!.value.isEmpty()) {
+                                                // 智能打断：如果是空行则删除格式
+                                                val removeLen = lastLine.length
+                                                val resultingText = newText.removeRange(newValue.selection.start - 1 - removeLen, newValue.selection.start - 1)
+                                                finalValue = TextFieldValue(resultingText, TextRange(newValue.selection.start - removeLen))
+                                            } else {
+                                                val num = orderedMatch.groups[1]!!.value.toIntOrNull()
+                                                if (num != null) {
+                                                    val insert = "${num + 1}. "
+                                                    val resultingText = newText.substring(0, newValue.selection.start) + insert + newText.substring(newValue.selection.start)
+                                                    finalValue = TextFieldValue(resultingText, TextRange(newValue.selection.start + insert.length))
+                                                }
+                                            }
+                                        }
+
+                                        // 检查无序列表和复选框
+                                        if (!handled) {
+                                            val bulletMatch = Regex("^(-( \\[[ xX]\\])?)\\s(.*)").find(lastLine)
+                                            if (bulletMatch != null) {
+                                                if (bulletMatch.groups[3]!!.value.isEmpty()) {
+                                                    val removeLen = lastLine.length
+                                                    val resultingText = newText.removeRange(newValue.selection.start - 1 - removeLen, newValue.selection.start - 1)
+                                                    finalValue = TextFieldValue(resultingText, TextRange(newValue.selection.start - removeLen))
+                                                } else {
+                                                    val isCheckbox = bulletMatch.groups[1]!!.value.contains("[")
+                                                    val insert = if (isCheckbox) "- [ ] " else "- "
+                                                    val resultingText = newText.substring(0, newValue.selection.start) + insert + newText.substring(newValue.selection.start)
+                                                    finalValue = TextFieldValue(resultingText, TextRange(newValue.selection.start + insert.length))
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // ========== 原子删除防误删：删除复选框时一次性全清 ==========
+                                    if (newText.length == oldText.length - 1 && newValue.selection.start == textFieldValue.selection.start - 1) {
+                                        val deletedIndex = newValue.selection.start
+                                        Regex(checkboxRegexPattern, RegexOption.MULTILINE).findAll(oldText).forEach { match ->
+                                            if (deletedIndex in match.range) {
+                                                val resultingText = oldText.removeRange(match.range)
+                                                finalValue = TextFieldValue(resultingText, TextRange(match.range.first))
+                                            }
+                                        }
+                                    }
+
+                                    textFieldValue = finalValue
+                                    onContentChange(finalValue.text)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 300.dp)
+                                    .focusRequester(focusRequester),
+                                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                    fontFamily = LocalNoteFontFamily.current,
+                                    fontWeight = LocalNoteFontWeight.current,
+                                    fontSize = baseFontSize.sp,
+                                    lineHeight = (baseFontSize * LocalNoteLineSpacing.current).sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                onTextLayout = { result ->
+                                    textLayoutResult = result
+                                    val newRects = mutableListOf<CheckboxInfo>()
+                                    Regex(checkboxRegexPattern, RegexOption.MULTILINE).findAll(textFieldValue.text).forEach { match ->
+                                        val rectStart = result.getBoundingBox(match.range.first)
+                                        newRects.add(CheckboxInfo(match.range, match.groups[1]!!.value.lowercase() == "x", rectStart))
+                                    }
+                                    checkboxRects = newRects
+                                },
+                                visualTransformation = remember(primaryColor, highlightColor, baseFontSize) {
+                                    VisualTransformation { annotatedString ->
+                                        val builder = AnnotatedString.Builder(annotatedString.text)
+                                        val text = annotatedString.text
+
+                                        val hiddenSpanStyle = SpanStyle(color = Color.Transparent, fontSize = 0.1f.sp)
+                                        val transparentSpanStyle = SpanStyle(color = Color.Transparent)
+                                        val revealedSpanStyle = SpanStyle(color = primaryColor.copy(alpha = 0.5f))
+
+                                        fun applySyntax(range: IntRange, useHidden: Boolean = true) {
+                                            val selMin = currentSelection.min
+                                            val selMax = currentSelection.max
+                                            val isCursorNear = (selMin <= range.last + 1 && selMax >= range.first)
+
+                                            if (isCursorNear) {
+                                                builder.addStyle(revealedSpanStyle, range.first, range.last + 1)
+                                            } else {
+                                                builder.addStyle(if (useHidden) hiddenSpanStyle else transparentSpanStyle, range.first, range.last + 1)
+                                            }
+                                        }
+
+                                        // ========== 块级元素优先渲染 ==========
+
+                                        // 1. 各级标题
+                                        val headingMatches = Regex("^(#{1,4} )(.*)", RegexOption.MULTILINE).findAll(text).toList()
+                                        for (i in headingMatches.indices) {
+                                            val match = headingMatches[i]
+                                            val syntax = match.groups[1]!!
+                                            val content = match.groups[2]!!
+                                            val level = syntax.value.trim().length
+                                            val scale = 1.8f - (level * 0.15f)
+                                            val headingFontSize = baseFontSize * scale
+
+                                            builder.addStyle(SpanStyle(fontWeight = FontWeight.ExtraBold, fontSize = headingFontSize.sp, color = primaryColor), content.range.first, content.range.last + 1)
+                                            applySyntax(syntax.range)
+
+                                            val lineEnd = if (match.range.last + 1 < text.length && text[match.range.last + 1] == '\n') match.range.last + 2 else match.range.last + 1
+                                            val isNextConsecutive = if (i + 1 < headingMatches.size) {
+                                                val nextMatch = headingMatches[i + 1]
+                                                val gap = text.substring(match.range.last + 1, nextMatch.range.first)
+                                                gap == "\n" || gap == "\r\n"
+                                            } else false
+
+                                            val currentLineHeight = if (isNextConsecutive) headingFontSize * 1.0f else headingFontSize * 1.2f
+                                            builder.addStyle(ParagraphStyle(lineHeight = currentLineHeight.sp), match.range.first, lineEnd)
+                                        }
+
+                                        // 2. 交互复选框
+                                        Regex(checkboxRegexPattern, RegexOption.MULTILINE).findAll(text).forEach { match ->
+                                            applySyntax(match.range, useHidden = false)
+                                            val isChecked = match.groups[1]!!.value.lowercase() == "x"
+                                            if (isChecked) {
+                                                val lineEnd = text.indexOf('\n', match.range.last).takeIf { it != -1 } ?: text.length
+                                                builder.addStyle(SpanStyle(color = Color.Gray, textDecoration = TextDecoration.LineThrough), match.range.last + 1, lineEnd)
+                                            }
+                                        }
+
+                                        // 3. 引用
+                                        Regex("^(> )(.*)", RegexOption.MULTILINE).findAll(text).forEach { match ->
+                                            val syntax = match.groups[1]!!
+                                            builder.addStyle(SpanStyle(color = Color.Gray), match.range.first, match.range.last + 1)
+                                            applySyntax(syntax.range)
+                                        }
+
+                                        // 4. 无序列表与有序列表 (加粗头部数字与圆点)
+                                        Regex("^((\\d+\\.)|-)(\\s)(?!\\[[ xX]\\])", RegexOption.MULTILINE).findAll(text).forEach { match ->
+                                            builder.addStyle(SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold), match.range.first, match.range.last + 1)
+                                        }
+
+                                        // ========== 叠加内联元素 ==========
+
+                                        // 5. 粗体
+                                        Regex("\\*\\*(.*?)\\*\\*").findAll(text).forEach { match ->
+                                            val content = match.groups[1]!!
+                                            builder.addStyle(SpanStyle(fontWeight = FontWeight.Bold), content.range.first, content.range.last + 1)
+                                            applySyntax(IntRange(match.range.first, content.range.first - 1))
+                                            applySyntax(IntRange(content.range.last + 1, match.range.last))
+                                        }
+                                        // 6. 斜体
+                                        Regex("(?<!\\*)\\*(?!\\*)(.*?)(?<!\\*)\\*(?!\\*)").findAll(text).forEach { match ->
+                                            val content = match.groups[1]!!
+                                            builder.addStyle(SpanStyle(fontStyle = FontStyle.Italic), content.range.first, content.range.last + 1)
+                                            applySyntax(IntRange(match.range.first, content.range.first - 1))
+                                            applySyntax(IntRange(content.range.last + 1, match.range.last))
+                                        }
+                                        // 7. 删除线
+                                        Regex("~~(.*?)~~").findAll(text).forEach { match ->
+                                            val content = match.groups[1]!!
+                                            builder.addStyle(SpanStyle(textDecoration = TextDecoration.LineThrough), content.range.first, content.range.last + 1)
+                                            applySyntax(IntRange(match.range.first, content.range.first - 1))
+                                            applySyntax(IntRange(content.range.last + 1, match.range.last))
+                                        }
+                                        // 8. 高亮
+                                        Regex("==(.*?)==").findAll(text).forEach { match ->
+                                            val content = match.groups[1]!!
+                                            builder.addStyle(SpanStyle(background = highlightColor, color = Color.Black), content.range.first, content.range.last + 1)
+                                            applySyntax(IntRange(match.range.first, content.range.first - 1))
+                                            applySyntax(IntRange(content.range.last + 1, match.range.last))
+                                        }
+                                        // 9. 下划线
+                                        Regex("<u>(.*?)</u>").findAll(text).forEach { match ->
+                                            val content = match.groups[1]!!
+                                            builder.addStyle(SpanStyle(textDecoration = TextDecoration.Underline), content.range.first, content.range.last + 1)
+                                            applySyntax(IntRange(match.range.first, content.range.first - 1))
+                                            applySyntax(IntRange(content.range.last + 1, match.range.last))
+                                        }
+
+                                        TransformedText(builder.toAnnotatedString(), OffsetMapping.Identity)
+                                    }
+                                }
+                            )
+
+                            // 原生 Checkbox 悬浮层
+                            val density = LocalDensity.current
+                            checkboxRects.forEach { info ->
+                                Checkbox(
+                                    checked = info.isChecked,
+                                    onCheckedChange = { checked ->
+                                        val text = textFieldValue.text
+                                        val replacement = if (checked) "x" else " "
+                                        val matchStr = text.substring(info.range)
+                                        val newMatchStr = matchStr.replaceRange(3, 4, replacement)
+                                        val newText = text.substring(0, info.range.first) + newMatchStr + text.substring(info.range.last + 1)
+                                        val newSelection = if (textFieldValue.selection.start > info.range.last) textFieldValue.selection else textFieldValue.selection
+                                        textFieldValue = textFieldValue.copy(text = newText, selection = newSelection)
+                                        onContentChange(newText)
+                                    },
+                                    modifier = Modifier
+                                        .absoluteOffset(
+                                            x = with(density) { info.rect.left.toDp() } - 12.dp,
+                                            y = with(density) { info.rect.center.y.toDp() } - 24.dp
+                                        )
+                                )
+                            }
+                        }
                     }
+                }
+            }
+
+            // ========== 修改：将平板左侧标签栏设为固定且可滚动的 300dp ==========
+            if (isTablet) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    Box(modifier = Modifier.width(300.dp).fillMaxHeight().verticalScroll(rememberScrollState())) {
+                        TagSectionContent()
+                    }
+                    VerticalDivider()
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        EditorSectionContent()
+                    }
+                }
+            } else {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    TagSectionContent()
+                    EditorSectionContent()
                 }
             }
         }

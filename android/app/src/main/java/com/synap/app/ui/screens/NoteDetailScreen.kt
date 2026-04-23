@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
@@ -130,15 +131,36 @@ fun buildMarkdownAnnotatedString(
         }
 
         if (!isCompact) {
-            Regex("^(#{1,4} )(.*)", RegexOption.MULTILINE).findAll(visualString).forEach { match ->
-                if (match.groups.size >= 3) {
-                    val level = match.groups[1]!!.value.trim().length
-                    val scale = 1.8f - (level * 0.15f)
-                    addStyle(hiddenSpanStyle, match.groups[1]!!.range.first, match.groups[1]!!.range.last + 1)
-                    val lineEnd = visualString.indexOf('\n', match.range.last).takeIf { it != -1 } ?: visualString.length
-                    addStyle(SpanStyle(fontWeight = FontWeight.ExtraBold, fontSize = (baseFontSize * scale).sp, color = primaryColor), match.groups[2]!!.range.first, match.groups[2]!!.range.last + 1)
-                    addStyle(ParagraphStyle(lineHeight = (baseFontSize * 1.5f).sp), match.range.first, match.range.last + 1)
+            // ========== 核心逻辑：检测连续标题，并动态压缩连续标题的间距 ==========
+            val headingMatches = Regex("^(#{1,4} )(.*)", RegexOption.MULTILINE).findAll(visualString).toList()
+
+            for (i in headingMatches.indices) {
+                val match = headingMatches[i]
+                val level = match.groups[1]!!.value.trim().length
+                val scale = 1.8f - (level * 0.15f)
+                val headingFontSize = baseFontSize * scale
+
+                addStyle(hiddenSpanStyle, match.groups[1]!!.range.first, match.groups[1]!!.range.last + 1)
+                addStyle(SpanStyle(fontWeight = FontWeight.ExtraBold, fontSize = headingFontSize.sp, color = primaryColor), match.groups[2]!!.range.first, match.groups[2]!!.range.last + 1)
+
+                // 将 \n 包含在 ParagraphStyle 的范围内，防止它成为独立的 1.5 倍空行
+                val lineEnd = if (match.range.last + 1 < visualString.length && visualString[match.range.last + 1] == '\n') {
+                    match.range.last + 2
+                } else {
+                    match.range.last + 1
                 }
+
+                // 检测是否与下一个标题紧紧相连
+                val isNextConsecutive = if (i + 1 < headingMatches.size) {
+                    val nextMatch = headingMatches[i + 1]
+                    val gap = visualString.substring(match.range.last + 1, nextMatch.range.first)
+                    gap == "\n" || gap == "\r\n"
+                } else false
+
+                // 如果下一行也是标题，则当前行距压缩为极限的 1.0倍；如果是独立/末尾标题，则保持舒适的 1.2倍
+                val currentLineHeight = if (isNextConsecutive) headingFontSize * 1.0f else headingFontSize * 1.2f
+
+                addStyle(ParagraphStyle(lineHeight = currentLineHeight.sp), match.range.first, lineEnd)
             }
 
             val lines = visualString.split('\n')
@@ -157,19 +179,23 @@ fun buildMarkdownAnnotatedString(
                         addStyle(SpanStyle(color = Color.Gray, fontSize = (baseFontSize * 1.5f).sp, fontWeight = FontWeight.Black), offset, offset + 1)
                         addStyle(hiddenSpanStyle, offset + 1, offset + 2)
                     } else {
-                        addStyle(hiddenSpanStyle, offset, offset + 2)
+                        // ========== 多行引用对齐：使用透明占位符保证像素级对齐 ==========
+                        addStyle(SpanStyle(color = Color.Transparent, fontSize = (baseFontSize * 1.5f).sp, fontWeight = FontWeight.Black), offset, offset + 1)
+                        addStyle(hiddenSpanStyle, offset + 1, offset + 2)
                     }
                     addStyle(SpanStyle(color = Color.Gray), offset + 2, offset + lineLength)
                 } else {
                     if (inQuote) {
                         inQuote = false
-                        addStyle(ParagraphStyle(lineHeight = (baseFontSize * 1.5f).sp), quoteStart, offset)
+                        // ========== 引用块行距统一调整为 1.2 倍 ==========
+                        addStyle(ParagraphStyle(lineHeight = (baseFontSize * 1.2f).sp), quoteStart, offset)
                     }
                 }
                 offset += lineLength + 1
             }
             if (inQuote) {
-                addStyle(ParagraphStyle(lineHeight = (baseFontSize * 1.5f).sp), quoteStart, offset - 1)
+                // ========== 兜底：引用块行距统一调整为 1.2 倍 ==========
+                addStyle(ParagraphStyle(lineHeight = (baseFontSize * 1.2f).sp), quoteStart, offset - 1)
             }
 
             Regex("^•( )", RegexOption.MULTILINE).findAll(visualString).forEach { match ->
@@ -466,16 +492,19 @@ fun NoteDetailScreen(
                         buildMarkdownAnnotatedString(note.content, primaryColor, highlightColor, baseFontSize, isCompact = false)
                     }
 
-                    Text(
-                        text = annotatedContent,
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            fontFamily = LocalNoteFontFamily.current,
-                            fontWeight = LocalNoteFontWeight.current,
-                            fontSize = LocalNoteTextSize.current,
-                            lineHeight = LocalNoteTextSize.current * LocalNoteLineSpacing.current
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    // ========== 允许自由选取文本 ==========
+                    SelectionContainer {
+                        Text(
+                            text = annotatedContent,
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontFamily = LocalNoteFontFamily.current,
+                                fontWeight = LocalNoteFontWeight.current,
+                                fontSize = LocalNoteTextSize.current,
+                                lineHeight = LocalNoteTextSize.current * LocalNoteLineSpacing.current
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
 
                     if (uiState.errorMessage != null) {
                         Text(

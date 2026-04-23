@@ -379,7 +379,7 @@ fun SettingsScreen(
 
             // ==================== 3. 备份与同步 ====================
             Text(
-                text = stringResource(R.string.backup_and_sync), // 已修改标题
+                text = stringResource(R.string.backup_and_sync),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
@@ -390,7 +390,7 @@ fun SettingsScreen(
                     .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             ) {
-                // ---------- 已移入的“同步与设备” ----------
+                // ---------- 同步与设备 ----------
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -629,6 +629,24 @@ fun SettingsScreen(
                     )
                     Text(stringResource(R.string.tutorial), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                     Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://synap.rth1.xyz/")))
+                        }
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("软件官网", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                    Icon(Icons.Filled.Link, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
                 HorizontalDivider(
