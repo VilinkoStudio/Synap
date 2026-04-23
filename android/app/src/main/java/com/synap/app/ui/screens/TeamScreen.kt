@@ -3,7 +3,6 @@ package com.synap.app.ui.screens
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -133,8 +133,11 @@ fun TeamScreen(onNavigateBack: () -> Unit) {
 
             // ========== 新增：赞助二维码区域 ==========
             item {
-                val isDark = isSystemInDarkTheme()
-                // 根据深浅色模式动态切换图片资源
+                // 【核心修复】：通过判断当前界面的实际背景亮度来判断深浅色
+                // 而不是依赖 isSystemInDarkTheme() (它会忽略 App 内强制切换的主题)
+                val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
+                // 根据当前的 UI 主题状态动态切换图片资源
                 val qrImageRes = if (isDark) R.drawable.sponsor_qr_dark else R.drawable.sponsor_qr_light
 
                 Column(
