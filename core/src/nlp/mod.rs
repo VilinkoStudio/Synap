@@ -8,7 +8,7 @@ mod test;
 pub mod traits;
 pub mod types;
 
-pub use embedding::{EmbeddingModel, LocalHashEmbedding};
+pub use embedding::{EmbeddingError, EmbeddingModel, LocalHashEmbedding, OpenAiEmbeddingModel};
 pub use tag::NlpTagIndex;
 pub use traits::{LearnableTextEncoder, TextEncoder};
 pub use types::{NlpDocument, TagSuggestion};

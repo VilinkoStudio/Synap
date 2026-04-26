@@ -34,7 +34,10 @@ impl From<ServiceError> for FfiError {
             }
             ServiceError::TempfileIO(()) | ServiceError::Io(_) => FfiError::Io,
             ServiceError::NoteErr(err) => err.into(),
-            ServiceError::Err(()) | ServiceError::Other(_) | ServiceError::ShareProtocol(_) => {
+            ServiceError::Err(())
+            | ServiceError::Other(_)
+            | ServiceError::ShareProtocol(_)
+            | ServiceError::Embedding(_) => {
                 FfiError::Other
             }
         }

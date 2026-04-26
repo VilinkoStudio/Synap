@@ -2,6 +2,8 @@ package com.synap.app.di
 
 import com.synap.app.data.repository.SynapRepository
 import com.synap.app.data.repository.SynapRepositoryImpl
+import com.synap.app.data.repository.StarmapRepository
+import com.synap.app.data.repository.StarmapRepositoryImpl
 import com.synap.app.data.repository.SyncRepository
 import com.synap.app.data.repository.SyncRepositoryImpl
 import com.synap.app.data.service.CoreffiRuntime
@@ -32,6 +34,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideSynapRepository(impl: SynapRepositoryImpl): SynapRepository = impl
+
+    @Provides
+    @Singleton
+    fun provideStarmapRepository(impl: StarmapRepositoryImpl): StarmapRepository = impl
 
     @Provides
     @Singleton

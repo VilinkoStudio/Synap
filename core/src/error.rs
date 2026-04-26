@@ -61,4 +61,7 @@ pub enum ServiceError {
 
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("embedding error: {0}")]
+    Embedding(#[from] crate::nlp::embedding::EmbeddingError),
 }

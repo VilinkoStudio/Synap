@@ -131,6 +131,7 @@ fun HomeScreen(
     onReplyToNote: (String, String) -> Unit,
     onToggleDeleted: (Note) -> Unit,
     onOpenSearch: () -> Unit,
+    onOpenStarmap: () -> Unit,
     onOpenTrash: () -> Unit,
     onLoadMore: () -> Unit,
     onRefresh: () -> Unit,
@@ -882,7 +883,20 @@ fun HomeScreen(
                         }
                     }
 
-                    // ========== 新增：将设置按钮移动到此处 ==========
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickable { onOpenStarmap() },
+                        color = Color.Transparent
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.ViewStream, null)
+                            Spacer(Modifier.width(16.dp))
+                            Text(stringResource(R.string.starmap_title), style = MaterialTheme.typography.titleMedium)
+                        }
+                    }
+
                     Surface(
                         modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickable { onOpenSettings() },
                         color = Color.Transparent
@@ -994,6 +1008,10 @@ fun HomeScreen(
 
                                     IconButton(onClick = openScanner) {
                                         Icon(Icons.Filled.QrCodeScanner, contentDescription = "扫一扫")
+                                    }
+
+                                    TextButton(onClick = onOpenStarmap) {
+                                        Text(stringResource(R.string.starmap_title))
                                     }
 
                                     Box {

@@ -5,6 +5,7 @@ use synap_core::dto::{
     PeerTrustStatusDTO as CorePeerTrustStatusDto, PublicKeyInfoDTO as CorePublicKeyInfoDto,
     ShareStatsDTO as CoreShareStatsDto, SyncSessionDTO as CoreSyncSessionDto,
     SyncSessionRecordDTO as CoreSyncSessionRecordDto, SyncSessionRoleDTO as CoreSyncSessionRoleDto,
+    StarmapPointDTO as CoreStarmapPointDto,
     SyncStatsDTO as CoreSyncStatsDto, SyncStatusDTO as CoreSyncStatusDto,
     TimelineNotesPageDTO as CoreTimelineNotesPageDto, TimelineSessionDTO as CoreTimelineSessionDto,
     TimelineSessionsPageDTO as CoreTimelineSessionsPageDto,
@@ -80,6 +81,23 @@ impl From<CoreTimelineSessionsPageDto> for TimelineSessionsPageDTO {
         Self {
             sessions: page.sessions.into_iter().map(Into::into).collect(),
             next_cursor: page.next_cursor,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StarmapPointDTO {
+    pub id: String,
+    pub x: f32,
+    pub y: f32,
+}
+
+impl From<CoreStarmapPointDto> for StarmapPointDTO {
+    fn from(point: CoreStarmapPointDto) -> Self {
+        Self {
+            id: point.id,
+            x: point.x,
+            y: point.y,
         }
     }
 }

@@ -83,6 +83,8 @@
     <string name="home_feed_timeline">时间组</string>
     <string name="content_desc_search">搜索</string>
     <string name="content_desc_settings">设置</string>
+    <string name="starmap_title">星图</string>
+    <string name="starmap_points_label">星图点位</string>
     <string name="edit_hint_reply">回复自</string>
     <string name="notedetail_title">笔记详情</string>
     <string name="notedetail_errorMessage">笔记不存在</string>

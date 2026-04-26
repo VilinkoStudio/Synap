@@ -17,7 +17,7 @@ pub use error::FfiError;
 pub use service::{get_build_info, get_version_string, open, open_memory, SynapService};
 pub use types::{
     BuildInfo, FilteredNoteStatus, LocalIdentityDTO, NoteDTO, PeerDTO, PeerTrustStatusDTO,
-    PublicKeyInfoDTO, ShareStatsDTO, SyncSessionDTO, SyncSessionRecordDTO,
+    PublicKeyInfoDTO, ShareStatsDTO, StarmapPointDTO, SyncSessionDTO, SyncSessionRecordDTO,
     SyncSessionRoleDTO, SyncStatsDTO, SyncStatusDTO,
     TimelineDirection, TimelineNotesPageDTO, TimelineSessionDTO, TimelineSessionsPageDTO,
 };

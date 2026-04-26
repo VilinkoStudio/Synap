@@ -117,6 +117,7 @@ fun SynapNavGraph(
                         onReplyToNote = { noteId, summary -> navController.navigate(editorRoute(parentId = noteId, parentSummary = summary)) },
                         onToggleDeleted = viewModel::toggleDeleted,
                         onOpenSearch = { navController.navigate("search") },
+                        onOpenStarmap = { navController.navigate("starmap") },
                         onOpenTrash = { navController.navigate("trash") },
                         onLoadMore = viewModel::loadMore,
                         onRefresh = viewModel::refresh,
@@ -127,6 +128,17 @@ fun SynapNavGraph(
                         onExportShare = viewModel::exportShare,
                         sharedTransitionScope = this@SharedTransitionLayout,
                         animatedVisibilityScope = this@composable
+                    )
+                }
+
+                composable("starmap") {
+                    val viewModel: StarmapViewModel = hiltViewModel()
+                    val uiState by viewModel.uiState.collectAsState()
+
+                    StarmapScreen(
+                        uiState = uiState,
+                        onNavigateBack = { navController.popBackStack() },
+                        onRefresh = viewModel::refresh,
                     )
                 }
 

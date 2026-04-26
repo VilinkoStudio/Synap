@@ -9,7 +9,7 @@ impl SynapService {
 
         self.note_searcher.insert(note.clone());
         self.index_note_embedding(&note)?;
-        self.rebuild_starmap_cache()?;
+        self.upsert_starmap_note(note.get_id())?;
         self.refresh_tag_indexes()?;
 
         self.with_read(|_tx, reader| self.note_to_dto(note.clone(), reader))
@@ -35,7 +35,7 @@ impl SynapService {
 
         self.note_searcher.insert(child.clone());
         self.index_note_embedding(&child)?;
-        self.rebuild_starmap_cache()?;
+        self.upsert_starmap_note(child.get_id())?;
         self.refresh_tag_indexes()?;
 
         self.with_read(|_tx, reader| self.note_to_dto(child.clone(), reader))
@@ -59,6 +59,8 @@ impl SynapService {
         })?;
 
         self.refresh_search_indexes()?;
+        self.remove_starmap_note(target_id)?;
+        self.upsert_starmap_note(edited.get_id())?;
 
         self.with_read(|_tx, reader| self.note_to_dto(edited.clone(), reader))
     }
@@ -73,6 +75,7 @@ impl SynapService {
             Ok(())
         })?;
         self.refresh_search_indexes()?;
+        self.remove_starmap_note(uuid)?;
         Ok(())
     }
 
@@ -85,6 +88,7 @@ impl SynapService {
             Ok(())
         })?;
         self.refresh_search_indexes()?;
+        self.upsert_starmap_note(uuid)?;
         Ok(())
     }
 }

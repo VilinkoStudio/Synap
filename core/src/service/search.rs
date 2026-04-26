@@ -32,8 +32,7 @@ impl SynapService {
             Ok(())
         })?;
 
-        self.rebuild_note_embeddings()?;
-        self.rebuild_starmap_cache()
+        self.rebuild_note_embeddings()
     }
 
     pub(crate) fn refresh_search_indexes(&self) -> Result<(), ServiceError> {

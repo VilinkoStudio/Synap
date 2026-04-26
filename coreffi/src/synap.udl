@@ -56,6 +56,12 @@ dictionary TimelineSessionsPageDTO {
     string? next_cursor;
 };
 
+dictionary StarmapPointDTO {
+    string id;
+    float x;
+    float y;
+};
+
 dictionary ShareStatsDTO {
     u64 records;
     u64 records_applied;
@@ -166,6 +172,7 @@ interface SynapService {
     [Throws=FfiError] sequence<NoteDTO> get_next_versions(string note_id);
     [Throws=FfiError] sequence<NoteDTO> get_other_versions(string note_id);
     [Throws=FfiError] sequence<NoteDTO> get_deleted_notes(string? cursor, u32? limit);
+    [Throws=FfiError] sequence<StarmapPointDTO> get_starmap();
     [Throws=FfiError] sequence<NoteDTO> search(string query, u32 limit);
     [Throws=FfiError] sequence<string> search_tags(string query, u32 limit);
     [Throws=FfiError] sequence<string> recommend_tag(string content, u32 limit);

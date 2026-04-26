@@ -115,27 +115,64 @@ impl SynapService {
         })
     }
 
-    pub(crate) fn rebuild_starmap_cache(&self) -> Result<(), ServiceError> {
-        let points = self.with_read(|tx, reader| {
+    pub(crate) fn note_embedding(&self, note_id: Uuid) -> Result<Option<Vec<f32>>, ServiceError> {
+        self.with_read(|tx, _reader| {
+            Note::vector_index()
+                .get(tx, &note_id.into_bytes())
+                .map_err(Into::into)
+        })
+    }
+
+    pub(crate) fn ensure_starmap_model_ready(&self) -> Result<(), ServiceError> {
+        let snapshot = self.with_read(|tx, reader| {
             let view = StarmapView::new(tx, reader);
-            view.build_projection()
+            if view.needs_initial_model()? {
+                return Ok(Some(view.build_full_snapshot()?));
+            }
+            Ok(None)
+        })?;
+
+        let Some(snapshot) = snapshot else {
+            return Ok(());
+        };
+
+        self.with_write(|wtx| StarmapView::persist_snapshot(wtx, &snapshot))
+    }
+
+    pub(crate) fn upsert_starmap_note(&self, note_id: Uuid) -> Result<(), ServiceError> {
+        let Some(vector) = self.note_embedding(note_id)? else {
+            return Ok(());
+        };
+
+        let snapshot = self.with_read(|tx, reader| {
+            let view = StarmapView::new(tx, reader);
+            view.upsert_note_from_model(note_id, vector)
+        })?;
+
+        self.with_write(|wtx| StarmapView::persist_snapshot(wtx, &snapshot))
+    }
+
+    pub(crate) fn remove_starmap_note(&self, note_id: Uuid) -> Result<(), ServiceError> {
+        let model = self.with_read(|tx, reader| {
+            let view = StarmapView::new(tx, reader);
+            view.remove_note_from_model(note_id)
         })?;
 
         self.with_write(|wtx| {
-            StarmapView::clear_cache(wtx)?;
-            for point in points {
-                let note_id = Uuid::parse_str(&point.id)?;
-                UmapCache::put(
-                    wtx,
-                    &note_id.into_bytes(),
-                    &crate::db::umap::UmapPointRecord {
-                        x: point.x,
-                        y: point.y,
-                    },
-                )?;
+            UmapCache::delete_point(wtx, &note_id.into_bytes())?;
+            if let Some(model) = model {
+                StarmapView::persist_model(wtx, &model)?;
+            } else {
+                UmapCache::clear_model(wtx)?;
             }
             Ok(())
         })
+    }
+
+    pub(crate) fn rebuild_starmap_full_cache(&self) -> Result<(), ServiceError> {
+        let snapshot =
+            self.with_read(|tx, reader| StarmapView::new(tx, reader).build_full_snapshot())?;
+        self.with_write(|wtx| StarmapView::persist_snapshot(wtx, &snapshot))
     }
 
     pub(crate) fn note_to_nlp_document(

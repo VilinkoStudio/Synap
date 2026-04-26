@@ -6,6 +6,7 @@ import com.synap.app.data.model.NoteRecord
 import com.synap.app.data.model.PeerRecord
 import com.synap.app.data.model.PeerTrustStatus
 import com.synap.app.data.model.ShareImportStats
+import com.synap.app.data.model.StarmapPointRecord
 import com.synap.app.data.model.SyncSession
 import com.synap.app.data.model.SyncSessionRecord
 import com.synap.app.data.model.TimelineDirection
@@ -75,6 +76,8 @@ interface SynapServiceApi {
     suspend fun getOtherVersions(noteId: String): Result<List<NoteRecord>>
 
     suspend fun getDeletedNotes(cursor: String?, limit: UInt?): Result<List<NoteRecord>>
+
+    suspend fun getStarmap(): Result<List<StarmapPointRecord>>
 
     suspend fun search(query: String, limit: UInt): Result<List<NoteRecord>>
 

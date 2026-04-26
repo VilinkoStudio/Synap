@@ -4,7 +4,7 @@ use umap_rs::{GraphParams, Umap, UmapConfig};
 use uuid::Uuid;
 
 use crate::{
-    db::umap::{UmapCache, UmapPointRecord},
+    db::umap::{UmapAnchorRecord, UmapCache, UmapModelRecord, UmapPointRecord},
     dto::StarmapPointDTO,
     error::ServiceError,
     models::note::{Note, NoteReader},
@@ -12,6 +12,8 @@ use crate::{
 
 const DEFAULT_UMAP_NEIGHBORS: usize = 15;
 const DEFAULT_UMAP_EPOCHS: usize = 60;
+const DEFAULT_INCREMENTAL_NEIGHBORS: usize = 8;
+const INVERSE_DISTANCE_EPSILON: f32 = 1e-6;
 
 pub(crate) struct StarmapView<'a, 'b> {
     tx: &'a redb::ReadTransaction,
@@ -28,7 +30,7 @@ impl<'a, 'b> StarmapView<'a, 'b> {
     }
 
     pub fn cached_points(&self) -> Result<Vec<StarmapPointDTO>, ServiceError> {
-        UmapCache::iter(self.tx)?
+        UmapCache::iter_points(self.tx)?
             .map(|res| {
                 res.map(|(note_id, point)| StarmapPointDTO {
                     id: Uuid::from_bytes(note_id).to_string(),
@@ -67,7 +69,15 @@ impl<'a, 'b> StarmapView<'a, 'b> {
         Ok(entries)
     }
 
-    pub fn build_projection(&self) -> Result<Vec<StarmapPointDTO>, ServiceError> {
+    pub fn needs_initial_model(&self) -> Result<bool, ServiceError> {
+        if UmapCache::load_model(self.tx)?.is_some() {
+            return Ok(false);
+        }
+
+        Ok(!self.collect_live_vectors()?.is_empty())
+    }
+
+    pub fn build_full_snapshot(&self) -> Result<StarmapSnapshot, ServiceError> {
         let entries = self.collect_live_vectors()?;
         let vectors = entries
             .iter()
@@ -75,49 +85,171 @@ impl<'a, 'b> StarmapView<'a, 'b> {
             .collect::<Vec<_>>();
         let coordinates = project_vectors_to_2d(&vectors)?;
 
-        Ok(entries
+        let anchors = entries
             .into_iter()
             .zip(coordinates)
-            .map(|((note_id, _), [x, y])| StarmapPointDTO {
-                id: note_id.to_string(),
+            .map(|((note_id, vector), [x, y])| UmapAnchorRecord {
+                note_id: note_id.into_bytes(),
+                vector,
                 x,
                 y,
             })
-            .collect())
+            .collect::<Vec<_>>();
+
+        let model = UmapModelRecord {
+            generation: UmapCache::load_model(self.tx)?
+                .map(|model| model.generation.saturating_add(1))
+                .unwrap_or(1),
+            anchors: anchors.clone(),
+        };
+
+        Ok(StarmapSnapshot::from_model(model))
     }
 
-    pub fn rebuild_cache(
+    pub fn upsert_note_from_model(
         &self,
-        tx: &redb::WriteTransaction,
-    ) -> Result<Vec<StarmapPointDTO>, ServiceError> {
-        let points = self.build_projection()?;
-        UmapCache::clear(tx)?;
+        note_id: Uuid,
+        vector: Vec<f32>,
+    ) -> Result<StarmapSnapshot, ServiceError> {
+        match UmapCache::load_model(self.tx)? {
+            Some(mut model) => {
+                model
+                    .anchors
+                    .retain(|anchor| anchor.note_id != note_id.into_bytes());
+                let point = project_incremental_from_anchors(&model.anchors, &vector);
+                model.anchors.push(UmapAnchorRecord {
+                    note_id: note_id.into_bytes(),
+                    vector,
+                    x: point.x,
+                    y: point.y,
+                });
+                normalize_model_points(&mut model);
+                Ok(StarmapSnapshot::from_model(model))
+            }
+            None => self.build_full_snapshot(),
+        }
+    }
 
-        for point in &points {
-            let note_id = Uuid::parse_str(&point.id)?;
-            UmapCache::put(
+    pub fn remove_note_from_model(
+        &self,
+        note_id: Uuid,
+    ) -> Result<Option<UmapModelRecord>, ServiceError> {
+        let Some(mut model) = UmapCache::load_model(self.tx)? else {
+            return Ok(None);
+        };
+
+        model
+            .anchors
+            .retain(|anchor| anchor.note_id != note_id.into_bytes());
+        normalize_model_points(&mut model);
+        Ok(Some(model))
+    }
+
+    pub fn clear_cache(tx: &redb::WriteTransaction) -> Result<(), ServiceError> {
+        UmapCache::clear_points(tx)?;
+        Ok(())
+    }
+
+    pub fn persist_snapshot(
+        tx: &redb::WriteTransaction,
+        snapshot: &StarmapSnapshot,
+    ) -> Result<(), ServiceError> {
+        UmapCache::clear_points(tx)?;
+        for point in &snapshot.points {
+            UmapCache::put_point(
                 tx,
-                &note_id.into_bytes(),
+                &point.note_id,
                 &UmapPointRecord {
                     x: point.x,
                     y: point.y,
                 },
             )?;
         }
-
-        Ok(points)
+        UmapCache::save_model(tx, &snapshot.model)?;
+        Ok(())
     }
 
-    pub fn clear_cache(tx: &redb::WriteTransaction) -> Result<usize, ServiceError> {
-        UmapCache::clear(tx).map_err(Into::into)
-    }
-
-    pub fn refresh_for_note_change(
-        &self,
+    pub fn persist_model(
         tx: &redb::WriteTransaction,
-        _note_id: Uuid,
-    ) -> Result<Vec<StarmapPointDTO>, ServiceError> {
-        self.rebuild_cache(tx)
+        model: &UmapModelRecord,
+    ) -> Result<(), ServiceError> {
+        let snapshot = StarmapSnapshot::from_model(model.clone());
+        Self::persist_snapshot(tx, &snapshot)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct StarmapSnapshot {
+    pub model: UmapModelRecord,
+    pub points: Vec<UmapAnchorRecord>,
+}
+
+impl StarmapSnapshot {
+    fn from_model(model: UmapModelRecord) -> Self {
+        let points = model.anchors.clone();
+        Self { model, points }
+    }
+}
+
+fn project_incremental_from_anchors(
+    anchors: &[UmapAnchorRecord],
+    vector: &[f32],
+) -> UmapPointRecord {
+    match anchors.len() {
+        0 => return UmapPointRecord { x: 0.0, y: 0.0 },
+        1 => {
+            return UmapPointRecord {
+                x: anchors[0].x,
+                y: anchors[0].y,
+            }
+        }
+        _ => {}
+    }
+
+    let mut neighbors = anchors
+        .iter()
+        .map(|anchor| {
+            (
+                euclidean_distance(vector, &anchor.vector),
+                anchor.x,
+                anchor.y,
+            )
+        })
+        .collect::<Vec<_>>();
+    neighbors.sort_by(|a, b| a.0.total_cmp(&b.0));
+
+    let mut weighted_x = 0.0;
+    let mut weighted_y = 0.0;
+    let mut total_weight = 0.0;
+
+    for (distance, x, y) in neighbors.into_iter().take(DEFAULT_INCREMENTAL_NEIGHBORS) {
+        let weight = 1.0 / distance.max(INVERSE_DISTANCE_EPSILON);
+        weighted_x += x * weight;
+        weighted_y += y * weight;
+        total_weight += weight;
+    }
+
+    if total_weight <= f32::EPSILON {
+        return UmapPointRecord { x: 0.0, y: 0.0 };
+    }
+
+    UmapPointRecord {
+        x: weighted_x / total_weight,
+        y: weighted_y / total_weight,
+    }
+}
+
+fn normalize_model_points(model: &mut UmapModelRecord) {
+    let mut points = model
+        .anchors
+        .iter()
+        .map(|anchor| [anchor.x, anchor.y])
+        .collect::<Vec<_>>();
+    normalize_points(&mut points);
+
+    for (anchor, [x, y]) in model.anchors.iter_mut().zip(points) {
+        anchor.x = x;
+        anchor.y = y;
     }
 }
 
@@ -328,5 +460,28 @@ mod tests {
         assert!(points.iter().all(|[x, y]| {
             x.is_finite() && y.is_finite() && *x >= -1.0 && *x <= 1.0 && *y >= -1.0 && *y <= 1.0
         }));
+    }
+
+    #[test]
+    fn test_incremental_projection_stays_bounded() {
+        let anchors = vec![
+            UmapAnchorRecord {
+                note_id: [1; 16],
+                vector: vec![1.0, 0.0],
+                x: -1.0,
+                y: 0.0,
+            },
+            UmapAnchorRecord {
+                note_id: [2; 16],
+                vector: vec![0.0, 1.0],
+                x: 1.0,
+                y: 0.0,
+            },
+        ];
+
+        let point = project_incremental_from_anchors(&anchors, &[0.8, 0.2]);
+        assert!(point.x.is_finite());
+        assert!(point.y.is_finite());
+        assert!((-1.0..=1.0).contains(&point.x));
     }
 }

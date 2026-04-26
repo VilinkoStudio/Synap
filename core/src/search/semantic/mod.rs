@@ -2,6 +2,7 @@ use std::{borrow::Cow, sync::Arc};
 
 use crate::db::types::BlockId;
 use crate::db::vector::VectorStore;
+use crate::error::ServiceError;
 use crate::nlp::embedding::EmbeddingModel;
 use crate::nlp::metrics::{cosine_similarity, vector_norm};
 
@@ -27,12 +28,12 @@ impl SemanticIndex {
         tx: &redb::ReadTransaction,
         query: &str,
         limit: usize,
-    ) -> Result<Vec<SearchResult>, redb::Error> {
+    ) -> Result<Vec<SearchResult>, ServiceError> {
         if limit == 0 {
             return Ok(Vec::new());
         }
 
-        let query_vector = self.embedding_model.encode(query);
+        let query_vector = self.embedding_model.embed(query)?;
         if query_vector.is_empty() {
             return Ok(Vec::new());
         }
@@ -43,10 +44,10 @@ impl SemanticIndex {
         }
 
         let mut results = Vec::new();
-        let iter = self.vector_store.iter(tx)?;
+        let iter = self.vector_store.iter(tx).map_err(ServiceError::from)?;
 
         for item in iter {
-            let (key_guard, doc_vector) = item.map_err(|e| redb::Error::from(e))?;
+            let (key_guard, doc_vector) = item.map_err(redb::Error::from)?;
             let similarity = cosine_similarity(&query_vector, &doc_vector, query_norm);
             if similarity > 0.0 {
                 let note_id = key_guard.value();
@@ -68,20 +69,22 @@ impl SemanticIndex {
         tx: &redb::WriteTransaction,
         note_id: &BlockId,
         text: &str,
-    ) -> Result<bool, redb::Error> {
+    ) -> Result<bool, ServiceError> {
         let text = text.trim();
         if text.is_empty() {
-            self.vector_store.delete(tx, note_id)?;
+            self.vector_store.delete(tx, note_id).map_err(ServiceError::from)?;
             return Ok(false);
         }
 
-        let vector = self.embedding_model.embed(text);
+        let vector = self.embedding_model.embed(text)?;
         if vector.is_empty() {
-            self.vector_store.delete(tx, note_id)?;
+            self.vector_store.delete(tx, note_id).map_err(ServiceError::from)?;
             return Ok(false);
         }
 
-        self.vector_store.put(tx, note_id, &vector)?;
+        self.vector_store
+            .put(tx, note_id, &vector)
+            .map_err(ServiceError::from)?;
         Ok(true)
     }
 
@@ -89,19 +92,19 @@ impl SemanticIndex {
         &self,
         tx: &redb::WriteTransaction,
         note_id: &BlockId,
-    ) -> Result<bool, redb::Error> {
-        self.vector_store.delete(tx, note_id)
+    ) -> Result<bool, ServiceError> {
+        self.vector_store.delete(tx, note_id).map_err(ServiceError::from)
     }
 
     pub fn rebuild<'a, I>(
         &self,
         tx: &redb::WriteTransaction,
         documents: I,
-    ) -> Result<usize, redb::Error>
+    ) -> Result<usize, ServiceError>
     where
         I: IntoIterator<Item = (BlockId, Cow<'a, str>)>,
     {
-        self.vector_store.clear(tx)?;
+        self.vector_store.clear(tx).map_err(ServiceError::from)?;
 
         let mut indexed = 0;
         for (note_id, text) in documents {
@@ -119,7 +122,7 @@ impl SemanticIndex {
         _tx: &redb::ReadTransaction,
         _note_id: BlockId,
         _limit: usize,
-    ) -> Result<Vec<SearchResult>, redb::Error> {
+    ) -> Result<Vec<SearchResult>, ServiceError> {
         todo!("find_similar")
     }
 }
