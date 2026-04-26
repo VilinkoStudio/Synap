@@ -1,8 +1,12 @@
+#![cfg(test)]
+
 // tests/integration.rs
+
+use std::time::Duration;
 
 use uuid::Uuid;
 
-use crate::search::types::Searchable;
+use crate::search::{searcher::FuzzyIndex, types::Searchable};
 
 // ─── 测试用数据结构 ───
 

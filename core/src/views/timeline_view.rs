@@ -568,8 +568,10 @@ fn split_session_spans(spans: Vec<SessionSpan>, point: TimelinePoint) -> Session
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::note::NoteVersionRecord;
+    use crate::models::note::{Note, NoteReader, NoteVersionRecord};
+    use redb::{Database, ReadableDatabase};
     use std::{thread::sleep, time::Duration};
+    use tempfile::NamedTempFile;
 
     fn ts_ms(seconds: u64) -> u64 {
         seconds * 1000

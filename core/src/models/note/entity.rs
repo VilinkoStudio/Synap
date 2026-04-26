@@ -80,6 +80,10 @@ impl Note {
         self.id
     }
 
+    pub(crate) fn vector_index() -> VectorStore<Vec<f32>> {
+        VectorStore::new("NoteVectors", NOTE_VECTOR_INDEX.dimension())
+    }
+
     pub fn content(&self) -> &str {
         &self.inner.content
     }

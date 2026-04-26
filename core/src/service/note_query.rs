@@ -25,11 +25,16 @@ impl SynapService {
         note_id.to_string()
     }
 
-    pub(crate) fn decode_timeline_cursor(cursor: Option<&str>) -> Result<Option<Uuid>, ServiceError> {
+    pub(crate) fn decode_timeline_cursor(
+        cursor: Option<&str>,
+    ) -> Result<Option<Uuid>, ServiceError> {
         cursor.map(Self::parse_id).transpose()
     }
 
-    pub(crate) fn finalize_note_page(mut notes: Vec<NoteDTO>, limit: usize) -> TimelineNotesPageDTO {
+    pub(crate) fn finalize_note_page(
+        mut notes: Vec<NoteDTO>,
+        limit: usize,
+    ) -> TimelineNotesPageDTO {
         let has_more = notes.len() > limit;
         if has_more {
             notes.pop();
@@ -129,7 +134,10 @@ impl SynapService {
         Ok(note)
     }
 
-    pub(crate) fn resolve_tag(tx: &ReadTransaction, content: &str) -> Result<Option<Tag>, ServiceError> {
+    pub(crate) fn resolve_tag(
+        tx: &ReadTransaction,
+        content: &str,
+    ) -> Result<Option<Tag>, ServiceError> {
         TagReader::new(tx)?
             .find_by_content(content)
             .map_err(Into::into)

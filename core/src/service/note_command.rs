@@ -8,6 +8,8 @@ impl SynapService {
         })?;
 
         self.note_searcher.insert(note.clone());
+        self.index_note_embedding(&note)?;
+        self.rebuild_starmap_cache()?;
         self.refresh_tag_indexes()?;
 
         self.with_read(|_tx, reader| self.note_to_dto(note.clone(), reader))
@@ -32,6 +34,8 @@ impl SynapService {
         })?;
 
         self.note_searcher.insert(child.clone());
+        self.index_note_embedding(&child)?;
+        self.rebuild_starmap_cache()?;
         self.refresh_tag_indexes()?;
 
         self.with_read(|_tx, reader| self.note_to_dto(child.clone(), reader))

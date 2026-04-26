@@ -30,7 +30,10 @@ impl SynapService {
             self.tag_searcher.insert_batch(tags.into_iter());
 
             Ok(())
-        })
+        })?;
+
+        self.rebuild_note_embeddings()?;
+        self.rebuild_starmap_cache()
     }
 
     pub(crate) fn refresh_search_indexes(&self) -> Result<(), ServiceError> {
@@ -46,6 +49,24 @@ impl SynapService {
             uuids
                 .iter()
                 .map(|id| reader.get_by_id(&id.id)?.ok_or(ServiceError::InvalidId))
+                .map(|note| self.note_to_dto(note?, reader))
+                .collect()
+        })
+    }
+
+    pub fn search_semantic(&self, query: &str, limit: usize) -> Result<Vec<NoteDTO>, ServiceError> {
+        let uuids = self.with_read(|tx, _reader| {
+            let results = self.semantic_index.search(tx, query, limit)?;
+            Ok(results
+                .into_iter()
+                .map(|item| Uuid::from_bytes(item.note_id))
+                .collect::<Vec<_>>())
+        })?;
+
+        self.with_read(|_tx, reader| {
+            uuids
+                .iter()
+                .map(|id| reader.get_by_id(id)?.ok_or(ServiceError::InvalidId))
                 .map(|note| self.note_to_dto(note?, reader))
                 .collect()
         })

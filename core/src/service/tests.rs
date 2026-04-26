@@ -120,6 +120,111 @@ fn test_recommend_tag_tracks_note_lifecycle() {
 }
 
 #[test]
+fn test_semantic_search_initializes_from_existing_notes() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("synap.redb");
+    let service = SynapService::new(Some(db_path.to_string_lossy().into_owned())).unwrap();
+
+    service
+        .create_note(
+            "rust async runtime ownership".to_string(),
+            vec!["rust".into()],
+        )
+        .unwrap();
+    service
+        .create_note(
+            "gardening watering schedule".to_string(),
+            vec!["life".into()],
+        )
+        .unwrap();
+
+    drop(service);
+
+    let reopened = SynapService::new(Some(db_path.to_string_lossy().into_owned())).unwrap();
+    let results = reopened.search_semantic("async ownership", 5).unwrap();
+
+    assert!(!results.is_empty());
+    assert_eq!(results[0].content, "rust async runtime ownership");
+}
+
+#[test]
+fn test_semantic_search_tracks_note_lifecycle() {
+    let service = SynapService::new(None).unwrap();
+
+    let original = service
+        .create_note("tokio runtime ownership".to_string(), vec!["async".into()])
+        .unwrap();
+
+    let initial = service.search_semantic("tokio runtime", 5).unwrap();
+    assert!(initial.iter().any(|note| note.id == original.id));
+
+    let edited = service
+        .edit_note(
+            &original.id,
+            "sql query planner index".to_string(),
+            vec!["database".into()],
+        )
+        .unwrap();
+
+    let old_results = service.search_semantic("tokio runtime", 5).unwrap();
+    assert!(!old_results.iter().any(|note| note.id == edited.id));
+
+    let updated_results = service.search_semantic("sql planner", 5).unwrap();
+    assert!(updated_results.iter().any(|note| note.id == edited.id));
+
+    service.delete_note(&edited.id).unwrap();
+    let after_delete = service.search_semantic("sql planner", 5).unwrap();
+    assert!(!after_delete.iter().any(|note| note.id == edited.id));
+
+    service.restore_note(&edited.id).unwrap();
+    let after_restore = service.search_semantic("sql planner", 5).unwrap();
+    assert!(after_restore.iter().any(|note| note.id == edited.id));
+}
+
+#[test]
+fn test_get_starmap_returns_latest_visible_notes_only() {
+    let service = SynapService::new(None).unwrap();
+
+    let original = service
+        .create_note("tokio runtime ownership".to_string(), vec!["async".into()])
+        .unwrap();
+    let edited = service
+        .edit_note(
+            &original.id,
+            "tokio runtime ownership updated".to_string(),
+            vec!["async".into()],
+        )
+        .unwrap();
+    let deleted = service
+        .create_note("deleted note".to_string(), vec!["misc".into()])
+        .unwrap();
+    let live = service
+        .create_note("live note".to_string(), vec!["misc".into()])
+        .unwrap();
+
+    service.delete_note(&deleted.id).unwrap();
+
+    let points = service.get_starmap().unwrap();
+    let ids = points
+        .iter()
+        .map(|point| point.id.as_str())
+        .collect::<Vec<_>>();
+
+    assert!(ids.contains(&edited.id.as_str()));
+    assert!(ids.contains(&live.id.as_str()));
+    assert!(!ids.contains(&original.id.as_str()));
+    assert!(!ids.contains(&deleted.id.as_str()));
+    assert!(points.iter().all(|point| {
+        point.x.is_finite()
+            && point.y.is_finite()
+            && point.x >= -1.0
+            && point.x <= 1.0
+            && point.y >= -1.0
+            && point.y <= 1.0
+    }));
+}
+
+#[test]
 fn test_get_all_tags_returns_sorted_contents() {
     let dir = tempdir().unwrap();
     let db_path = dir.path().join("synap.redb");

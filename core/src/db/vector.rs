@@ -1,4 +1,4 @@
-use redb::{ReadTransaction, TableDefinition, WriteTransaction};
+use redb::{ReadTransaction, ReadableTable, TableDefinition, WriteTransaction};
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::db::types::BlockId;
@@ -63,6 +63,21 @@ impl<V: Serialize + DeserializeOwned> VectorStore<V> {
             inner: range,
             _marker: std::marker::PhantomData,
         })
+    }
+
+    pub fn clear(&self, tx: &WriteTransaction) -> Result<usize, redb::Error> {
+        let mut table = tx.open_table(self.def)?;
+        let keys = table
+            .range::<BlockId>(..)?
+            .map(|res| res.map(|(key_guard, _)| key_guard.value()))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let cleared = keys.len();
+        for key in keys {
+            table.remove(key)?;
+        }
+
+        Ok(cleared)
     }
 
     pub fn init_table(&self, tx: &WriteTransaction) -> Result<(), redb::Error> {

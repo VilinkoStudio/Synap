@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 serde = { version = "1.0.228", features = ["derive"] }
 
+
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 anyhow = "1.0.102"
 argon2 = "0.5.3"
@@ -15,6 +16,7 @@ ed25519-dalek = { version = "2.2.0", features = ["rand_core"] }
 hkdf = "0.12.4"
 lz4_flex = "0.11"
 memchr = "2.8.0"
+ndarray = "0.17.2"
 nucleo = "0.5.0"
 postcard = { version = "1.1.3", features = ["alloc"] }
 rand = "0.10.0"
@@ -23,6 +25,7 @@ rand_core = "0.6.4"
 sha2 = "0.10.9"
 tempfile = "3.0"
 thiserror = "2.0"
+umap-rs = "0.4.5"
 uuid = { version = "1.22.0", features = ["serde", "v7", "v5", "v4"] }
 x25519-dalek = { version = "2.0.1", features = ["static_secrets", "getrandom", "serde"] }
 

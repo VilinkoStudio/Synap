@@ -1,7 +1,7 @@
 use rand::distr::Uniform;
+use rand::rng;
 use rand::rngs::ThreadRng;
 use rand::RngExt;
-use rand::rng;
 
 const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
 
