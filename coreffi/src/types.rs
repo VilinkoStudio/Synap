@@ -2,13 +2,17 @@
 
 use synap_core::dto::{
     LocalIdentityDTO as CoreLocalIdentityDto, NoteBriefDTO as CoreNoteBriefDto,
-    NoteDTO as CoreNoteDto, PeerDTO as CorePeerDto, PeerTrustStatusDTO as CorePeerTrustStatusDto,
-    PublicKeyInfoDTO as CorePublicKeyInfoDto, SearchResultDTO as CoreSearchResultDto,
-    SearchSourceDTO as CoreSearchSourceDto, ShareStatsDTO as CoreShareStatsDto,
-    StarmapPointDTO as CoreStarmapPointDto, SyncSessionDTO as CoreSyncSessionDto,
-    SyncSessionRecordDTO as CoreSyncSessionRecordDto, SyncSessionRoleDTO as CoreSyncSessionRoleDto,
-    SyncStatsDTO as CoreSyncStatsDto, SyncStatusDTO as CoreSyncStatusDto,
-    TimelineNotesPageDTO as CoreTimelineNotesPageDto, TimelineSessionDTO as CoreTimelineSessionDto,
+    NoteContentDiffStatsDTO as CoreNoteContentDiffStatsDto, NoteDTO as CoreNoteDto,
+    NoteTagDiffDTO as CoreNoteTagDiffDto, NoteTextChangeDTO as CoreNoteTextChangeDto,
+    NoteTextChangeKindDTO as CoreNoteTextChangeKindDto, NoteVersionDTO as CoreNoteVersionDto,
+    NoteVersionDiffDTO as CoreNoteVersionDiffDto, PeerDTO as CorePeerDto,
+    PeerTrustStatusDTO as CorePeerTrustStatusDto, PublicKeyInfoDTO as CorePublicKeyInfoDto,
+    SearchResultDTO as CoreSearchResultDto, SearchSourceDTO as CoreSearchSourceDto,
+    ShareStatsDTO as CoreShareStatsDto, StarmapPointDTO as CoreStarmapPointDto,
+    SyncSessionDTO as CoreSyncSessionDto, SyncSessionRecordDTO as CoreSyncSessionRecordDto,
+    SyncSessionRoleDTO as CoreSyncSessionRoleDto, SyncStatsDTO as CoreSyncStatsDto,
+    SyncStatusDTO as CoreSyncStatusDto, TimelineNotesPageDTO as CoreTimelineNotesPageDto,
+    TimelineSessionDTO as CoreTimelineSessionDto,
     TimelineSessionsPageDTO as CoreTimelineSessionsPageDto,
 };
 use synap_core::service::FilteredNoteStatus as CoreFilteredNoteStatus;
@@ -54,6 +58,106 @@ impl From<CoreNoteDto> for NoteDTO {
             deleted: note.deleted,
             reply_to: note.reply_to.map(Into::into),
             edited_from: note.edited_from.map(Into::into),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoteTextChangeKindDTO {
+    Equal,
+    Insert,
+    Delete,
+}
+
+impl From<CoreNoteTextChangeKindDto> for NoteTextChangeKindDTO {
+    fn from(kind: CoreNoteTextChangeKindDto) -> Self {
+        match kind {
+            CoreNoteTextChangeKindDto::Equal => Self::Equal,
+            CoreNoteTextChangeKindDto::Insert => Self::Insert,
+            CoreNoteTextChangeKindDto::Delete => Self::Delete,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoteTextChangeDTO {
+    pub kind: NoteTextChangeKindDTO,
+    pub value: String,
+}
+
+impl From<CoreNoteTextChangeDto> for NoteTextChangeDTO {
+    fn from(change: CoreNoteTextChangeDto) -> Self {
+        Self {
+            kind: change.kind.into(),
+            value: change.value,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoteTagDiffDTO {
+    pub added: Vec<String>,
+    pub removed: Vec<String>,
+}
+
+impl From<CoreNoteTagDiffDto> for NoteTagDiffDTO {
+    fn from(diff: CoreNoteTagDiffDto) -> Self {
+        Self {
+            added: diff.added,
+            removed: diff.removed,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoteContentDiffStatsDTO {
+    pub inserted_chars: u32,
+    pub deleted_chars: u32,
+    pub inserted_lines: u32,
+    pub deleted_lines: u32,
+}
+
+impl From<CoreNoteContentDiffStatsDto> for NoteContentDiffStatsDTO {
+    fn from(stats: CoreNoteContentDiffStatsDto) -> Self {
+        Self {
+            inserted_chars: stats.inserted_chars,
+            deleted_chars: stats.deleted_chars,
+            inserted_lines: stats.inserted_lines,
+            deleted_lines: stats.deleted_lines,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoteVersionDiffDTO {
+    pub tags: NoteTagDiffDTO,
+    pub content: Vec<NoteTextChangeDTO>,
+    pub content_summary: Vec<NoteTextChangeDTO>,
+    pub content_stats: NoteContentDiffStatsDTO,
+}
+
+impl From<CoreNoteVersionDiffDto> for NoteVersionDiffDTO {
+    fn from(diff: CoreNoteVersionDiffDto) -> Self {
+        Self {
+            tags: diff.tags.into(),
+            content: diff.content.into_iter().map(Into::into).collect(),
+            content_summary: diff.content_summary.into_iter().map(Into::into).collect(),
+            content_stats: diff.content_stats.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoteVersionDTO {
+    pub note: NoteDTO,
+    pub diff: NoteVersionDiffDTO,
+}
+
+impl From<CoreNoteVersionDto> for NoteVersionDTO {
+    fn from(version: CoreNoteVersionDto) -> Self {
+        Self {
+            note: version.note.into(),
+            diff: version.diff.into(),
         }
     }
 }

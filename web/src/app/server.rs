@@ -1,12 +1,11 @@
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
 use server_fn::error::ServerFnError;
-use synap_core::{
-    dto::SyncSessionRecordDTO, LocalIdentityDTO, NoteDTO, PeerTrustStatusDTO,
-    TimelineNotesPageDTO,
-};
 #[cfg(feature = "ssr")]
 use synap_core::PeerDTO;
+use synap_core::{
+    dto::SyncSessionRecordDTO, LocalIdentityDTO, NoteDTO, PeerTrustStatusDTO, TimelineNotesPageDTO,
+};
 
 #[cfg(feature = "ssr")]
 use axum::{
@@ -20,15 +19,15 @@ use axum::{
     Extension,
 };
 #[cfg(feature = "ssr")]
-use std::{
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
-#[cfg(feature = "ssr")]
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 #[cfg(feature = "ssr")]
 use corenet::{
     spawn_incoming_loop, IncomingLoopHandle, ListenConfig, ListenerState, NetError, TcpNetRuntime,
+};
+#[cfg(feature = "ssr")]
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
 };
 #[cfg(feature = "ssr")]
 use synap_core::{ServiceError, SynapService, TimelineDirection};
@@ -414,8 +413,12 @@ pub async fn update_peer_note_server(
         (!trimmed.is_empty()).then_some(trimmed)
     });
 
-    with_service(move |service| service.update_peer_note(&peer_id, normalized_note).map(map_peer))
-        .await
+    with_service(move |service| {
+        service
+            .update_peer_note(&peer_id, normalized_note)
+            .map(map_peer)
+    })
+    .await
 }
 
 #[server]

@@ -2,6 +2,7 @@ package com.synap.app.data.repository
 
 import com.synap.app.data.model.NoteFeedFilter
 import com.synap.app.data.model.NoteRecord
+import com.synap.app.data.model.NoteVersionRecord
 import com.synap.app.data.model.ReplyItem
 import com.synap.app.data.model.SearchResultRecord
 import com.synap.app.data.model.ShareImportStats
@@ -48,11 +49,11 @@ interface SynapRepository {
 
     suspend fun getOrigins(noteId: String): List<NoteRecord>
 
-    suspend fun getPreviousVersions(noteId: String): List<NoteRecord>
+    suspend fun getPreviousVersions(noteId: String): List<NoteVersionRecord>
 
-    suspend fun getNextVersions(noteId: String): List<NoteRecord>
+    suspend fun getNextVersions(noteId: String): List<NoteVersionRecord>
 
-    suspend fun getOtherVersions(noteId: String): List<NoteRecord>
+    suspend fun getOtherVersions(noteId: String): List<NoteVersionRecord>
 
     suspend fun search(query: String, limit: UInt = 50u): List<NoteRecord>
 
@@ -178,13 +179,13 @@ class SynapRepositoryImpl @Inject constructor(
     override suspend fun getOrigins(noteId: String): List<NoteRecord> =
         service.getOrigins(noteId).unwrap()
 
-    override suspend fun getPreviousVersions(noteId: String): List<NoteRecord> =
+    override suspend fun getPreviousVersions(noteId: String): List<NoteVersionRecord> =
         service.getPreviousVersions(noteId).unwrap()
 
-    override suspend fun getNextVersions(noteId: String): List<NoteRecord> =
+    override suspend fun getNextVersions(noteId: String): List<NoteVersionRecord> =
         service.getNextVersions(noteId).unwrap()
 
-    override suspend fun getOtherVersions(noteId: String): List<NoteRecord> =
+    override suspend fun getOtherVersions(noteId: String): List<NoteVersionRecord> =
         service.getOtherVersions(noteId).unwrap()
 
     override suspend fun search(query: String, limit: UInt): List<NoteRecord> =

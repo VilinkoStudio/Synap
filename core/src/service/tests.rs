@@ -497,7 +497,10 @@ fn test_edit_note_creates_new_version_and_refreshes_tags() {
     assert_ne!(created.id, edited.id);
     assert_eq!(edited.content, "learn rust async");
     assert_eq!(edited.tags, vec!["rust".to_string(), "async".to_string()]);
-    let edited_from = edited.edited_from.as_ref().expect("edited_from should exist");
+    let edited_from = edited
+        .edited_from
+        .as_ref()
+        .expect("edited_from should exist");
     assert_eq!(edited_from.id, created.id);
     assert_eq!(edited_from.content_preview, "learn rust");
     assert!(edited.reply_to.is_none());
@@ -538,7 +541,9 @@ fn test_reply_note_links_child_and_indexes_tags() {
 fn test_edited_reply_exposes_both_relation_briefs() {
     let service = SynapService::new(None).unwrap();
 
-    let parent = service.create_note("root parent".to_string(), vec![]).unwrap();
+    let parent = service
+        .create_note("root parent".to_string(), vec![])
+        .unwrap();
     let reply = service
         .reply_note(&parent.id, "first reply".to_string(), vec![])
         .unwrap();
@@ -766,28 +771,70 @@ fn test_version_queries_return_live_related_versions() {
     let service = SynapService::new(Some(db_path.to_string_lossy().into_owned())).unwrap();
 
     let v1 = service
-        .create_note("Version 1".to_string(), vec![])
+        .create_note("Version 1".to_string(), vec!["alpha".to_string()])
         .unwrap();
     let v2a = service
-        .edit_note(&v1.id, "Version 2A".to_string(), vec![])
+        .edit_note(
+            &v1.id,
+            "Version 2A".to_string(),
+            vec!["alpha".to_string(), "beta".to_string()],
+        )
         .unwrap();
     let v2b = service
-        .edit_note(&v1.id, "Version 2B".to_string(), vec![])
+        .edit_note(&v1.id, "Version 2B".to_string(), vec!["gamma".to_string()])
         .unwrap();
 
     let previous = service.get_previous_versions(&v2a.id).unwrap();
     assert_eq!(previous.len(), 1);
-    assert_eq!(previous[0].id, v1.id);
+    assert_eq!(previous[0].note.id, v1.id);
+    assert_eq!(previous[0].diff.tags.added, Vec::<String>::new());
+    assert_eq!(previous[0].diff.tags.removed, vec!["beta"]);
+    assert!(previous[0]
+        .diff
+        .content
+        .iter()
+        .any(|change| !matches!(change.kind, crate::dto::NoteTextChangeKindDTO::Equal)));
 
     let next = service.get_next_versions(&v1.id).unwrap();
     assert_eq!(next.len(), 2);
-    assert!(next.iter().any(|note| note.id == v2a.id));
-    assert!(next.iter().any(|note| note.id == v2b.id));
+    assert!(next.iter().any(|note| note.note.id == v2a.id));
+    assert!(next.iter().any(|note| note.note.id == v2b.id));
+    let next_v2a = next.iter().find(|note| note.note.id == v2a.id).unwrap();
+    assert_eq!(next_v2a.diff.tags.added, vec!["beta"]);
+    assert_eq!(next_v2a.diff.tags.removed, Vec::<String>::new());
+    assert!(next_v2a
+        .diff
+        .content
+        .iter()
+        .any(|change| !matches!(change.kind, crate::dto::NoteTextChangeKindDTO::Equal)));
 
     let others = service.get_other_versions(&v2a.id).unwrap();
     assert_eq!(others.len(), 2);
-    assert!(others.iter().any(|note| note.id == v1.id));
-    assert!(others.iter().any(|note| note.id == v2b.id));
+    assert!(others.iter().any(|note| note.note.id == v1.id));
+    assert!(others.iter().any(|note| note.note.id == v2b.id));
+}
+
+#[test]
+fn test_version_query_diff_stats_count_changed_lines_by_line_diff() {
+    let service = SynapService::new(None).unwrap();
+
+    let original = service
+        .create_note("alpha\nbeta\ngamma".to_string(), vec![])
+        .unwrap();
+    let edited = service
+        .edit_note(
+            &original.id,
+            "alpha\nbeta changed\ngamma\ndelta".to_string(),
+            vec![],
+        )
+        .unwrap();
+
+    let next = service.get_next_versions(&original.id).unwrap();
+    let version = next.iter().find(|item| item.note.id == edited.id).unwrap();
+
+    assert_eq!(version.diff.content_stats.inserted_lines, 2);
+    assert_eq!(version.diff.content_stats.deleted_lines, 1);
+    assert!(version.diff.content_stats.inserted_chars > 0);
 }
 
 #[test]

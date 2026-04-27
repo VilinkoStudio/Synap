@@ -92,9 +92,7 @@ impl SynapService {
         let fuzzy_limit = fuzzy_limit.unwrap_or_else(|| self.note_searcher.total_items() as usize);
         let semantic_limit = semantic_limit.unwrap_or(limit);
 
-        let fuzzy_results = self
-            .note_searcher
-            .search(query, fuzzy_limit, None);
+        let fuzzy_results = self.note_searcher.search(query, fuzzy_limit, None);
         let semantic_results =
             self.with_read(|tx, _reader| self.semantic_index.search(tx, query, semantic_limit))?;
 

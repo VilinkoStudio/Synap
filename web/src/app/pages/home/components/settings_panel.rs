@@ -48,7 +48,9 @@ pub fn SettingsPanel() -> impl IntoView {
         set_sync_refresh_key.update(|value| *value += 1);
     });
 
-    let run_sync_action = move |future: std::pin::Pin<Box<dyn std::future::Future<Output = Result<String, String>>>>| {
+    let run_sync_action = move |future: std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<String, String>>>,
+    >| {
         set_is_sync_mutating.set(true);
         spawn_local(async move {
             let result = future.await;
@@ -299,8 +301,16 @@ fn ListenerOverviewCard(overview: WebSyncOverviewDTO) -> impl IntoView {
 fn IdentityOverviewCard(overview: WebSyncOverviewDTO) -> impl IntoView {
     let identity = overview.local_identity;
     let cards = vec![
-        ("通信身份", identity.identity.kaomoji_fingerprint, identity.identity.display_public_key_base64),
-        ("签名身份", identity.signing.kaomoji_fingerprint, identity.signing.display_public_key_base64),
+        (
+            "通信身份",
+            identity.identity.kaomoji_fingerprint,
+            identity.identity.display_public_key_base64,
+        ),
+        (
+            "签名身份",
+            identity.signing.kaomoji_fingerprint,
+            identity.signing.display_public_key_base64,
+        ),
     ];
 
     view! {

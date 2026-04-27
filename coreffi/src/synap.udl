@@ -47,6 +47,41 @@ dictionary NoteDTO {
     NoteBriefDTO? edited_from;
 };
 
+enum NoteTextChangeKindDTO {
+    "Equal",
+    "Insert",
+    "Delete",
+};
+
+dictionary NoteTextChangeDTO {
+    NoteTextChangeKindDTO kind;
+    string value;
+};
+
+dictionary NoteTagDiffDTO {
+    sequence<string> added;
+    sequence<string> removed;
+};
+
+dictionary NoteContentDiffStatsDTO {
+    u32 inserted_chars;
+    u32 deleted_chars;
+    u32 inserted_lines;
+    u32 deleted_lines;
+};
+
+dictionary NoteVersionDiffDTO {
+    NoteTagDiffDTO tags;
+    sequence<NoteTextChangeDTO> content;
+    sequence<NoteTextChangeDTO> content_summary;
+    NoteContentDiffStatsDTO content_stats;
+};
+
+dictionary NoteVersionDTO {
+    NoteDTO note;
+    NoteVersionDiffDTO diff;
+};
+
 enum SearchSourceDTO {
     "Fuzzy",
     "Semantic",
@@ -187,9 +222,9 @@ interface SynapService {
         u32? limit
     );
     [Throws=FfiError] sequence<NoteDTO> get_origins(string child_id);
-    [Throws=FfiError] sequence<NoteDTO> get_previous_versions(string note_id);
-    [Throws=FfiError] sequence<NoteDTO> get_next_versions(string note_id);
-    [Throws=FfiError] sequence<NoteDTO> get_other_versions(string note_id);
+    [Throws=FfiError] sequence<NoteVersionDTO> get_previous_versions(string note_id);
+    [Throws=FfiError] sequence<NoteVersionDTO> get_next_versions(string note_id);
+    [Throws=FfiError] sequence<NoteVersionDTO> get_other_versions(string note_id);
     [Throws=FfiError] sequence<NoteDTO> get_deleted_notes(string? cursor, u32? limit);
     [Throws=FfiError] sequence<StarmapPointDTO> get_starmap();
     [Throws=FfiError] sequence<NoteDTO> search(string query, u32 limit);

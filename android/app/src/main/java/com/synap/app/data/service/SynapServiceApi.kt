@@ -3,6 +3,7 @@ package com.synap.app.data.service
 import com.synap.app.data.model.NoteFeedFilter
 import com.synap.app.data.model.LocalIdentity
 import com.synap.app.data.model.NoteRecord
+import com.synap.app.data.model.NoteVersionRecord
 import com.synap.app.data.model.PeerRecord
 import com.synap.app.data.model.PeerTrustStatus
 import com.synap.app.data.model.SearchResultRecord
@@ -70,11 +71,11 @@ interface SynapServiceApi {
 
     suspend fun getOrigins(childId: String): Result<List<NoteRecord>>
 
-    suspend fun getPreviousVersions(noteId: String): Result<List<NoteRecord>>
+    suspend fun getPreviousVersions(noteId: String): Result<List<NoteVersionRecord>>
 
-    suspend fun getNextVersions(noteId: String): Result<List<NoteRecord>>
+    suspend fun getNextVersions(noteId: String): Result<List<NoteVersionRecord>>
 
-    suspend fun getOtherVersions(noteId: String): Result<List<NoteRecord>>
+    suspend fun getOtherVersions(noteId: String): Result<List<NoteVersionRecord>>
 
     suspend fun getDeletedNotes(cursor: String?, limit: UInt?): Result<List<NoteRecord>>
 

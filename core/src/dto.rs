@@ -24,6 +24,53 @@ pub struct NoteDTO {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub enum NoteTextChangeKindDTO {
+    Equal,
+    Insert,
+    Delete,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteTextChangeDTO {
+    pub kind: NoteTextChangeKindDTO,
+    pub value: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteTagDiffDTO {
+    pub added: Vec<String>,
+    pub removed: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteContentDiffStatsDTO {
+    pub inserted_chars: u32,
+    pub deleted_chars: u32,
+    pub inserted_lines: u32,
+    pub deleted_lines: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteVersionDiffDTO {
+    pub tags: NoteTagDiffDTO,
+    pub content: Vec<NoteTextChangeDTO>,
+    pub content_summary: Vec<NoteTextChangeDTO>,
+    pub content_stats: NoteContentDiffStatsDTO,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteVersionDTO {
+    pub note: NoteDTO,
+    pub diff: NoteVersionDiffDTO,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum SearchSourceDTO {
     Fuzzy,
     Semantic,

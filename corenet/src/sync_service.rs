@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use synap_core::{SyncSessionDTO, SynapService};
+use synap_core::{SynapService, SyncSessionDTO};
 
 use crate::{
     spawn_incoming_loop, ConnectConfig, IncomingConnection, ListenConfig, ListenerState, NetError,

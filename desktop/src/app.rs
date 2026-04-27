@@ -312,7 +312,14 @@ fn detail_view(state: &AppState) -> Element<'_, Message> {
         )
         .push(relationship_section("父链溯源", &state.selected_origins))
         .push(relationship_section("回复", &state.selected_replies))
-        .push(relationship_section("其他版本", &state.selected_versions));
+        .push(relationship_section(
+            "其他版本",
+            &state
+                .selected_versions
+                .iter()
+                .map(|version| version.note.clone())
+                .collect::<Vec<_>>(),
+        ));
 
     panel = panel.push(Text::new("当前内容预览").size(18));
     panel = panel.push(Container::new(Text::new(note.content.as_str())).padding(12));

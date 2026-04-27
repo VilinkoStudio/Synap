@@ -3,7 +3,11 @@
 use once_cell::sync::OnceCell;
 use std::{io, sync::Mutex};
 
-use synap_core::{dto::NoteDTO, error::ServiceError, service::SynapService};
+use synap_core::{
+    dto::{NoteDTO, NoteVersionDTO},
+    error::ServiceError,
+    service::SynapService,
+};
 
 pub type Result<T> = std::result::Result<T, ServiceError>;
 
@@ -64,7 +68,7 @@ impl ServiceWrapper {
         Self::with_service(|service| service.get_origins(note_id))
     }
 
-    pub fn other_versions(note_id: &str) -> Result<Vec<NoteDTO>> {
+    pub fn other_versions(note_id: &str) -> Result<Vec<NoteVersionDTO>> {
         Self::with_service(|service| service.get_other_versions(note_id))
     }
 

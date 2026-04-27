@@ -16,11 +16,12 @@ pub trait SyncTransport: Send + Sync {
 pub use error::FfiError;
 pub use service::{get_build_info, get_version_string, open, open_memory, SynapService};
 pub use types::{
-    BuildInfo, FilteredNoteStatus, LocalIdentityDTO, NoteBriefDTO, NoteDTO, PeerDTO,
-    PeerTrustStatusDTO, PublicKeyInfoDTO, SearchResultDTO, SearchSourceDTO, ShareStatsDTO,
-    StarmapPointDTO, SyncSessionDTO, SyncSessionRecordDTO, SyncSessionRoleDTO, SyncStatsDTO,
-    SyncStatusDTO, TimelineDirection, TimelineNotesPageDTO, TimelineSessionDTO,
-    TimelineSessionsPageDTO,
+    BuildInfo, FilteredNoteStatus, LocalIdentityDTO, NoteBriefDTO, NoteContentDiffStatsDTO,
+    NoteDTO, NoteTagDiffDTO, NoteTextChangeDTO, NoteTextChangeKindDTO, NoteVersionDTO,
+    NoteVersionDiffDTO, PeerDTO, PeerTrustStatusDTO, PublicKeyInfoDTO, SearchResultDTO,
+    SearchSourceDTO, ShareStatsDTO, StarmapPointDTO, SyncSessionDTO, SyncSessionRecordDTO,
+    SyncSessionRoleDTO, SyncStatsDTO, SyncStatusDTO, TimelineDirection, TimelineNotesPageDTO,
+    TimelineSessionDTO, TimelineSessionsPageDTO,
 };
 
 // Include uniffi bindings - this will generate the Kotlin bindings

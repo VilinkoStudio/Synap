@@ -178,7 +178,7 @@ fn test_share_import_bytes_round_trips_logical_notes() {
 
     let next_versions = service_b.get_next_versions(&root.id).unwrap();
     assert_eq!(next_versions.len(), 1);
-    assert_eq!(next_versions[0].id, edited.id);
+    assert_eq!(next_versions[0].note.id, edited.id);
 
     let tag_hits = service_b.search_tags("async", 10).unwrap();
     assert!(tag_hits.iter().any(|tag| tag == "async"));

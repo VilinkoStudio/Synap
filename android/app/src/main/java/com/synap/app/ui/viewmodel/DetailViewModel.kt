@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.synap.app.data.repository.SynapMutation
 import com.synap.app.data.repository.SynapRepository
 import com.synap.app.ui.model.Note
+import com.synap.app.ui.model.NoteVersion
 import com.synap.app.ui.model.toUiNote
+import com.synap.app.ui.model.toUiNoteVersion
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.async
@@ -27,8 +29,8 @@ sealed interface DetailEvent {
 data class DetailUiState(
     val note: Note? = null,
     val origins: List<Note> = emptyList(),
-    val previousVersions: List<Note> = emptyList(),
-    val nextVersions: List<Note> = emptyList(),
+    val previousVersions: List<NoteVersion> = emptyList(),
+    val nextVersions: List<NoteVersion> = emptyList(),
     val replies: List<Note> = emptyList(),
     val isLoading: Boolean = true,
     val repliesLoading: Boolean = false,
@@ -39,8 +41,8 @@ data class DetailUiState(
 private data class DetailSnapshot(
     val note: Note? = null,
     val origins: List<Note> = emptyList(),
-    val previousVersions: List<Note> = emptyList(),
-    val nextVersions: List<Note> = emptyList(),
+    val previousVersions: List<NoteVersion> = emptyList(),
+    val nextVersions: List<NoteVersion> = emptyList(),
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
 )
@@ -139,8 +141,10 @@ class DetailViewModel @Inject constructor(
             coroutineScope {
                 val noteDeferred = async { repository.getNote(noteId).toUiNote() }
                 val originsDeferred = async { repository.getOrigins(noteId).map { it.toUiNote() } }
-                val previousDeferred = async { repository.getPreviousVersions(noteId).map { it.toUiNote() } }
-                val nextDeferred = async { repository.getNextVersions(noteId).map { it.toUiNote() } }
+                val previousDeferred =
+                    async { repository.getPreviousVersions(noteId).map { it.toUiNoteVersion() } }
+                val nextDeferred =
+                    async { repository.getNextVersions(noteId).map { it.toUiNoteVersion() } }
 
                 DetailSnapshot(
                     note = noteDeferred.await(),

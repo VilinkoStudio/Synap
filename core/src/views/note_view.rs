@@ -310,13 +310,12 @@ impl<'a, 'b> NoteView<'a, 'b> {
     }
 
     fn ref_to_brief(&self, note_ref: NoteRef) -> Result<NoteBriefDTO, NoteError> {
-        let note =
-            note_ref
-                .hydrate(self.reader)
-                .map_err(NoteError::Db)?
-                .ok_or(NoteError::IdNotFound {
-                    id: note_ref.get_id(),
-                })?;
+        let note = note_ref
+            .hydrate(self.reader)
+            .map_err(NoteError::Db)?
+            .ok_or(NoteError::IdNotFound {
+                id: note_ref.get_id(),
+            })?;
         Self::note_to_brief(&note)
     }
 

@@ -14,6 +14,7 @@ import com.synap.app.data.model.LocalIdentity
 import com.synap.app.data.model.NoteFeedFilter
 import com.synap.app.data.model.NoteFeedStatus
 import com.synap.app.data.model.NoteRecord
+import com.synap.app.data.model.NoteVersionRecord
 import com.synap.app.data.model.PeerRecord
 import com.synap.app.data.model.SearchResultRecord
 import com.synap.app.data.model.ShareImportStats
@@ -33,6 +34,7 @@ import com.synap.app.data.model.toCursorPage
 import com.synap.app.data.model.toDto
 import com.synap.app.data.model.toNoteRecord
 import com.synap.app.data.model.toNoteRecords
+import com.synap.app.data.model.toNoteVersionRecords
 import com.synap.app.data.model.toSearchResultRecords
 import com.synap.app.data.model.toCursorPage as toSessionCursorPage
 import com.synap.app.data.portal.CursorPage
@@ -262,14 +264,14 @@ class CoreffiRuntime @Inject constructor(
     override suspend fun getOrigins(childId: String): Result<List<NoteRecord>> =
         withService { service -> service.getOrigins(childId).toNoteRecords() }
 
-    override suspend fun getPreviousVersions(noteId: String): Result<List<NoteRecord>> =
-        withService { service -> service.getPreviousVersions(noteId).toNoteRecords() }
+    override suspend fun getPreviousVersions(noteId: String): Result<List<NoteVersionRecord>> =
+        withService { service -> service.getPreviousVersions(noteId).toNoteVersionRecords() }
 
-    override suspend fun getNextVersions(noteId: String): Result<List<NoteRecord>> =
-        withService { service -> service.getNextVersions(noteId).toNoteRecords() }
+    override suspend fun getNextVersions(noteId: String): Result<List<NoteVersionRecord>> =
+        withService { service -> service.getNextVersions(noteId).toNoteVersionRecords() }
 
-    override suspend fun getOtherVersions(noteId: String): Result<List<NoteRecord>> =
-        withService { service -> service.getOtherVersions(noteId).toNoteRecords() }
+    override suspend fun getOtherVersions(noteId: String): Result<List<NoteVersionRecord>> =
+        withService { service -> service.getOtherVersions(noteId).toNoteVersionRecords() }
 
     override suspend fun getDeletedNotes(cursor: String?, limit: UInt?): Result<List<NoteRecord>> =
         withService { service -> service.getDeletedNotes(cursor, limit).toNoteRecords() }

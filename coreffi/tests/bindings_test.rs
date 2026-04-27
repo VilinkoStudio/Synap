@@ -10,6 +10,15 @@ fn sorted_ids(notes: &[uniffi_synap_coreffi::NoteDTO]) -> Vec<String> {
     ids
 }
 
+fn sorted_version_ids(notes: &[uniffi_synap_coreffi::NoteVersionDTO]) -> Vec<String> {
+    let mut ids = notes
+        .iter()
+        .map(|note| note.note.id.clone())
+        .collect::<Vec<_>>();
+    ids.sort();
+    ids
+}
+
 #[test]
 fn test_open_file_database() {
     let dir = tempdir().unwrap();
@@ -250,16 +259,16 @@ fn test_origins_and_version_queries_workflow() {
 
     let previous = service.get_previous_versions(v2a.id.clone()).unwrap();
     assert_eq!(previous.len(), 1);
-    assert_eq!(previous[0].id, root.id);
+    assert_eq!(previous[0].note.id, root.id);
 
     let next = service.get_next_versions(root.id.clone()).unwrap();
     assert_eq!(next.len(), 2);
-    let next_ids = sorted_ids(&next);
+    let next_ids = sorted_version_ids(&next);
     assert_eq!(next_ids, sorted_ids(&[v2a.clone(), v2b.clone()]));
 
     let other_versions = service.get_other_versions(v2a.id).unwrap();
     assert_eq!(other_versions.len(), 2);
-    let other_ids = sorted_ids(&other_versions);
+    let other_ids = sorted_version_ids(&other_versions);
     assert_eq!(other_ids, sorted_ids(&[root, v2b]));
 }
 

@@ -1,7 +1,7 @@
 //! Application state for the desktop client.
 
 use crate::core::{Result, ServiceWrapper};
-use synap_core::dto::NoteDTO;
+use synap_core::dto::{NoteDTO, NoteVersionDTO};
 
 #[derive(Debug, Default)]
 pub struct AppState {
@@ -10,7 +10,7 @@ pub struct AppState {
     pub selected_note: Option<NoteDTO>,
     pub selected_replies: Vec<NoteDTO>,
     pub selected_origins: Vec<NoteDTO>,
-    pub selected_versions: Vec<NoteDTO>,
+    pub selected_versions: Vec<NoteVersionDTO>,
     pub compose_content: String,
     pub compose_tags: String,
     pub detail_content: String,

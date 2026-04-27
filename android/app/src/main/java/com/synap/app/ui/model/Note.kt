@@ -16,3 +16,17 @@ data class Note(
     val replyTo: NoteBrief? = null,
     val editedFrom: NoteBrief? = null,
 )
+
+data class NoteVersionDiffStats(
+    val insertedChars: UInt,
+    val deletedChars: UInt,
+    val insertedLines: UInt,
+    val deletedLines: UInt,
+)
+
+data class NoteVersion(
+    val note: Note,
+    val addedTags: List<String>,
+    val removedTags: List<String>,
+    val diffStats: NoteVersionDiffStats,
+)

@@ -21,6 +21,29 @@ impl SynapService {
         self.note_to_dto(note, reader)
     }
 
+    pub(crate) fn note_ref_to_version_dto(
+        &self,
+        base: &Note,
+        note_ref: NoteRef,
+        reader: &NoteReader<'_>,
+    ) -> Result<NoteVersionDTO, ServiceError> {
+        let version = note_ref
+            .hydrate(reader)?
+            .ok_or(ServiceError::NotFound(note_ref.get_id().to_string()))?;
+        self.note_to_version_dto(base, version, reader)
+    }
+
+    pub(crate) fn note_to_version_dto(
+        &self,
+        base: &Note,
+        version: Note,
+        reader: &NoteReader<'_>,
+    ) -> Result<NoteVersionDTO, ServiceError> {
+        NoteVersionView::new(reader, base.clone(), version)
+            .to_dto()
+            .map_err(Into::into)
+    }
+
     pub(crate) fn encode_timeline_cursor(note_id: Uuid) -> String {
         note_id.to_string()
     }
@@ -337,7 +360,10 @@ impl SynapService {
         })
     }
 
-    pub fn get_previous_versions(&self, note_id: &str) -> Result<Vec<NoteDTO>, ServiceError> {
+    pub fn get_previous_versions(
+        &self,
+        note_id: &str,
+    ) -> Result<Vec<NoteVersionDTO>, ServiceError> {
         self.with_read(|_tx, reader| {
             let uuid = Self::parse_id(note_id)?;
             let note = Self::require_live_note(reader, uuid, note_id)?;
@@ -347,14 +373,14 @@ impl SynapService {
 
             for res in versions {
                 let version_ref = res.map_err(ServiceError::from)?;
-                results.push(self.note_ref_to_dto(version_ref, reader)?);
+                results.push(self.note_ref_to_version_dto(view.get_note(), version_ref, reader)?);
             }
 
             Ok(results)
         })
     }
 
-    pub fn get_next_versions(&self, note_id: &str) -> Result<Vec<NoteDTO>, ServiceError> {
+    pub fn get_next_versions(&self, note_id: &str) -> Result<Vec<NoteVersionDTO>, ServiceError> {
         self.with_read(|_tx, reader| {
             let uuid = Self::parse_id(note_id)?;
             let note = Self::require_live_note(reader, uuid, note_id)?;
@@ -364,14 +390,14 @@ impl SynapService {
 
             for res in versions {
                 let version_ref = res.map_err(ServiceError::from)?;
-                results.push(self.note_ref_to_dto(version_ref, reader)?);
+                results.push(self.note_ref_to_version_dto(view.get_note(), version_ref, reader)?);
             }
 
             Ok(results)
         })
     }
 
-    pub fn get_other_versions(&self, note_id: &str) -> Result<Vec<NoteDTO>, ServiceError> {
+    pub fn get_other_versions(&self, note_id: &str) -> Result<Vec<NoteVersionDTO>, ServiceError> {
         self.with_read(|_tx, reader| {
             let uuid = Self::parse_id(note_id)?;
             let note = Self::require_live_note(reader, uuid, note_id)?;
@@ -381,7 +407,7 @@ impl SynapService {
 
             for res in versions {
                 let version_ref = res.map_err(ServiceError::from)?;
-                results.push(self.note_ref_to_dto(version_ref, reader)?);
+                results.push(self.note_ref_to_version_dto(view.get_note(), version_ref, reader)?);
             }
 
             Ok(results)

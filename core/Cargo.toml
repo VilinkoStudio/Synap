@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
+similar = "3.1.0"
 ureq = "3.3.0"
 
 
