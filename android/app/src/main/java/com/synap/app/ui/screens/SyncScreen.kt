@@ -1,6 +1,9 @@
 package com.synap.app.ui.screens
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,7 +26,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sync
@@ -37,14 +39,16 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -55,6 +59,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
@@ -289,6 +294,9 @@ fun SyncScreen(
     }
 
     activePeer?.let { peer ->
+        val peerAvatarBitmap = remember(peer.avatarPng) {
+            BitmapFactory.decodeByteArray(peer.avatarPng, 0, peer.avatarPng.size)
+        }
         AlertDialog(
             onDismissRequest = {
                 if (uiState.pendingTrustPeer?.id == peer.id) {
@@ -297,7 +305,15 @@ fun SyncScreen(
                 activePeer = null
                 peerNoteDraft = ""
             },
-            icon = { Icon(Icons.Filled.Key, contentDescription = null) },
+            icon = {
+                PublicKeyAvatar(
+                    bitmap = peerAvatarBitmap,
+                    contentDescription = "设备头像",
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(12.dp)),
+                )
+            },
             title = {
                 Text(if (peer.status == PeerTrustStatus.Pending) "处理设备信任" else "管理设备")
             },
@@ -320,12 +336,38 @@ fun SyncScreen(
                     ) {
                         Column(
                             modifier = Modifier.padding(12.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Text("设备信息", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                PublicKeyAvatar(
+                                    bitmap = peerAvatarBitmap,
+                                    contentDescription = "设备头像",
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(RoundedCornerShape(16.dp)),
+                                )
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Text(
+                                        text = peer.note ?: "未命名设备",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    Text(
+                                        text = peer.algorithm,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
                             Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                SyncInfoLine("颜文字指纹", peer.kaomojiFingerprint)
                                 SyncInfoLine("设备摘要", fingerprintHex(peer.fingerprint))
                             }
                         }
@@ -502,59 +544,17 @@ private fun IdentitySection(identity: LocalIdentity?) {
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
-                            text = if (useWideLayout) {
-                                "平板上横向展开展示，手机上自动切成紧凑卡片"
-                            } else {
-                                "当前使用紧凑展示，只保留 Base64 公钥与识别码"
-                            },
+                            text = "身份密钥与签名密钥统一展示在同一张卡片中",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    SuggestionChip(
-                        onClick = {},
-                        enabled = false,
-                        label = { Text("本机") },
-                    )
                 }
 
-                if (useWideLayout) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        IdentityKeyPanel(
-                            modifier = Modifier.weight(1f),
-                            title = "身份密钥",
-                            subtitle = identity.identity.algorithm,
-                            displayKey = identity.identity.displayPublicKeyBase64,
-                            recognitionCode = identity.identity.kaomojiFingerprint,
-                            compact = false,
-                        )
-                        IdentityKeyPanel(
-                            modifier = Modifier.weight(1f),
-                            title = "签名密钥",
-                            subtitle = identity.signing.algorithm,
-                            displayKey = identity.signing.displayPublicKeyBase64,
-                            recognitionCode = identity.signing.kaomojiFingerprint,
-                            compact = false,
-                        )
-                    }
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        IdentityKeyPanel(
-                            title = "身份密钥",
-                            subtitle = identity.identity.algorithm,
-                            displayKey = identity.identity.displayPublicKeyBase64,
-                            recognitionCode = identity.identity.kaomojiFingerprint,
-                            compact = true,
-                        )
-                        IdentityKeyPanel(
-                            title = "签名密钥",
-                            subtitle = identity.signing.algorithm,
-                            displayKey = identity.signing.displayPublicKeyBase64,
-                            recognitionCode = identity.signing.kaomojiFingerprint,
-                            compact = true,
-                        )
-                    }
-                }
+                IdentityKeysPanel(
+                    identity = identity,
+                    modifier = if (useWideLayout) Modifier.fillMaxWidth() else Modifier,
+                )
             }
         }
     }
@@ -845,64 +845,129 @@ private fun SectionTitle(title: String, subtitle: String) {
 }
 
 @Composable
-private fun IdentityKeyPanel(
+private fun IdentityKeysPanel(
+    identity: LocalIdentity,
     modifier: Modifier = Modifier,
-    title: String,
-    subtitle: String,
-    displayKey: String,
-    recognitionCode: String,
-    compact: Boolean,
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(if (compact) 16.dp else 20.dp),
+        shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
         Column(
-            modifier = Modifier.padding(if (compact) 12.dp else 14.dp),
-            verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
+            modifier = Modifier.padding(vertical = 8.dp),
         ) {
+            IdentityKeyRow(
+                title = "身份密钥",
+                algorithm = identity.identity.algorithm,
+                avatarPng = identity.identity.avatarPng,
+                displayKey = identity.identity.displayPublicKeyBase64,
+                showLocalBadge = true,
+            )
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            IdentityKeyRow(
+                title = "签名密钥",
+                algorithm = identity.signing.algorithm,
+                avatarPng = identity.signing.avatarPng,
+                displayKey = identity.signing.displayPublicKeyBase64,
+                showLocalBadge = false,
+            )
+        }
+    }
+}
+
+@Composable
+private fun IdentityKeyRow(
+    title: String,
+    algorithm: String,
+    avatarPng: ByteArray,
+    displayKey: String,
+    showLocalBadge: Boolean,
+) {
+    val avatarBitmap = remember(avatarPng) {
+        BitmapFactory.decodeByteArray(avatarPng, 0, avatarPng.size)
+    }
+
+    ListItem(
+        colors = ListItemDefaults.colors(
+            containerColor = Color.Transparent,
+        ),
+        tonalElevation = 0.dp,
+        leadingContent = {
+            PublicKeyAvatar(
+                bitmap = avatarBitmap,
+                contentDescription = "$title 头像",
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(14.dp)),
+            )
+        },
+        headlineContent = {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
             )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surface,
-            ) {
-                Column(
-                    modifier = Modifier.padding(if (compact) 10.dp else 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+        },
+        supportingContent = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "算法 $algorithm",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    text = displayKey,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        trailingContent = {
+            if (showLocalBadge) {
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
                 ) {
                     Text(
-                        text = "公钥 Base64",
-                        style = MaterialTheme.typography.labelLarge,
+                        text = "本机",
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = displayKey,
-                        style = if (compact) {
-                            MaterialTheme.typography.bodySmall
-                        } else {
-                            MaterialTheme.typography.bodyMedium
-                        },
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     )
                 }
             }
+        },
+    )
+}
 
-            SuggestionChip(
-                onClick = {},
-                enabled = false,
-                label = { Text("识别码 $recognitionCode") },
+@Composable
+private fun PublicKeyAvatar(
+    bitmap: Bitmap?,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+) {
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = contentDescription,
+            modifier = modifier,
+        )
+    } else {
+        Box(
+            modifier = modifier.background(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = RoundedCornerShape(14.dp),
+            ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Key,
+                contentDescription = "$contentDescription 占位",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp),
             )
         }
     }
@@ -968,6 +1033,10 @@ private fun PeerRow(
     isManagingPeer: Boolean,
     onManagePeer: (PeerRecord) -> Unit,
 ) {
+    val avatarBitmap = remember(peer.avatarPng) {
+        BitmapFactory.decodeByteArray(peer.avatarPng, 0, peer.avatarPng.size)
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -977,10 +1046,12 @@ private fun PeerRow(
             },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = Icons.Filled.Devices,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
+        PublicKeyAvatar(
+            bitmap = avatarBitmap,
+            contentDescription = "设备头像",
+            modifier = Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(14.dp)),
         )
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -991,7 +1062,7 @@ private fun PeerRow(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "${peer.algorithm} · ${peer.kaomojiFingerprint}",
+                text = peer.algorithm,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

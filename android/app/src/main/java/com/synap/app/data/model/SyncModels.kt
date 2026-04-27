@@ -15,6 +15,7 @@ data class PublicKeyInfo(
     val algorithm: String,
     val publicKey: ByteArray,
     val fingerprint: ByteArray,
+    val avatarPng: ByteArray,
     val displayPublicKeyBase64: String,
     val kaomojiFingerprint: String,
 )
@@ -36,6 +37,7 @@ data class PeerRecord(
     val algorithm: String,
     val publicKey: ByteArray,
     val fingerprint: ByteArray,
+    val avatarPng: ByteArray,
     val kaomojiFingerprint: String,
     val note: String?,
     val status: PeerTrustStatus,
@@ -127,6 +129,7 @@ internal fun PublicKeyInfoDto.toPublicKeyInfo(): PublicKeyInfo = PublicKeyInfo(
     algorithm = algorithm,
     publicKey = publicKey,
     fingerprint = fingerprint,
+    avatarPng = avatarPng,
     displayPublicKeyBase64 = displayPublicKeyBase64,
     kaomojiFingerprint = kaomojiFingerprint,
 )
@@ -155,6 +158,7 @@ internal fun PeerDto.toPeerRecord(): PeerRecord = PeerRecord(
     algorithm = algorithm,
     publicKey = publicKey,
     fingerprint = fingerprint,
+    avatarPng = avatarPng,
     kaomojiFingerprint = kaomojiFingerprint,
     note = note,
     status = status.toPeerTrustStatus(),

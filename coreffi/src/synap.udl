@@ -149,6 +149,7 @@ dictionary PublicKeyInfoDTO {
     string algorithm;
     bytes public_key;
     bytes fingerprint;
+    bytes avatar_png;
     string display_public_key_base64;
     string kaomoji_fingerprint;
 };
@@ -163,6 +164,7 @@ dictionary PeerDTO {
     string algorithm;
     bytes public_key;
     bytes fingerprint;
+    bytes avatar_png;
     string kaomoji_fingerprint;
     string? note;
     PeerTrustStatusDTO status;

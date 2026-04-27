@@ -8,7 +8,7 @@ pub use channel::{
     AuthenticatedPeer, CryptoChannel, CryptoChannelError, CryptoChannelMode, CryptoChannelOptions,
     PeerIdentity,
 };
-pub use fingerprint::generate_kaomoji_fingerprint;
+pub use fingerprint::{generate_kaomoji_fingerprint, generate_public_key_avatar_png};
 pub use identity::{
     ensure_local_identity, local_identity_key_id, local_identity_private_key,
     local_identity_public_key, local_identity_secret_id,

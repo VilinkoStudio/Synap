@@ -40,6 +40,8 @@ fn test_open_existing_db_auto_creates_crypto_schema_and_identity() {
     let local_identity = service.get_local_identity().unwrap();
     assert_eq!(local_identity.identity.public_key.len(), 32);
     assert_eq!(local_identity.signing.public_key.len(), 32);
+    assert!(!local_identity.identity.avatar_png.is_empty());
+    assert!(!local_identity.signing.avatar_png.is_empty());
     assert!(!local_identity.identity.kaomoji_fingerprint.is_empty());
     assert!(!local_identity.signing.kaomoji_fingerprint.is_empty());
 

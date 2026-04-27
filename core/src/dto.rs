@@ -131,6 +131,7 @@ pub struct PublicKeyInfoDTO {
     pub algorithm: String,
     pub public_key: Vec<u8>,
     pub fingerprint: Vec<u8>,
+    pub avatar_png: Vec<u8>,
     pub display_public_key_base64: String,
     pub kaomoji_fingerprint: String,
 }
@@ -149,6 +150,7 @@ pub struct PeerDTO {
     pub algorithm: String,
     pub public_key: Vec<u8>,
     pub fingerprint: Vec<u8>,
+    pub avatar_png: Vec<u8>,
     pub kaomoji_fingerprint: String,
     pub note: Option<String>,
     pub status: PeerTrustStatusDTO,

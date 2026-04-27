@@ -372,6 +372,7 @@ pub struct PublicKeyInfoDTO {
     pub algorithm: String,
     pub public_key: Vec<u8>,
     pub fingerprint: Vec<u8>,
+    pub avatar_png: Vec<u8>,
     pub display_public_key_base64: String,
     pub kaomoji_fingerprint: String,
 }
@@ -383,6 +384,7 @@ impl From<CorePublicKeyInfoDto> for PublicKeyInfoDTO {
             algorithm: info.algorithm,
             public_key: info.public_key,
             fingerprint: info.fingerprint,
+            avatar_png: info.avatar_png,
             display_public_key_base64: info.display_public_key_base64,
             kaomoji_fingerprint: info.kaomoji_fingerprint,
         }
@@ -410,6 +412,7 @@ pub struct PeerDTO {
     pub algorithm: String,
     pub public_key: Vec<u8>,
     pub fingerprint: Vec<u8>,
+    pub avatar_png: Vec<u8>,
     pub kaomoji_fingerprint: String,
     pub note: Option<String>,
     pub status: PeerTrustStatusDTO,
@@ -422,6 +425,7 @@ impl From<CorePeerDto> for PeerDTO {
             algorithm: peer.algorithm,
             public_key: peer.public_key,
             fingerprint: peer.fingerprint,
+            avatar_png: peer.avatar_png,
             kaomoji_fingerprint: peer.kaomoji_fingerprint,
             note: peer.note,
             status: peer.status.into(),

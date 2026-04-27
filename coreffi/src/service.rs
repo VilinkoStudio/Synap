@@ -691,9 +691,11 @@ mod tests {
         let identity = service.get_local_identity().unwrap();
         assert_eq!(identity.identity.algorithm, "x25519");
         assert_eq!(identity.identity.public_key.len(), 32);
+        assert!(!identity.identity.avatar_png.is_empty());
         assert!(!identity.identity.kaomoji_fingerprint.is_empty());
         assert_eq!(identity.signing.algorithm, "ed25519");
         assert_eq!(identity.signing.public_key.len(), 32);
+        assert!(!identity.signing.avatar_png.is_empty());
         assert!(!identity.signing.kaomoji_fingerprint.is_empty());
 
         let peers = service.get_peers().unwrap();
@@ -715,6 +717,7 @@ mod tests {
 
         assert_eq!(peer.algorithm, "ed25519");
         assert_eq!(peer.public_key, peer_identity.signing.public_key);
+        assert!(!peer.avatar_png.is_empty());
         assert_eq!(peer.note.as_deref(), Some("android phone"));
 
         let peers = service.get_peers().unwrap();

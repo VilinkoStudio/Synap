@@ -12,6 +12,7 @@ impl SynapService {
             algorithm,
             public_key: public_key.to_vec(),
             fingerprint: fingerprint.to_vec(),
+            avatar_png: crypto::generate_public_key_avatar_png(&public_key),
             display_public_key_base64: BASE64_STANDARD.encode(public_key),
             kaomoji_fingerprint: crypto::generate_kaomoji_fingerprint(&fingerprint),
         }
@@ -30,6 +31,7 @@ impl SynapService {
             algorithm: record.algorithm,
             public_key: record.public_key.to_vec(),
             fingerprint: record.fingerprint.to_vec(),
+            avatar_png: crypto::generate_public_key_avatar_png(&record.public_key),
             kaomoji_fingerprint: crypto::generate_kaomoji_fingerprint(&record.fingerprint),
             note: record.note,
             status,
