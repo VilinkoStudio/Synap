@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Link
@@ -390,7 +391,7 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.ViewStream,
+                        imageVector = Icons.Filled.Home,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(end = 16.dp)

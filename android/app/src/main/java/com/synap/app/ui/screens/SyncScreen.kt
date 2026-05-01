@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -142,8 +143,14 @@ fun SyncScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("同步")
                         Spacer(modifier = Modifier.width(12.dp))
-                        TextButton(onClick = { showListeningInfoDialog = true }) {
-                            Text(if (uiState.listenerState.isListening) "正在监听" else "未监听")
+                        Button(
+                            onClick = { showListeningInfoDialog = true },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = if (uiState.listenerState.isListening) "正在监听" else "未监听",
+                                style = MaterialTheme.typography.labelSmall
+                            )
                         }
                     }
                 },
