@@ -105,4 +105,8 @@
     <string name="share_import_error_title">导入失败</string>
     <string name="share_import_confirm">知道了</string>
     <string name="share_import_close">关闭</string>
+    <string name="setting_home_layout">首页布局</string>
+    <string name="setting_home_layout_mode">布局模式</string>
+    <string name="setting_home_layout_waterfall_desc">笔记以瀑布流形式展示</string>
+    <string name="setting_home_layout_timeline_desc">笔记按时间分组展示</string>
 </resources>

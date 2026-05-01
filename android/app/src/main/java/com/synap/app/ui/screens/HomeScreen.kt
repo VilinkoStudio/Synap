@@ -161,16 +161,6 @@ fun HomeScreen(
         onRefresh()
     }
 
-    fun switchFeedMode(waterfall: Boolean) {
-        prefs.edit().putBoolean("is_waterfall_mode", waterfall).apply()
-        onSetFilterPanelOpen(waterfall)
-        if (waterfall) {
-            scope.launch { noteGridState.animateScrollToItem(0) }
-        } else {
-            scope.launch { sessionGridState.animateScrollToItem(0) }
-        }
-    }
-
     var deletedNoteToUndo by remember { mutableStateOf<Note?>(null) }
     var undoProgress by remember { mutableFloatStateOf(1f) }
     var timeLeftSeconds by remember { mutableIntStateOf(3) }
@@ -180,7 +170,6 @@ fun HomeScreen(
     var isSelectionMode by rememberSaveable { mutableStateOf(false) }
     var selectedNoteIds by rememberSaveable { mutableStateOf(setOf<String>()) }
 
-    var showFeedMenu by remember { mutableStateOf(false) }
     var showMultiDeleteDialog by remember { mutableStateOf(false) }
     var noteToCopy by remember { mutableStateOf<Note?>(null) }
 
@@ -813,7 +802,7 @@ fun HomeScreen(
                         .padding(horizontal = 16.dp)
                         .padding(top = 16.dp)
                 ) {
-                    // 1. 顶部栏 (Synap 标题 + 视图切换，移除了设置按钮)
+                    // 1. 顶部栏 (Synap 标题)
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -824,29 +813,6 @@ fun HomeScreen(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
-                        Spacer(Modifier.weight(1f))
-                        Box {
-                            IconButton(onClick = { showFeedMenu = true }) {
-                                Icon(if (isFeed) Icons.Filled.ViewStream else Icons.Filled.ViewAgenda, "Layout Switch")
-                            }
-                            DropdownMenu(
-                                expanded = showFeedMenu,
-                                onDismissRequest = { showFeedMenu = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.home_feed_waterfall)) },
-                                    leadingIcon = { Icon(Icons.Filled.ViewStream, null) },
-                                    trailingIcon = { if (isFeed) Icon(Icons.Filled.Check, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary) },
-                                    onClick = { switchFeedMode(true); showFeedMenu = false }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.home_feed_timeline)) },
-                                    leadingIcon = { Icon(Icons.Filled.ViewAgenda, null) },
-                                    trailingIcon = { if (!isFeed) Icon(Icons.Filled.Check, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary) },
-                                    onClick = { switchFeedMode(false); showFeedMenu = false }
-                                )
-                            }
-                        }
                     }
 
                     // 2. 搜索框
@@ -1012,32 +978,6 @@ fun HomeScreen(
 
                                     TextButton(onClick = onOpenStarmap) {
                                         Text(stringResource(R.string.starmap_title))
-                                    }
-
-                                    Box {
-                                        IconButton(onClick = { showFeedMenu = true }) {
-                                            Icon(
-                                                imageVector = if (isFeed) Icons.Filled.ViewStream else Icons.Filled.ViewAgenda,
-                                                contentDescription = "Switch Feed View"
-                                            )
-                                        }
-                                        DropdownMenu(
-                                            expanded = showFeedMenu,
-                                            onDismissRequest = { showFeedMenu = false }
-                                        ) {
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.home_feed_waterfall)) },
-                                                leadingIcon = { Icon(Icons.Filled.ViewStream, contentDescription = null) },
-                                                trailingIcon = { if (isFeed) Icon(Icons.Filled.Check, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary) },
-                                                onClick = { switchFeedMode(true); showFeedMenu = false }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.home_feed_timeline)) },
-                                                leadingIcon = { Icon(Icons.Filled.ViewAgenda, contentDescription = null) },
-                                                trailingIcon = { if (!isFeed) Icon(Icons.Filled.Check, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary) },
-                                                onClick = { switchFeedMode(false); showFeedMenu = false }
-                                            )
-                                        }
                                     }
 
                                     IconButton(onClick = onOpenTrash) {

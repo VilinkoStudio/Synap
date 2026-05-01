@@ -81,6 +81,10 @@
     <string name="home_filter_untagged">未分類</string>
     <string name="home_feed_waterfall">瀑布流</string>
     <string name="home_feed_timeline">時間組</string>
+    <string name="setting_home_layout">首頁佈局</string>
+    <string name="setting_home_layout_mode">佈局模式</string>
+    <string name="setting_home_layout_waterfall_desc">筆記以瀑布流形式展示</string>
+    <string name="setting_home_layout_timeline_desc">筆記按時間分組展示</string>
     <string name="content_desc_search">搜尋</string>
     <string name="content_desc_settings">設定</string>
     <string name="edit_hint_reply">回覆自</string>

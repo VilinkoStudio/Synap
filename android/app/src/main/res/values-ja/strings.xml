@@ -80,6 +80,10 @@
     <string name="home_filter_untagged">未分類</string>
     <string name="home_feed_waterfall">ウォーターフォール</string>
     <string name="home_feed_timeline">タイムライン</string>
+    <string name="setting_home_layout">ホームレイアウト</string>
+    <string name="setting_home_layout_mode">レイアウトモード</string>
+    <string name="setting_home_layout_waterfall_desc">ノートをウォーターフォール形式で表示</string>
+    <string name="setting_home_layout_timeline_desc">ノートを時間順にグループ表示</string>
     <string name="content_desc_search">検索</string>
     <string name="content_desc_settings">設定</string>
     <string name="edit_hint_reply">返信先</string>

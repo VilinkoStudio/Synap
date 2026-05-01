@@ -80,6 +80,10 @@
     <string name="home_filter_untagged">미분류</string>
     <string name="home_feed_waterfall">워터폴</string>
     <string name="home_feed_timeline">타임라인</string>
+    <string name="setting_home_layout">홈 레이아웃</string>
+    <string name="setting_home_layout_mode">레이아웃 모드</string>
+    <string name="setting_home_layout_waterfall_desc">노트를 워터폴 레이아웃으로 표시</string>
+    <string name="setting_home_layout_timeline_desc">노트를 시간순으로 그룹 표시</string>
     <string name="content_desc_search">검색</string>
     <string name="content_desc_settings">설정</string>
     <string name="edit_hint_reply">다음에 대한 답글</string>

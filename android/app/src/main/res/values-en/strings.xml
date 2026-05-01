@@ -103,4 +103,8 @@
     <string name="share_import_confirm">OK</string>
     <string name="share_import_close">Close</string>
     <string name="backup_and_sync">备份与同步</string>
+    <string name="setting_home_layout">Home Layout</string>
+    <string name="setting_home_layout_mode">Layout Mode</string>
+    <string name="setting_home_layout_waterfall_desc">Notes displayed in waterfall layout</string>
+    <string name="setting_home_layout_timeline_desc">Notes grouped by time</string>
 </resources>

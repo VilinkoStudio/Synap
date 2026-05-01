@@ -201,6 +201,7 @@ fun SynapNavGraph(
                         onNavigateToTypographySettings = { navController.navigate("typography_settings") },
                         onNavigateToLanguageSelection = { navController.navigate("language_selection") },
                         onNavigateToAppIcon = { navController.navigate("app_icon") },
+                        onNavigateToHomeLayout = { navController.navigate("setting_home_layout") },
                         onNavigateToSync = { navController.navigate("sync") },
                         onNavigateToTeam = { navController.navigate("team") },
                         onNavigateToTutorial = { navController.navigate("tutorial") },
@@ -230,6 +231,15 @@ fun SynapNavGraph(
 
                 composable("app_icon") {
                     SettingLogoScreen(onNavigateBack = { navController.popBackStack() })
+                }
+
+                composable("setting_home_layout") {
+                    val homeViewModel: HomeViewModel = hiltViewModel(navController.getBackStackEntry("home"))
+                    SettingHomeScreen(
+                        onSetFilterPanelOpen = homeViewModel::setFilterPanelOpen,
+                        onRefresh = homeViewModel::refresh,
+                        onNavigateBack = { navController.popBackStack() }
+                    )
                 }
 
                 composable("language_selection") {
