@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -26,6 +27,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -293,7 +296,6 @@ fun NewNoteScreen(
         }
     ) { innerPadding ->
 
-        // ========== 响应式双栏布局适配 ==========
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
@@ -354,7 +356,6 @@ fun NewNoteScreen(
                             }
                         }
                     } else {
-                        // 提取标签项逻辑，方便根据屏幕状态选用 Row 还是 FlowRow
                         val chipsContent: @Composable () -> Unit = {
                             uiState.tags.forEachIndexed { i, tag ->
                                 val parsedColor = parseColorLocal(tag)
@@ -448,251 +449,267 @@ fun NewNoteScreen(
                         val checkboxRegexPattern = "^-\\s+\\[([ xX])\\]\\s?"
                         val currentSelection by rememberUpdatedState(textFieldValue.selection)
 
+                        // ========== 修复 1：引入 BringIntoViewRequester 手动控制光标滚动 ==========
+                        val bringIntoViewRequester = remember { BringIntoViewRequester() }
+                        val density = LocalDensity.current
+
                         LaunchedEffect(Unit) {
                             delay(300)
                             focusRequester.requestFocus()
                             keyboardController?.show()
                         }
 
-                        Box(modifier = Modifier.fillMaxSize().verticalScroll(textScrollState)) {
-                            if (textFieldValue.text.isEmpty()) {
-                                Text(
-                                    text = "开始记录你的灵感...",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                    style = MaterialTheme.typography.bodyLarge.copy(
-                                        fontFamily = LocalNoteFontFamily.current,
-                                        fontSize = baseFontSize.sp
-                                    ),
-                                )
+                        // ========== 修复 2：监听光标和文字变化，计算出足够安全的区域要求组件滚动 ==========
+                        LaunchedEffect(textFieldValue.selection.start, textFieldValue.text.length) {
+                            delay(50) // 给点时间等待布局刷新和键盘弹出动画
+                            textLayoutResult?.let { layoutResult ->
+                                try {
+                                    val offset = textFieldValue.selection.start.coerceIn(0, textFieldValue.text.length)
+                                    val cursorRect = layoutResult.getCursorRect(offset)
+                                    // 核心逻辑：在光标的下方加上 120dp 的“虚拟要求可视空间”
+                                    // 这将强迫 ScrollState 把整个区域往上推，让光标完美待在键盘和候选词的上方
+                                    val paddedRect = Rect(
+                                        left = cursorRect.left,
+                                        top = cursorRect.top,
+                                        right = cursorRect.right,
+                                        bottom = cursorRect.bottom + with(density) { 120.dp.toPx() }
+                                    )
+                                    bringIntoViewRequester.bringIntoView(paddedRect)
+                                } catch (e: Exception) {
+                                    // 忽略快速输入时可能发生的短暂坐标越界
+                                }
                             }
+                        }
 
-                            BasicTextField(
-                                value = textFieldValue,
-                                onValueChange = { newValue ->
-                                    val oldText = textFieldValue.text
-                                    val newText = newValue.text
-                                    var finalValue = newValue
+                        Column(modifier = Modifier.fillMaxSize().verticalScroll(textScrollState)) {
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                if (textFieldValue.text.isEmpty()) {
+                                    Text(
+                                        text = "开始记录你的灵感...",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                        style = MaterialTheme.typography.bodyLarge.copy(
+                                            fontFamily = LocalNoteFontFamily.current,
+                                            fontSize = baseFontSize.sp
+                                        ),
+                                    )
+                                }
 
-                                    // ========== 智能回车：列表自动延续与打断 ==========
-                                    if (newText.length == oldText.length + 1 && newValue.selection.start > 0 && newText[newValue.selection.start - 1] == '\n') {
-                                        val beforeNewline = newText.substring(0, newValue.selection.start - 1)
-                                        val lastLineStart = beforeNewline.lastIndexOf('\n').let { if (it == -1) 0 else it + 1 }
-                                        val lastLine = beforeNewline.substring(lastLineStart)
+                                BasicTextField(
+                                    value = textFieldValue,
+                                    onValueChange = { newValue ->
+                                        val oldText = textFieldValue.text
+                                        val newText = newValue.text
+                                        var finalValue = newValue
 
-                                        var handled = false
+                                        if (newText.length == oldText.length + 1 && newValue.selection.start > 0 && newText[newValue.selection.start - 1] == '\n') {
+                                            val beforeNewline = newText.substring(0, newValue.selection.start - 1)
+                                            val lastLineStart = beforeNewline.lastIndexOf('\n').let { if (it == -1) 0 else it + 1 }
+                                            val lastLine = beforeNewline.substring(lastLineStart)
 
-                                        // 检查有序列表
-                                        val orderedMatch = Regex("^(\\d+)\\.\\s(.*)").find(lastLine)
-                                        if (orderedMatch != null) {
-                                            handled = true
-                                            if (orderedMatch.groups[2]!!.value.isEmpty()) {
-                                                // 智能打断：如果是空行则删除格式
-                                                val removeLen = lastLine.length
-                                                val resultingText = newText.removeRange(newValue.selection.start - 1 - removeLen, newValue.selection.start - 1)
-                                                finalValue = TextFieldValue(resultingText, TextRange(newValue.selection.start - removeLen))
-                                            } else {
-                                                val num = orderedMatch.groups[1]!!.value.toIntOrNull()
-                                                if (num != null) {
-                                                    val insert = "${num + 1}. "
-                                                    val resultingText = newText.substring(0, newValue.selection.start) + insert + newText.substring(newValue.selection.start)
-                                                    finalValue = TextFieldValue(resultingText, TextRange(newValue.selection.start + insert.length))
-                                                }
-                                            }
-                                        }
+                                            var handled = false
 
-                                        // 检查无序列表和复选框
-                                        if (!handled) {
-                                            val bulletMatch = Regex("^(-( \\[[ xX]\\])?)\\s(.*)").find(lastLine)
-                                            if (bulletMatch != null) {
-                                                if (bulletMatch.groups[3]!!.value.isEmpty()) {
+                                            val orderedMatch = Regex("^(\\d+)\\.\\s(.*)").find(lastLine)
+                                            if (orderedMatch != null) {
+                                                handled = true
+                                                if (orderedMatch.groups[2]!!.value.isEmpty()) {
                                                     val removeLen = lastLine.length
                                                     val resultingText = newText.removeRange(newValue.selection.start - 1 - removeLen, newValue.selection.start - 1)
                                                     finalValue = TextFieldValue(resultingText, TextRange(newValue.selection.start - removeLen))
                                                 } else {
-                                                    val isCheckbox = bulletMatch.groups[1]!!.value.contains("[")
-                                                    val insert = if (isCheckbox) "- [ ] " else "- "
-                                                    val resultingText = newText.substring(0, newValue.selection.start) + insert + newText.substring(newValue.selection.start)
-                                                    finalValue = TextFieldValue(resultingText, TextRange(newValue.selection.start + insert.length))
+                                                    val num = orderedMatch.groups[1]!!.value.toIntOrNull()
+                                                    if (num != null) {
+                                                        val insert = "${num + 1}. "
+                                                        val resultingText = newText.substring(0, newValue.selection.start) + insert + newText.substring(newValue.selection.start)
+                                                        finalValue = TextFieldValue(resultingText, TextRange(newValue.selection.start + insert.length))
+                                                    }
+                                                }
+                                            }
+
+                                            if (!handled) {
+                                                val bulletMatch = Regex("^(-( \\[[ xX]\\])?)\\s(.*)").find(lastLine)
+                                                if (bulletMatch != null) {
+                                                    if (bulletMatch.groups[3]!!.value.isEmpty()) {
+                                                        val removeLen = lastLine.length
+                                                        val resultingText = newText.removeRange(newValue.selection.start - 1 - removeLen, newValue.selection.start - 1)
+                                                        finalValue = TextFieldValue(resultingText, TextRange(newValue.selection.start - removeLen))
+                                                    } else {
+                                                        val isCheckbox = bulletMatch.groups[1]!!.value.contains("[")
+                                                        val insert = if (isCheckbox) "- [ ] " else "- "
+                                                        val resultingText = newText.substring(0, newValue.selection.start) + insert + newText.substring(newValue.selection.start)
+                                                        finalValue = TextFieldValue(resultingText, TextRange(newValue.selection.start + insert.length))
+                                                    }
                                                 }
                                             }
                                         }
-                                    }
 
-                                    // ========== 原子删除防误删：删除复选框时一次性全清 ==========
-                                    if (newText.length == oldText.length - 1 && newValue.selection.start == textFieldValue.selection.start - 1) {
-                                        val deletedIndex = newValue.selection.start
-                                        Regex(checkboxRegexPattern, RegexOption.MULTILINE).findAll(oldText).forEach { match ->
-                                            if (deletedIndex in match.range) {
-                                                val resultingText = oldText.removeRange(match.range)
-                                                finalValue = TextFieldValue(resultingText, TextRange(match.range.first))
-                                            }
-                                        }
-                                    }
-
-                                    textFieldValue = finalValue
-                                    onContentChange(finalValue.text)
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = 300.dp)
-                                    .focusRequester(focusRequester),
-                                textStyle = MaterialTheme.typography.bodyLarge.copy(
-                                    fontFamily = LocalNoteFontFamily.current,
-                                    fontWeight = LocalNoteFontWeight.current,
-                                    fontSize = baseFontSize.sp,
-                                    lineHeight = (baseFontSize * LocalNoteLineSpacing.current).sp,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                ),
-                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                                onTextLayout = { result ->
-                                    textLayoutResult = result
-                                    val newRects = mutableListOf<CheckboxInfo>()
-                                    Regex(checkboxRegexPattern, RegexOption.MULTILINE).findAll(textFieldValue.text).forEach { match ->
-                                        val rectStart = result.getBoundingBox(match.range.first)
-                                        newRects.add(CheckboxInfo(match.range, match.groups[1]!!.value.lowercase() == "x", rectStart))
-                                    }
-                                    checkboxRects = newRects
-                                },
-                                visualTransformation = remember(primaryColor, highlightColor, baseFontSize) {
-                                    VisualTransformation { annotatedString ->
-                                        val builder = AnnotatedString.Builder(annotatedString.text)
-                                        val text = annotatedString.text
-
-                                        val hiddenSpanStyle = SpanStyle(color = Color.Transparent, fontSize = 0.1f.sp)
-                                        val transparentSpanStyle = SpanStyle(color = Color.Transparent)
-                                        val revealedSpanStyle = SpanStyle(color = primaryColor.copy(alpha = 0.5f))
-
-                                        fun applySyntax(range: IntRange, useHidden: Boolean = true) {
-                                            val selMin = currentSelection.min
-                                            val selMax = currentSelection.max
-                                            val isCursorNear = (selMin <= range.last + 1 && selMax >= range.first)
-
-                                            if (isCursorNear) {
-                                                builder.addStyle(revealedSpanStyle, range.first, range.last + 1)
-                                            } else {
-                                                builder.addStyle(if (useHidden) hiddenSpanStyle else transparentSpanStyle, range.first, range.last + 1)
+                                        if (newText.length == oldText.length - 1 && newValue.selection.start == textFieldValue.selection.start - 1) {
+                                            val deletedIndex = newValue.selection.start
+                                            Regex(checkboxRegexPattern, RegexOption.MULTILINE).findAll(oldText).forEach { match ->
+                                                if (deletedIndex in match.range) {
+                                                    val resultingText = oldText.removeRange(match.range)
+                                                    finalValue = TextFieldValue(resultingText, TextRange(match.range.first))
+                                                }
                                             }
                                         }
 
-                                        // ========== 块级元素优先渲染 ==========
-
-                                        // 1. 各级标题
-                                        val headingMatches = Regex("^(#{1,4} )(.*)", RegexOption.MULTILINE).findAll(text).toList()
-                                        for (i in headingMatches.indices) {
-                                            val match = headingMatches[i]
-                                            val syntax = match.groups[1]!!
-                                            val content = match.groups[2]!!
-                                            val level = syntax.value.trim().length
-                                            val scale = 1.8f - (level * 0.15f)
-                                            val headingFontSize = baseFontSize * scale
-
-                                            builder.addStyle(SpanStyle(fontWeight = FontWeight.ExtraBold, fontSize = headingFontSize.sp, color = primaryColor), content.range.first, content.range.last + 1)
-                                            applySyntax(syntax.range)
-
-                                            val lineEnd = if (match.range.last + 1 < text.length && text[match.range.last + 1] == '\n') match.range.last + 2 else match.range.last + 1
-                                            val isNextConsecutive = if (i + 1 < headingMatches.size) {
-                                                val nextMatch = headingMatches[i + 1]
-                                                val gap = text.substring(match.range.last + 1, nextMatch.range.first)
-                                                gap == "\n" || gap == "\r\n"
-                                            } else false
-
-                                            val currentLineHeight = if (isNextConsecutive) headingFontSize * 1.0f else headingFontSize * 1.2f
-                                            builder.addStyle(ParagraphStyle(lineHeight = currentLineHeight.sp), match.range.first, lineEnd)
-                                        }
-
-                                        // 2. 交互复选框
-                                        Regex(checkboxRegexPattern, RegexOption.MULTILINE).findAll(text).forEach { match ->
-                                            applySyntax(match.range, useHidden = false)
-                                            val isChecked = match.groups[1]!!.value.lowercase() == "x"
-                                            if (isChecked) {
-                                                val lineEnd = text.indexOf('\n', match.range.last).takeIf { it != -1 } ?: text.length
-                                                builder.addStyle(SpanStyle(color = Color.Gray, textDecoration = TextDecoration.LineThrough), match.range.last + 1, lineEnd)
-                                            }
-                                        }
-
-                                        // 3. 引用
-                                        Regex("^(> )(.*)", RegexOption.MULTILINE).findAll(text).forEach { match ->
-                                            val syntax = match.groups[1]!!
-                                            builder.addStyle(SpanStyle(color = Color.Gray), match.range.first, match.range.last + 1)
-                                            applySyntax(syntax.range)
-                                        }
-
-                                        // 4. 无序列表与有序列表 (加粗头部数字与圆点)
-                                        Regex("^((\\d+\\.)|-)(\\s)(?!\\[[ xX]\\])", RegexOption.MULTILINE).findAll(text).forEach { match ->
-                                            builder.addStyle(SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold), match.range.first, match.range.last + 1)
-                                        }
-
-                                        // ========== 叠加内联元素 ==========
-
-                                        // 5. 粗体
-                                        Regex("\\*\\*(.*?)\\*\\*").findAll(text).forEach { match ->
-                                            val content = match.groups[1]!!
-                                            builder.addStyle(SpanStyle(fontWeight = FontWeight.Bold), content.range.first, content.range.last + 1)
-                                            applySyntax(IntRange(match.range.first, content.range.first - 1))
-                                            applySyntax(IntRange(content.range.last + 1, match.range.last))
-                                        }
-                                        // 6. 斜体
-                                        Regex("(?<!\\*)\\*(?!\\*)(.*?)(?<!\\*)\\*(?!\\*)").findAll(text).forEach { match ->
-                                            val content = match.groups[1]!!
-                                            builder.addStyle(SpanStyle(fontStyle = FontStyle.Italic), content.range.first, content.range.last + 1)
-                                            applySyntax(IntRange(match.range.first, content.range.first - 1))
-                                            applySyntax(IntRange(content.range.last + 1, match.range.last))
-                                        }
-                                        // 7. 删除线
-                                        Regex("~~(.*?)~~").findAll(text).forEach { match ->
-                                            val content = match.groups[1]!!
-                                            builder.addStyle(SpanStyle(textDecoration = TextDecoration.LineThrough), content.range.first, content.range.last + 1)
-                                            applySyntax(IntRange(match.range.first, content.range.first - 1))
-                                            applySyntax(IntRange(content.range.last + 1, match.range.last))
-                                        }
-                                        // 8. 高亮
-                                        Regex("==(.*?)==").findAll(text).forEach { match ->
-                                            val content = match.groups[1]!!
-                                            builder.addStyle(SpanStyle(background = highlightColor, color = Color.Black), content.range.first, content.range.last + 1)
-                                            applySyntax(IntRange(match.range.first, content.range.first - 1))
-                                            applySyntax(IntRange(content.range.last + 1, match.range.last))
-                                        }
-                                        // 9. 下划线
-                                        Regex("<u>(.*?)</u>").findAll(text).forEach { match ->
-                                            val content = match.groups[1]!!
-                                            builder.addStyle(SpanStyle(textDecoration = TextDecoration.Underline), content.range.first, content.range.last + 1)
-                                            applySyntax(IntRange(match.range.first, content.range.first - 1))
-                                            applySyntax(IntRange(content.range.last + 1, match.range.last))
-                                        }
-
-                                        TransformedText(builder.toAnnotatedString(), OffsetMapping.Identity)
-                                    }
-                                }
-                            )
-
-                            // 原生 Checkbox 悬浮层
-                            val density = LocalDensity.current
-                            checkboxRects.forEach { info ->
-                                Checkbox(
-                                    checked = info.isChecked,
-                                    onCheckedChange = { checked ->
-                                        val text = textFieldValue.text
-                                        val replacement = if (checked) "x" else " "
-                                        val matchStr = text.substring(info.range)
-                                        val newMatchStr = matchStr.replaceRange(3, 4, replacement)
-                                        val newText = text.substring(0, info.range.first) + newMatchStr + text.substring(info.range.last + 1)
-                                        val newSelection = if (textFieldValue.selection.start > info.range.last) textFieldValue.selection else textFieldValue.selection
-                                        textFieldValue = textFieldValue.copy(text = newText, selection = newSelection)
-                                        onContentChange(newText)
+                                        textFieldValue = finalValue
+                                        onContentChange(finalValue.text)
                                     },
                                     modifier = Modifier
-                                        .absoluteOffset(
-                                            x = with(density) { info.rect.left.toDp() } - 12.dp,
-                                            y = with(density) { info.rect.center.y.toDp() } - 24.dp
-                                        )
+                                        .fillMaxWidth()
+                                        .heightIn(min = 300.dp)
+                                        .focusRequester(focusRequester)
+                                        // 绑定请求器，允许外部强制让该组件内部的某一个区域显示在屏幕上
+                                        .bringIntoViewRequester(bringIntoViewRequester),
+                                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                        fontFamily = LocalNoteFontFamily.current,
+                                        fontWeight = LocalNoteFontWeight.current,
+                                        fontSize = baseFontSize.sp,
+                                        lineHeight = (baseFontSize * LocalNoteLineSpacing.current).sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                    onTextLayout = { result ->
+                                        textLayoutResult = result
+                                        val newRects = mutableListOf<CheckboxInfo>()
+                                        Regex(checkboxRegexPattern, RegexOption.MULTILINE).findAll(textFieldValue.text).forEach { match ->
+                                            val rectStart = result.getBoundingBox(match.range.first)
+                                            newRects.add(CheckboxInfo(match.range, match.groups[1]!!.value.lowercase() == "x", rectStart))
+                                        }
+                                        checkboxRects = newRects
+                                    },
+                                    visualTransformation = remember(primaryColor, highlightColor, baseFontSize) {
+                                        VisualTransformation { annotatedString ->
+                                            val builder = AnnotatedString.Builder(annotatedString.text)
+                                            val text = annotatedString.text
+
+                                            val hiddenSpanStyle = SpanStyle(color = Color.Transparent, fontSize = 0.1f.sp)
+                                            val transparentSpanStyle = SpanStyle(color = Color.Transparent)
+                                            val revealedSpanStyle = SpanStyle(color = primaryColor.copy(alpha = 0.5f))
+
+                                            fun applySyntax(range: IntRange, useHidden: Boolean = true) {
+                                                val selMin = currentSelection.min
+                                                val selMax = currentSelection.max
+                                                val isCursorNear = (selMin <= range.last + 1 && selMax >= range.first)
+
+                                                if (isCursorNear) {
+                                                    builder.addStyle(revealedSpanStyle, range.first, range.last + 1)
+                                                } else {
+                                                    builder.addStyle(if (useHidden) hiddenSpanStyle else transparentSpanStyle, range.first, range.last + 1)
+                                                }
+                                            }
+
+                                            val headingMatches = Regex("^(#{1,4} )(.*)", RegexOption.MULTILINE).findAll(text).toList()
+                                            for (i in headingMatches.indices) {
+                                                val match = headingMatches[i]
+                                                val syntax = match.groups[1]!!
+                                                val content = match.groups[2]!!
+                                                val level = syntax.value.trim().length
+                                                val scale = 1.8f - (level * 0.15f)
+                                                val headingFontSize = baseFontSize * scale
+
+                                                builder.addStyle(SpanStyle(fontWeight = FontWeight.ExtraBold, fontSize = headingFontSize.sp, color = primaryColor), content.range.first, content.range.last + 1)
+                                                applySyntax(syntax.range)
+
+                                                val lineEnd = if (match.range.last + 1 < text.length && text[match.range.last + 1] == '\n') match.range.last + 2 else match.range.last + 1
+                                                val isNextConsecutive = if (i + 1 < headingMatches.size) {
+                                                    val nextMatch = headingMatches[i + 1]
+                                                    val gap = text.substring(match.range.last + 1, nextMatch.range.first)
+                                                    gap == "\n" || gap == "\r\n"
+                                                } else false
+
+                                                val currentLineHeight = if (isNextConsecutive) headingFontSize * 1.0f else headingFontSize * 1.2f
+                                                builder.addStyle(ParagraphStyle(lineHeight = currentLineHeight.sp), match.range.first, lineEnd)
+                                            }
+
+                                            Regex(checkboxRegexPattern, RegexOption.MULTILINE).findAll(text).forEach { match ->
+                                                applySyntax(match.range, useHidden = false)
+                                                val isChecked = match.groups[1]!!.value.lowercase() == "x"
+                                                if (isChecked) {
+                                                    val lineEnd = text.indexOf('\n', match.range.last).takeIf { it != -1 } ?: text.length
+                                                    builder.addStyle(SpanStyle(color = Color.Gray, textDecoration = TextDecoration.LineThrough), match.range.last + 1, lineEnd)
+                                                }
+                                            }
+
+                                            Regex("^(> )(.*)", RegexOption.MULTILINE).findAll(text).forEach { match ->
+                                                val syntax = match.groups[1]!!
+                                                builder.addStyle(SpanStyle(color = Color.Gray), match.range.first, match.range.last + 1)
+                                                applySyntax(syntax.range)
+                                            }
+
+                                            Regex("^((\\d+\\.)|-)(\\s)(?!\\[[ xX]\\])", RegexOption.MULTILINE).findAll(text).forEach { match ->
+                                                builder.addStyle(SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold), match.range.first, match.range.last + 1)
+                                            }
+
+                                            Regex("\\*\\*(.*?)\\*\\*").findAll(text).forEach { match ->
+                                                val content = match.groups[1]!!
+                                                builder.addStyle(SpanStyle(fontWeight = FontWeight.Bold), content.range.first, content.range.last + 1)
+                                                applySyntax(IntRange(match.range.first, content.range.first - 1))
+                                                applySyntax(IntRange(content.range.last + 1, match.range.last))
+                                            }
+
+                                            Regex("(?<!\\*)\\*(?!\\*)(.*?)(?<!\\*)\\*(?!\\*)").findAll(text).forEach { match ->
+                                                val content = match.groups[1]!!
+                                                builder.addStyle(SpanStyle(fontStyle = FontStyle.Italic), content.range.first, content.range.last + 1)
+                                                applySyntax(IntRange(match.range.first, content.range.first - 1))
+                                                applySyntax(IntRange(content.range.last + 1, match.range.last))
+                                            }
+
+                                            Regex("~~(.*?)~~").findAll(text).forEach { match ->
+                                                val content = match.groups[1]!!
+                                                builder.addStyle(SpanStyle(textDecoration = TextDecoration.LineThrough), content.range.first, content.range.last + 1)
+                                                applySyntax(IntRange(match.range.first, content.range.first - 1))
+                                                applySyntax(IntRange(content.range.last + 1, match.range.last))
+                                            }
+
+                                            Regex("==(.*?)==").findAll(text).forEach { match ->
+                                                val content = match.groups[1]!!
+                                                builder.addStyle(SpanStyle(background = highlightColor, color = Color.Black), content.range.first, content.range.last + 1)
+                                                applySyntax(IntRange(match.range.first, content.range.first - 1))
+                                                applySyntax(IntRange(content.range.last + 1, match.range.last))
+                                            }
+
+                                            Regex("<u>(.*?)</u>").findAll(text).forEach { match ->
+                                                val content = match.groups[1]!!
+                                                builder.addStyle(SpanStyle(textDecoration = TextDecoration.Underline), content.range.first, content.range.last + 1)
+                                                applySyntax(IntRange(match.range.first, content.range.first - 1))
+                                                applySyntax(IntRange(content.range.last + 1, match.range.last))
+                                            }
+
+                                            TransformedText(builder.toAnnotatedString(), OffsetMapping.Identity)
+                                        }
+                                    }
                                 )
+
+                                val densityLocal = LocalDensity.current
+                                checkboxRects.forEach { info ->
+                                    Checkbox(
+                                        checked = info.isChecked,
+                                        onCheckedChange = { checked ->
+                                            val text = textFieldValue.text
+                                            val replacement = if (checked) "x" else " "
+                                            val matchStr = text.substring(info.range)
+                                            val newMatchStr = matchStr.replaceRange(3, 4, replacement)
+                                            val newText = text.substring(0, info.range.first) + newMatchStr + text.substring(info.range.last + 1)
+                                            val newSelection = if (textFieldValue.selection.start > info.range.last) textFieldValue.selection else textFieldValue.selection
+                                            textFieldValue = textFieldValue.copy(text = newText, selection = newSelection)
+                                            onContentChange(newText)
+                                        },
+                                        modifier = Modifier
+                                            .absoluteOffset(
+                                                x = with(densityLocal) { info.rect.left.toDp() } - 12.dp,
+                                                y = with(densityLocal) { info.rect.center.y.toDp() } - 24.dp
+                                            )
+                                    )
+                                }
                             }
+
+                            Spacer(modifier = Modifier.height(50.dp))
                         }
                     }
                 }
             }
 
-            // ========== 修改：将平板左侧标签栏设为固定且可滚动的 300dp ==========
             if (isTablet) {
                 Row(modifier = Modifier.fillMaxSize()) {
                     Box(modifier = Modifier.width(300.dp).fillMaxHeight().verticalScroll(rememberScrollState())) {
