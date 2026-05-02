@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,8 +43,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.FloatingToolbarDefaults
-import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -394,6 +393,105 @@ fun NoteDetailScreen(
                 },
             )
         },
+        bottomBar = {
+            // ========== 沉浸式固定底部工具栏 ==========
+            if (uiState.note != null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 3.dp,
+                    shadowElevation = 8.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            // navigationBarsPadding 使小白条颜色与 Surface 一致，且内容不被遮挡
+                            .navigationBarsPadding()
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceAround,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val iconTint = MaterialTheme.colorScheme.onSurface
+
+                        IconButton(onClick = { showDeleteDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Filled.Delete,
+                                contentDescription = stringResource(R.string.delete),
+                                modifier = Modifier.size(24.dp),
+                                tint = iconTint
+                            )
+                        }
+
+                        IconButton(onClick = {
+                            val hasMarkdown = Regex("\\*\\*|(?<!\\*)\\*(?!\\*)|~~|<u>|==|^#{1,4} |^> |^-\\s+\\[[ x]\\]\\s+|^-\\s+|^\\d+\\.\\s+", RegexOption.MULTILINE).containsMatchIn(uiState.note.content)
+                            if (hasMarkdown) {
+                                showCopyDialog = true
+                            } else {
+                                clipboardManager.setText(AnnotatedString(uiState.note.content))
+                            }
+                        }) {
+                            Icon(
+                                imageVector = Icons.Filled.ContentCopy,
+                                contentDescription = "复制",
+                                modifier = Modifier.size(24.dp),
+                                tint = iconTint
+                            )
+                        }
+
+                        IconButton(onClick = {
+                            val intent = Intent(Intent.ACTION_INSERT).apply {
+                                data = CalendarContract.Events.CONTENT_URI
+                                putExtra(
+                                    CalendarContract.Events.TITLE,
+                                    buildCalendarReminderTitle(note = uiState.note, fallback = defaultCalendarTitle),
+                                )
+                                putExtra(CalendarContract.Events.DESCRIPTION, uiState.note.content)
+                            }
+
+                            try {
+                                context.startActivity(intent)
+                            } catch (_: ActivityNotFoundException) {
+                                Toast.makeText(context, calendarUnavailableMessage, Toast.LENGTH_SHORT).show()
+                            }
+                        }) {
+                            Icon(
+                                imageVector = Icons.Filled.Alarm,
+                                contentDescription = addCalendarReminderLabel,
+                                modifier = Modifier.size(24.dp),
+                                tint = iconTint
+                            )
+                        }
+
+                        IconButton(onClick = { showShareBottomSheet = true }) {
+                            Icon(
+                                imageVector = Icons.Filled.Share,
+                                contentDescription = "分享",
+                                modifier = Modifier.size(24.dp),
+                                tint = iconTint
+                            )
+                        }
+
+                        IconButton(onClick = onReply) {
+                            Icon(
+                                imageVector = Icons.Filled.Reply,
+                                contentDescription = stringResource(R.string.reply),
+                                modifier = Modifier.size(24.dp),
+                                tint = iconTint
+                            )
+                        }
+
+                        IconButton(onClick = onEdit) {
+                            Icon(
+                                imageVector = Icons.Filled.Edit,
+                                contentDescription = stringResource(R.string.edit),
+                                modifier = Modifier.size(24.dp),
+                                tint = iconTint
+                            )
+                        }
+                    }
+                }
+            }
+        },
         floatingActionButton = {
             if (uiState.note != null) {
                 AnimatedVisibility(
@@ -409,7 +507,6 @@ fun NoteDetailScreen(
                         },
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.padding(bottom = 80.dp)
                     ) {
                         Icon(Icons.Filled.VerticalAlignTop, contentDescription = stringResource(R.string.backtop))
                     }
@@ -547,99 +644,7 @@ fun NoteDetailScreen(
                             Text(if (uiState.repliesLoading) "加载中..." else "加载更多回复")
                         }
                     }
-                    Spacer(modifier = Modifier.height(120.dp))
-                }
-
-                // 修改浮动工具栏颜色与返回顶部按钮一致
-                HorizontalFloatingToolbar(
-                    expanded = true,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 24.dp),
-                    colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
-                        toolbarContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        toolbarContentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                ) {
-                    val iconTint = MaterialTheme.colorScheme.onSecondaryContainer
-
-                    IconButton(onClick = { showDeleteDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Filled.Delete,
-                            contentDescription = stringResource(R.string.delete),
-                            modifier = Modifier.size(24.dp),
-                            tint = iconTint
-                        )
-                    }
-
-                    IconButton(onClick = {
-                        val hasMarkdown = Regex("\\*\\*|(?<!\\*)\\*(?!\\*)|~~|<u>|==|^#{1,4} |^> |^-\\s+\\[[ x]\\]\\s+|^-\\s+|^\\d+\\.\\s+", RegexOption.MULTILINE).containsMatchIn(note.content)
-                        if (hasMarkdown) {
-                            showCopyDialog = true
-                        } else {
-                            clipboardManager.setText(AnnotatedString(note.content))
-                        }
-                    }) {
-                        Icon(
-                            imageVector = Icons.Filled.ContentCopy,
-                            contentDescription = "复制",
-                            modifier = Modifier.size(24.dp),
-                            tint = iconTint
-                        )
-                    }
-
-                    IconButton(onClick = {
-                        val intent = Intent(Intent.ACTION_INSERT).apply {
-                            data = CalendarContract.Events.CONTENT_URI
-                            putExtra(
-                                CalendarContract.Events.TITLE,
-                                buildCalendarReminderTitle(note = note, fallback = defaultCalendarTitle),
-                            )
-                            putExtra(CalendarContract.Events.DESCRIPTION, note.content)
-                        }
-
-                        try {
-                            context.startActivity(intent)
-                        } catch (_: ActivityNotFoundException) {
-                            Toast.makeText(context, calendarUnavailableMessage, Toast.LENGTH_SHORT).show()
-                        }
-                    }) {
-                        // 替换为闹钟图标
-                        Icon(
-                            imageVector = Icons.Filled.Alarm,
-                            contentDescription = addCalendarReminderLabel,
-                            modifier = Modifier.size(24.dp),
-                            tint = iconTint
-                        )
-                    }
-
-                    // 新增分享按钮
-                    IconButton(onClick = { showShareBottomSheet = true }) {
-                        Icon(
-                            imageVector = Icons.Filled.Share,
-                            contentDescription = "分享",
-                            modifier = Modifier.size(24.dp),
-                            tint = iconTint
-                        )
-                    }
-
-                    IconButton(onClick = onReply) {
-                        Icon(
-                            imageVector = Icons.Filled.Reply,
-                            contentDescription = stringResource(R.string.reply),
-                            modifier = Modifier.size(24.dp),
-                            tint = iconTint
-                        )
-                    }
-
-                    IconButton(onClick = onEdit) {
-                        Icon(
-                            imageVector = Icons.Filled.Edit,
-                            contentDescription = stringResource(R.string.edit),
-                            modifier = Modifier.size(24.dp),
-                            tint = iconTint
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(32.dp))
                 }
             }
         }
@@ -806,14 +811,14 @@ private fun VersionCard(
             }
 
             val hasTagDiff = version.addedTags.isNotEmpty() || version.removedTags.isNotEmpty()
-            val hasTextDiff =
-                version.diffStats.insertedChars > 0u || version.diffStats.deletedChars > 0u
+            val hasTextDiff = version.diffStats.insertedChars > 0u || version.diffStats.deletedChars > 0u
             if (hasTagDiff || hasTextDiff) {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.padding(top = 10.dp),
                 ) {
                     if (hasTagDiff) {
+                        // ========== 简化差异 Tag 展示：去除了外层包裹，只保留一行内容 ==========
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically,
