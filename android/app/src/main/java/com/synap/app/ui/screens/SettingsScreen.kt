@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
@@ -90,6 +91,7 @@ fun SettingsScreen(
     onShareDatabase: () -> Unit,
     onImportDatabase: () -> Unit,
     onNavigateToTypographySettings: () -> Unit,
+    onNavigateToDarkMode: () -> Unit,
     onNavigateToLanguageSelection: () -> Unit,
     onNavigateToAppIcon: () -> Unit,
     onNavigateToHomeLayout: () -> Unit,
@@ -145,54 +147,7 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
         ) {
-            // ==================== 1. 深色模式 ====================
-            Text(
-                text = stringResource(R.string.dark_mode),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                listOf(
-                    stringResource(R.string.theme_system),
-                    stringResource(R.string.theme_light),
-                    stringResource(R.string.theme_dark)
-                ).forEachIndexed { index, title ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onThemeModeChange(index) }
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                        }
-                        if (currentThemeMode == index) {
-                            Icon(
-                                Icons.Filled.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp),
-                            )
-                        }
-                    }
-                    if (index < 2) {
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                        )
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // ==================== 2. 外观 ====================
+            // ==================== 1. 外观 ====================
             Text(
                 text = stringResource(R.string.appearance),
                 style = MaterialTheme.typography.titleSmall,
@@ -205,6 +160,38 @@ fun SettingsScreen(
                     .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onNavigateToDarkMode() }
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.DarkMode,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 16.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.dark_mode),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                    Icon(
+                        Icons.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

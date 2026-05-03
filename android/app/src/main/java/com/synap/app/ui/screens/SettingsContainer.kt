@@ -42,6 +42,7 @@ fun SettingsContainer(
     onHandednessChange: (String) -> Unit,
     databaseActivity: MainActivity?,
     onNavigateToTypographySettings: () -> Unit,
+    onNavigateToDarkMode: () -> Unit,
     onNavigateToLanguageSelection: () -> Unit,
     onNavigateToAppIcon: () -> Unit, // ===== 新增：接收跳转到图标设置的事件 =====
     onNavigateToHomeLayout: () -> Unit,
@@ -178,6 +179,7 @@ fun SettingsContainer(
             }
         },
         onNavigateToTypographySettings = onNavigateToTypographySettings,
+        onNavigateToDarkMode = onNavigateToDarkMode,
         onNavigateToLanguageSelection = onNavigateToLanguageSelection,
         onNavigateToAppIcon = onNavigateToAppIcon, // ===== 传递事件 =====
         onNavigateToHomeLayout = onNavigateToHomeLayout,

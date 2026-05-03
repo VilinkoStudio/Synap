@@ -226,6 +226,7 @@ fun SynapNavGraph(
                         handedness = handedness, onHandednessChange = onHandednessChange,
                         databaseActivity = databaseActivity,
                         onNavigateToTypographySettings = { navController.navigate("typography_settings") },
+                        onNavigateToDarkMode = { navController.navigate("setting_darkmode") },
                         onNavigateToLanguageSelection = { navController.navigate("language_selection") },
                         onNavigateToAppIcon = { navController.navigate("app_icon") },
                         onNavigateToHomeLayout = { navController.navigate("setting_home_layout") },
@@ -258,6 +259,14 @@ fun SynapNavGraph(
 
                 composable("app_icon") {
                     SettingLogoScreen(onNavigateBack = { navController.popBackStack() })
+                }
+
+                composable("setting_darkmode") {
+                    SettingDarkmodeScreen(
+                        currentThemeMode = themeMode,
+                        onThemeModeChange = onThemeModeChange,
+                        onNavigateBack = { navController.popBackStack() }
+                    )
                 }
 
                 composable("setting_home_layout") {
