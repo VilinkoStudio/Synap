@@ -35,7 +35,7 @@
     },
     {
       "id": "gemini",
-      "name": "Goodgle Gemini",
+      "name": "Google Gemini",
       "icon": "gemini",
       "baseURL": "https://generativelanguage.googleapis.com/v1beta/",
       "models": [
