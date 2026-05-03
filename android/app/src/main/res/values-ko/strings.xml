@@ -107,4 +107,18 @@
     <string name="share_import_error_title">가져오기 실패</string>
     <string name="share_import_confirm">확인</string>
     <string name="share_import_close">닫기</string>
+    <string name="ai">AI</string>
+    <string name="ai_service_provider">AI 서비스 제공자</string>
+    <string name="ai_scenarios">AI 시나리오</string>
+    <string name="ai_provider_id">제공자 ID</string>
+    <string name="ai_provider_id_hint">소문자, 숫자, 하이픈 또는 밑줄을 사용하세요</string>
+    <string name="ai_remark_name">비고 이름</string>
+    <string name="ai_base_url">기본 URL</string>
+    <string name="ai_api_key">API 키</string>
+    <string name="ai_api_key_hint">요청 헤더로 인증을 관리하는 경우 비워 두세요</string>
+    <string name="ai_model_id">모델 ID</string>
+    <string name="ai_model_remark">모델 비고</string>
+    <string name="ai_note_summary">AI 노트 요약</string>
+    <string name="ai_writing">AI 글쓰기</string>
+    <string name="ai_search">AI 검색</string>
 </resources>

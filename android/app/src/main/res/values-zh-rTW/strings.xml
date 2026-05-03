@@ -107,4 +107,18 @@
     <string name="share_import_error_title">匯入失敗</string>
     <string name="share_import_confirm">知道了</string>
     <string name="share_import_close">關閉</string>
+    <string name="ai">AI</string>
+    <string name="ai_service_provider">AI服務商</string>
+    <string name="ai_scenarios">AI功能場景</string>
+    <string name="ai_provider_id">提供商ID</string>
+    <string name="ai_provider_id_hint">使用小寫字母、數字、連字符或底線</string>
+    <string name="ai_remark_name">備註名稱</string>
+    <string name="ai_base_url">基礎URL</string>
+    <string name="ai_api_key">API密鑰</string>
+    <string name="ai_api_key_hint">如果您通過請求頭管理認證，可留空此項</string>
+    <string name="ai_model_id">模型ID</string>
+    <string name="ai_model_remark">模型備註</string>
+    <string name="ai_note_summary">AI筆記總結</string>
+    <string name="ai_writing">AI寫作</string>
+    <string name="ai_search">AI搜尋</string>
 </resources>

@@ -107,4 +107,18 @@
     <string name="share_import_error_title">インポートに失敗しました</string>
     <string name="share_import_confirm">了解しました</string>
     <string name="share_import_close">閉じる</string>
+    <string name="ai">AI</string>
+    <string name="ai_service_provider">AIサービスプロバイダ</string>
+    <string name="ai_scenarios">AIシナリオ</string>
+    <string name="ai_provider_id">プロバイダID</string>
+    <string name="ai_provider_id_hint">小文字、数字、ハイフン、アンダースコアを使用</string>
+    <string name="ai_remark_name">備考名</string>
+    <string name="ai_base_url">ベースURL</string>
+    <string name="ai_api_key">APIキー</string>
+    <string name="ai_api_key_hint">リクエストヘッダーで認証を管理する場合は空欄にしてください</string>
+    <string name="ai_model_id">モデルID</string>
+    <string name="ai_model_remark">モデル備考</string>
+    <string name="ai_note_summary">AIノート要約</string>
+    <string name="ai_writing">AIライティング</string>
+    <string name="ai_search">AI検索</string>
 </resources>

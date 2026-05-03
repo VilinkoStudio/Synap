@@ -107,4 +107,18 @@
     <string name="setting_home_layout_mode">Layout Mode</string>
     <string name="setting_home_layout_waterfall_desc">Notes displayed in waterfall layout</string>
     <string name="setting_home_layout_timeline_desc">Notes grouped by time</string>
+    <string name="ai">AI</string>
+    <string name="ai_service_provider">AI Service Provider</string>
+    <string name="ai_scenarios">AI Scenarios</string>
+    <string name="ai_provider_id">Provider ID</string>
+    <string name="ai_provider_id_hint">Use lowercase letters, numbers, hyphens or underscores</string>
+    <string name="ai_remark_name">Remark</string>
+    <string name="ai_base_url">Base URL</string>
+    <string name="ai_api_key">API Key</string>
+    <string name="ai_api_key_hint">Leave empty if you manage authentication via request headers</string>
+    <string name="ai_model_id">Model ID</string>
+    <string name="ai_model_remark">Model Remark</string>
+    <string name="ai_note_summary">AI Note Summary</string>
+    <string name="ai_writing">AI Writing</string>
+    <string name="ai_search">AI Search</string>
 </resources>
