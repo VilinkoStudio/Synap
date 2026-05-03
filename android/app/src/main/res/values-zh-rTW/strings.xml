@@ -112,13 +112,21 @@
     <string name="ai_scenarios">AI功能場景</string>
     <string name="ai_provider_id">提供商ID</string>
     <string name="ai_provider_id_hint">使用小寫字母、數字、連字符或底線</string>
-    <string name="ai_remark_name">備註名稱</string>
+    <string name="ai_remark_name">服務商名稱</string>
     <string name="ai_base_url">基礎URL</string>
     <string name="ai_api_key">API密鑰</string>
     <string name="ai_api_key_hint">如果您通過請求頭管理認證，可留空此項</string>
     <string name="ai_model_id">模型ID</string>
-    <string name="ai_model_remark">模型備註</string>
+    <string name="ai_model_remark">模型名稱</string>
     <string name="ai_note_summary">AI筆記總結</string>
     <string name="ai_writing">AI寫作</string>
     <string name="ai_search">AI搜尋</string>
+    <string name="ai_add_provider">增加AI提供商</string>
+    <string name="ai_service_name_hint">可選，您可以自定義服務商的名稱，若不填則預設使用服務商ID作為名稱。</string>
+    <string name="ai_model_name_hint">可選，您可以自定義模型的名稱，若不填則預設使用模型ID作為名稱。</string>
+    <string name="ai_imported_models">已匯入模型</string>
+    <string name="ai_preset_models">預設模型</string>
+    <string name="ai_doubao">豆包大模型</string>
+    <string name="ai_edit_model">編輯模型</string>
+    <string name="save">儲存</string>
 </resources>

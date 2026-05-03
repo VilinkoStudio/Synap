@@ -112,13 +112,21 @@
     <string name="ai_scenarios">AI Scenarios</string>
     <string name="ai_provider_id">Provider ID</string>
     <string name="ai_provider_id_hint">Use lowercase letters, numbers, hyphens or underscores</string>
-    <string name="ai_remark_name">Remark</string>
+    <string name="ai_remark_name">Service Name</string>
     <string name="ai_base_url">Base URL</string>
     <string name="ai_api_key">API Key</string>
     <string name="ai_api_key_hint">Leave empty if you manage authentication via request headers</string>
     <string name="ai_model_id">Model ID</string>
-    <string name="ai_model_remark">Model Remark</string>
+    <string name="ai_model_remark">Model Name</string>
     <string name="ai_note_summary">AI Note Summary</string>
     <string name="ai_writing">AI Writing</string>
     <string name="ai_search">AI Search</string>
+    <string name="ai_add_provider">Add AI Provider</string>
+    <string name="ai_service_name_hint">Optional. Customize the service name. If left empty, the service ID will be used as the name.</string>
+    <string name="ai_model_name_hint">Optional. Customize the model name. If left empty, the model ID will be used as the name.</string>
+    <string name="ai_imported_models">Imported Models</string>
+    <string name="ai_preset_models">Preset Models</string>
+    <string name="ai_doubao">Doubao LLM</string>
+    <string name="ai_edit_model">Edit Model</string>
+    <string name="save">Save</string>
 </resources>

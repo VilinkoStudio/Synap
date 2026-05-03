@@ -112,13 +112,21 @@
     <string name="ai_scenarios">AI 시나리오</string>
     <string name="ai_provider_id">제공자 ID</string>
     <string name="ai_provider_id_hint">소문자, 숫자, 하이픈 또는 밑줄을 사용하세요</string>
-    <string name="ai_remark_name">비고 이름</string>
+    <string name="ai_remark_name">서비스 이름</string>
     <string name="ai_base_url">기본 URL</string>
     <string name="ai_api_key">API 키</string>
     <string name="ai_api_key_hint">요청 헤더로 인증을 관리하는 경우 비워 두세요</string>
     <string name="ai_model_id">모델 ID</string>
-    <string name="ai_model_remark">모델 비고</string>
+    <string name="ai_model_remark">모델 이름</string>
     <string name="ai_note_summary">AI 노트 요약</string>
     <string name="ai_writing">AI 글쓰기</string>
     <string name="ai_search">AI 검색</string>
+    <string name="ai_add_provider">AI 제공자 추가</string>
+    <string name="ai_service_name_hint">선택사항. 서비스 이름을 사용자 정의할 수 있습니다. 비워두면 서비스 ID가 이름으로 사용됩니다.</string>
+    <string name="ai_model_name_hint">선택사항. 모델 이름을 사용자 정의할 수 있습니다. 비워두면 모델 ID가 이름으로 사용됩니다.</string>
+    <string name="ai_imported_models">가져온 모델</string>
+    <string name="ai_preset_models">사전 설정 모델</string>
+    <string name="ai_doubao"> Doubao LLM</string>
+    <string name="ai_edit_model">모델 편집</string>
+    <string name="save">저장</string>
 </resources>

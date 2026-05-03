@@ -112,13 +112,21 @@
     <string name="ai_scenarios">AIシナリオ</string>
     <string name="ai_provider_id">プロバイダID</string>
     <string name="ai_provider_id_hint">小文字、数字、ハイフン、アンダースコアを使用</string>
-    <string name="ai_remark_name">備考名</string>
+    <string name="ai_remark_name">サービス名</string>
     <string name="ai_base_url">ベースURL</string>
     <string name="ai_api_key">APIキー</string>
     <string name="ai_api_key_hint">リクエストヘッダーで認証を管理する場合は空欄にしてください</string>
     <string name="ai_model_id">モデルID</string>
-    <string name="ai_model_remark">モデル備考</string>
+    <string name="ai_model_remark">モデル名</string>
     <string name="ai_note_summary">AIノート要約</string>
     <string name="ai_writing">AIライティング</string>
     <string name="ai_search">AI検索</string>
+    <string name="ai_add_provider">AIプロバイダを追加</string>
+    <string name="ai_service_name_hint">任意。サービス名をカスタマイズできます。空欄の場合、サービスIDが名前として使用されます。</string>
+    <string name="ai_model_name_hint">任意。モデル名をカスタマイズできます。空欄の場合、モデルIDが名前として使用されます。</string>
+    <string name="ai_imported_models">インポート済みモデル</string>
+    <string name="ai_preset_models">プリセットモデル</string>
+    <string name="ai_doubao">豆包大モデル</string>
+    <string name="ai_edit_model">モデルを編集</string>
+    <string name="save">保存</string>
 </resources>
