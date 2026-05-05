@@ -1,6 +1,7 @@
 mod app;
 mod core;
 mod domain;
+mod ui;
 mod usecase;
 
 use std::rc::Rc;

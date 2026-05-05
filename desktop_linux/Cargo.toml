@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1.0"
 relm4 = { version = "0.9.1", features = ["macros", "libadwaita"] }
 gtk = { package = "gtk4", version = "0.9.6", features = ["v4_14"] }
 adw = { package = "libadwaita", version = "0.7.2", features = ["v1_5"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+corenet = { path = "../corenet", version = "0.1.0" }
 synap-core = { path = "../core", version = "0.1.0" }

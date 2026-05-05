@@ -1,3 +1,17 @@
-.navigation-sidebar button.active {
-  font-weight: bold;
+.navigation-sidebar row {
+  border-radius: 9px;
+  margin: 1px 0;
+}
+
+.navigation-sidebar row image {
+  opacity: 0.78;
+}
+
+.navigation-sidebar row.active {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.navigation-sidebar row.active label,
+.navigation-sidebar row.active image {
+  opacity: 1;
 }

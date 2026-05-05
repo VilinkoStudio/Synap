@@ -7,12 +7,14 @@
 //! - adapting transport channels into `synap-core` sync entrypoints
 
 mod channel;
+mod discovery;
 mod error;
 mod runtime;
 mod sync_service;
 
 pub use channel::TcpChannel;
-pub use error::{NetError, SyncNetError};
+pub use discovery::{DiscoveredPeer, DiscoveryConfig, DiscoveryState, SyncDiscoveryRuntime};
+pub use error::{DiscoveryError, NetError, SyncNetError};
 pub use runtime::{
     spawn_incoming_loop, ConnectConfig, IncomingConnection, IncomingLoopHandle, ListenConfig,
     ListenerState, TcpListenerRuntime, TcpNetRuntime,
