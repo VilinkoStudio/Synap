@@ -32,6 +32,17 @@ pub struct App {
     detail_replies_box: gtk::Box,
     detail_versions_box: gtk::Box,
     theme_dropdown: gtk::DropDown,
+    sync_listener_row: adw::ActionRow,
+    sync_addresses_row: adw::ActionRow,
+    sync_identity_row: adw::ActionRow,
+    sync_signing_row: adw::ActionRow,
+    sync_error_label: gtk::Label,
+    sync_host_entry: gtk::Entry,
+    sync_port_entry: gtk::Entry,
+    sync_discovered_box: gtk::Box,
+    sync_connections_box: gtk::Box,
+    sync_peers_box: gtk::Box,
+    sync_sessions_box: gtk::Box,
     tags_flow_box: gtk::FlowBox,
     timeline_container: gtk::Box,
     layout_stack: gtk::Stack,
@@ -68,92 +79,216 @@ impl SimpleComponent for App {
                             set_title_widget = &gtk::Label {
                                 set_label: "Synap",
                                 add_css_class: "title-1"
+                            },
+
+                            pack_end = &gtk::Button {
+                                set_icon_name: "list-add-symbolic",
+                                set_tooltip_text: Some("新建笔记"),
+                                add_css_class: "flat",
+                                connect_clicked[sender] => move |_| {
+                                    sender.input(AppMsg::CreateNote);
+                                }
+                            }
+                        },
+
+                        gtk::ListBox {
+                            add_css_class: "navigation-sidebar",
+                            set_selection_mode: gtk::SelectionMode::Single,
+                            set_margin_top: 8,
+                            set_margin_start: 6,
+                            set_margin_end: 6,
+                            connect_row_selected[sender] => move |_, row| {
+                                let Some(row) = row else {
+                                    return;
+                                };
+
+                                let view = match row.index() {
+                                    0 => ContentView::Notes,
+                                    1 => ContentView::Trash,
+                                    2 => ContentView::Tags,
+                                    3 => ContentView::Timeline,
+                                    _ => return,
+                                };
+                                sender.input(AppMsg::Navigate(view));
+                            },
+                            connect_row_activated[sender] => move |_, row| {
+                                let view = match row.index() {
+                                    0 => ContentView::Notes,
+                                    1 => ContentView::Trash,
+                                    2 => ContentView::Tags,
+                                    3 => ContentView::Timeline,
+                                    _ => return,
+                                };
+                                sender.input(AppMsg::Navigate(view));
+                            },
+
+                            gtk::ListBoxRow {
+                                #[watch]
+                                set_css_classes: if model.state.content_view == ContentView::Notes {
+                                    &["active"]
+                                } else {
+                                    &[]
+                                },
+                                set_activatable: true,
+
+                                gtk::Box {
+                                    set_orientation: gtk::Orientation::Horizontal,
+                                    set_spacing: 12,
+                                    set_hexpand: true,
+                                    set_margin_top: 8,
+                                    set_margin_bottom: 8,
+                                    set_margin_start: 12,
+                                    set_margin_end: 12,
+
+                                    gtk::Image {
+                                        set_icon_name: Some("document-open-symbolic"),
+                                    },
+
+                                    gtk::Label {
+                                        set_label: "笔记列表",
+                                        set_xalign: 0.0,
+                                        set_hexpand: true,
+                                    }
+                                }
+                            },
+
+                            gtk::ListBoxRow {
+                                #[watch]
+                                set_css_classes: if model.state.content_view == ContentView::Trash {
+                                    &["active"]
+                                } else {
+                                    &[]
+                                },
+                                set_activatable: true,
+
+                                gtk::Box {
+                                    set_orientation: gtk::Orientation::Horizontal,
+                                    set_spacing: 12,
+                                    set_hexpand: true,
+                                    set_margin_top: 8,
+                                    set_margin_bottom: 8,
+                                    set_margin_start: 12,
+                                    set_margin_end: 12,
+
+                                    gtk::Image {
+                                        set_icon_name: Some("user-trash-symbolic"),
+                                    },
+
+                                    gtk::Label {
+                                        set_label: "回收站",
+                                        set_xalign: 0.0,
+                                        set_hexpand: true,
+                                    }
+                                }
+                            },
+
+                            gtk::ListBoxRow {
+                                #[watch]
+                                set_css_classes: if matches!(model.state.content_view, ContentView::Tags | ContentView::TagNotes) {
+                                    &["active"]
+                                } else {
+                                    &[]
+                                },
+                                set_activatable: true,
+
+                                gtk::Box {
+                                    set_orientation: gtk::Orientation::Horizontal,
+                                    set_spacing: 12,
+                                    set_hexpand: true,
+                                    set_margin_top: 8,
+                                    set_margin_bottom: 8,
+                                    set_margin_start: 12,
+                                    set_margin_end: 12,
+
+                                    gtk::Image {
+                                        set_icon_name: Some("tag-symbolic"),
+                                    },
+
+                                    gtk::Label {
+                                        set_label: "标签",
+                                        set_xalign: 0.0,
+                                        set_hexpand: true,
+                                    }
+                                }
+                            },
+
+                            gtk::ListBoxRow {
+                                #[watch]
+                                set_css_classes: if model.state.content_view == ContentView::Timeline {
+                                    &["active"]
+                                } else {
+                                    &[]
+                                },
+                                set_activatable: true,
+
+                                gtk::Box {
+                                    set_orientation: gtk::Orientation::Horizontal,
+                                    set_spacing: 12,
+                                    set_hexpand: true,
+                                    set_margin_top: 8,
+                                    set_margin_bottom: 8,
+                                    set_margin_start: 12,
+                                    set_margin_end: 12,
+
+                                    gtk::Image {
+                                        set_icon_name: Some("view-list-symbolic"),
+                                    },
+
+                                    gtk::Label {
+                                        set_label: "时间线",
+                                        set_xalign: 0.0,
+                                        set_hexpand: true,
+                                    }
+                                }
                             }
                         },
 
                         gtk::Box {
-                            set_orientation: gtk::Orientation::Vertical,
-                            set_spacing: 6,
-                            set_margin_top: 12,
-                            set_margin_start: 12,
-                            set_margin_end: 12,
-                            set_margin_bottom: 12,
+                            set_vexpand: true
+                        },
 
-                            gtk::Button {
-                                set_label: "新建笔记",
-                                add_css_class: "pill",
-                                add_css_class: "suggested-action",
-                                connect_clicked[sender] => move |_| {
-                                    sender.input(AppMsg::CreateNote);
+                        gtk::ListBox {
+                            add_css_class: "navigation-sidebar",
+                            set_selection_mode: gtk::SelectionMode::Single,
+                            set_margin_bottom: 8,
+                            set_margin_start: 6,
+                            set_margin_end: 6,
+                            connect_row_selected[sender] => move |_, row| {
+                                if row.is_some() {
+                                    sender.input(AppMsg::Navigate(ContentView::Settings));
                                 }
                             },
-
-                            gtk::Button {
-                                set_label: "笔记列表",
-                                #[watch]
-                                set_css_classes: if model.state.content_view == ContentView::Notes {
-                                    &["flat", "active"]
-                                } else {
-                                    &["flat"]
-                                },
-                                connect_clicked[sender] => move |_| {
-                                    sender.input(AppMsg::Navigate(ContentView::Notes));
-                                }
+                            connect_row_activated[sender] => move |_, _| {
+                                sender.input(AppMsg::Navigate(ContentView::Settings));
                             },
 
-                            gtk::Button {
-                                set_label: "回收站",
-                                #[watch]
-                                set_css_classes: if model.state.content_view == ContentView::Trash {
-                                    &["flat", "active"]
-                                } else {
-                                    &["flat"]
-                                },
-                                connect_clicked[sender] => move |_| {
-                                    sender.input(AppMsg::Navigate(ContentView::Trash));
-                                }
-                            },
-
-                            gtk::Button {
-                                set_label: "标签",
-                                #[watch]
-                                set_css_classes: if matches!(model.state.content_view, ContentView::Tags | ContentView::TagNotes) {
-                                    &["flat", "active"]
-                                } else {
-                                    &["flat"]
-                                },
-                                connect_clicked[sender] => move |_| {
-                                    sender.input(AppMsg::Navigate(ContentView::Tags));
-                                }
-                            },
-
-                            gtk::Button {
-                                set_label: "时间线",
-                                #[watch]
-                                set_css_classes: if model.state.content_view == ContentView::Timeline {
-                                    &["flat", "active"]
-                                } else {
-                                    &["flat"]
-                                },
-                                connect_clicked[sender] => move |_| {
-                                    sender.input(AppMsg::Navigate(ContentView::Timeline));
-                                }
-                            },
-
-                            gtk::Box {
-                                set_vexpand: true
-                            },
-
-                            gtk::Button {
-                                set_label: "设置",
+                            gtk::ListBoxRow {
                                 #[watch]
                                 set_css_classes: if model.state.content_view == ContentView::Settings {
-                                    &["flat", "active"]
+                                    &["active"]
                                 } else {
-                                    &["flat"]
+                                    &[]
                                 },
-                                connect_clicked[sender] => move |_| {
-                                    sender.input(AppMsg::Navigate(ContentView::Settings));
+                                set_activatable: true,
+
+                                gtk::Box {
+                                    set_orientation: gtk::Orientation::Horizontal,
+                                    set_spacing: 12,
+                                    set_hexpand: true,
+                                    set_margin_top: 8,
+                                    set_margin_bottom: 8,
+                                    set_margin_start: 12,
+                                    set_margin_end: 12,
+
+                                    gtk::Image {
+                                        set_icon_name: Some("preferences-system-symbolic"),
+                                    },
+
+                                    gtk::Label {
+                                        set_label: "设置",
+                                        set_xalign: 0.0,
+                                        set_hexpand: true,
+                                    }
                                 }
                             }
                         }
@@ -165,51 +300,56 @@ impl SimpleComponent for App {
 
                         adw::HeaderBar {
                             #[wrap(Some)]
-                            set_title_widget = &adw::WindowTitle {
-                                set_title: "Synap",
-                                #[watch]
-                                set_subtitle: model.state.content_view.title()
-                            }
-                        },
+                            set_title_widget = &adw::Clamp {
+                                set_maximum_size: 420,
 
-                        gtk::Box {
-                            set_orientation: gtk::Orientation::Horizontal,
-                            set_spacing: 12,
-                            set_margin_top: 12,
-                            set_margin_bottom: 6,
-                            set_margin_start: 18,
-                            set_margin_end: 18,
-                            #[watch]
-                            set_visible: model.state.content_view != ContentView::Settings,
-
-                            gtk::SearchEntry {
-                                set_placeholder_text: Some("搜索内容或标签"),
-                                set_hexpand: true,
-                                set_max_width_chars: 40,
-                                connect_search_changed[sender] => move |entry| {
-                                    sender.input(AppMsg::SearchChanged(entry.text().to_string()));
+                                gtk::SearchEntry {
+                                    set_placeholder_text: Some("搜索内容或标签"),
+                                    set_hexpand: true,
+                                    #[watch]
+                                    set_visible: model.state.content_view != ContentView::Settings,
+                                    connect_search_changed[sender] => move |entry| {
+                                        sender.input(AppMsg::SearchChanged(entry.text().to_string()));
+                                    }
                                 }
                             },
 
-                            gtk::Button {
-                                set_label: "清除筛选",
-                                add_css_class: "suggested-action",
+                            pack_start = &gtk::Box {
+                                add_css_class: "linked",
+
+                                gtk::ToggleButton {
+                                    set_icon_name: "view-grid-symbolic",
+                                    set_tooltip_text: Some(NoteLayout::Waterfall.label()),
+                                    #[watch]
+                                    set_active: model.state.layout == NoteLayout::Waterfall,
+                                    connect_toggled[sender] => move |button| {
+                                        if button.is_active() {
+                                            sender.input(AppMsg::LayoutChanged(NoteLayout::Waterfall));
+                                        }
+                                    }
+                                },
+
+                                gtk::ToggleButton {
+                                    set_icon_name: "view-list-symbolic",
+                                    set_tooltip_text: Some(NoteLayout::List.label()),
+                                    #[watch]
+                                    set_active: model.state.layout == NoteLayout::List,
+                                    connect_toggled[sender] => move |button| {
+                                        if button.is_active() {
+                                            sender.input(AppMsg::LayoutChanged(NoteLayout::List));
+                                        }
+                                    }
+                                }
+                            },
+
+                            pack_end = &gtk::Button {
+                                set_icon_name: "edit-clear-symbolic",
+                                set_tooltip_text: Some("清除筛选"),
+                                add_css_class: "flat",
                                 #[watch]
                                 set_visible: model.state.content_view == ContentView::TagNotes || !model.state.search_query.is_empty(),
                                 connect_clicked[sender] => move |_| {
                                     sender.input(AppMsg::ClearFilters);
-                                }
-                            },
-
-                            gtk::DropDown {
-                                set_model: Some(&gtk::StringList::new(&[
-                                    NoteLayout::Waterfall.label(),
-                                    NoteLayout::List.label()
-                                ])),
-                                #[watch]
-                                set_selected: model.state.layout.index(),
-                                connect_selected_notify[sender] => move |dropdown| {
-                                    sender.input(AppMsg::LayoutChanged(NoteLayout::from_index(dropdown.selected())));
                                 }
                             }
                         },
@@ -269,6 +409,17 @@ impl SimpleComponent for App {
             detail_replies_box: pages.detail_replies_box,
             detail_versions_box: pages.detail_versions_box,
             theme_dropdown: pages.theme_dropdown,
+            sync_listener_row: pages.sync_listener_row,
+            sync_addresses_row: pages.sync_addresses_row,
+            sync_identity_row: pages.sync_identity_row,
+            sync_signing_row: pages.sync_signing_row,
+            sync_error_label: pages.sync_error_label,
+            sync_host_entry: pages.sync_host_entry,
+            sync_port_entry: pages.sync_port_entry,
+            sync_discovered_box: pages.sync_discovered_box,
+            sync_connections_box: pages.sync_connections_box,
+            sync_peers_box: pages.sync_peers_box,
+            sync_sessions_box: pages.sync_sessions_box,
             tags_flow_box: pages.tags_flow_box,
             timeline_container: pages.timeline_container,
             layout_stack: pages.layout_stack,
@@ -357,6 +508,60 @@ impl SimpleComponent for App {
                 Err(error) => self.state.status = Some(format!("加载时间线失败: {error}")),
             },
             AppMsg::ClearFilters => self.clear_filters(&sender),
+            AppMsg::RefreshSync => self.refresh_sync(&sender),
+            AppMsg::SyncOverviewLoaded {
+                listener,
+                identity,
+                peers,
+                sessions,
+                discovered_peers,
+                connections,
+            } => self.finish_refresh_sync(
+                listener,
+                identity,
+                peers,
+                sessions,
+                discovered_peers,
+                connections,
+            ),
+            AppMsg::UpdateSyncHost(value) => self.state.sync.host_input = value,
+            AppMsg::UpdateSyncPort(value) => self.state.sync.port_input = value,
+            AppMsg::AddSyncConnection => self.add_sync_connection(),
+            AppMsg::DeleteSyncConnection(connection_id) => {
+                self.delete_sync_connection(&connection_id)
+            }
+            AppMsg::PairSyncConnection(connection_id) => {
+                if let Some(connection) = self
+                    .state
+                    .sync
+                    .connections
+                    .iter()
+                    .find(|item| item.id == connection_id)
+                    .cloned()
+                {
+                    self.start_sync_pair(connection.host, connection.port, &sender);
+                }
+            }
+            AppMsg::PairDiscoveredPeer { host, port } => {
+                self.start_sync_pair(host, port, &sender);
+            }
+            AppMsg::TrustPeer { public_key, note } => self.trust_peer(public_key, note),
+            AppMsg::UpdatePeerNote { peer_id, note } => self.update_peer_note(peer_id, note),
+            AppMsg::SetPeerStatus { peer_id, status } => self.set_peer_status(peer_id, status),
+            AppMsg::DeletePeer(peer_id) => self.delete_peer(peer_id),
+            AppMsg::OpenPeer(peer_id) => {
+                self.state.sync.active_peer_id = Some(peer_id.clone());
+                self.state.sync.peer_note_draft = self
+                    .state
+                    .sync
+                    .peers
+                    .iter()
+                    .find(|peer| peer.id == peer_id)
+                    .and_then(|peer| peer.note.clone())
+                    .unwrap_or_default();
+            }
+            AppMsg::UpdatePeerDraft(value) => self.state.sync.peer_note_draft = value,
+            AppMsg::SyncSessionCompleted(result) => self.finish_sync_pair(result),
         }
         self.sync_ui(&sender);
     }
@@ -404,6 +609,10 @@ impl App {
                     .input_sender()
                     .send(AppMsg::TimelineLoaded(result.map(|page| page.sessions)));
             });
+        }
+
+        if view == ContentView::Settings {
+            self.refresh_sync(sender);
         }
     }
 
@@ -592,6 +801,204 @@ impl App {
         self.refresh_home(sender);
     }
 
+    fn refresh_sync(&mut self, sender: &ComponentSender<Self>) {
+        self.state.sync.is_loading = true;
+        self.state.sync.error_message = None;
+
+        let core = self.core.clone();
+        let sender = sender.clone();
+        gtk::glib::spawn_future_local(async move {
+            let listener = core.ensure_sync_listener_started(45_172);
+            let identity = core.get_local_identity();
+            let peers = core.get_peers();
+            let sessions = core.get_recent_sync_sessions(Some(10));
+            let discovered_peers = core
+                .discovered_sync_peers()
+                .into_iter()
+                .map(Into::into)
+                .collect();
+            let connections = core.sync_connections();
+            let _ = sender.input_sender().send(AppMsg::SyncOverviewLoaded {
+                listener,
+                identity,
+                peers,
+                sessions,
+                discovered_peers,
+                connections,
+            });
+        });
+    }
+
+    fn finish_refresh_sync(
+        &mut self,
+        listener: Result<corenet::ListenerState, synap_core::error::ServiceError>,
+        identity: Result<synap_core::dto::LocalIdentityDTO, synap_core::error::ServiceError>,
+        peers: Result<Vec<synap_core::dto::PeerDTO>, synap_core::error::ServiceError>,
+        sessions: Result<
+            Vec<synap_core::dto::SyncSessionRecordDTO>,
+            synap_core::error::ServiceError,
+        >,
+        discovered_peers: Vec<crate::domain::DiscoveredSyncPeer>,
+        connections: Vec<crate::domain::SyncConnectionRecord>,
+    ) {
+        self.state.sync.is_loading = false;
+        self.state.sync.discovered_peers = discovered_peers;
+        self.state.sync.connections = connections;
+
+        let mut error_messages = Vec::new();
+        match listener {
+            Ok(value) => self.state.sync.listener = value.into(),
+            Err(error) => error_messages.push(format!("监听失败: {error}")),
+        }
+        match identity {
+            Ok(value) => self.state.sync.local_identity = Some(value),
+            Err(error) => error_messages.push(format!("读取本机身份失败: {error}")),
+        }
+        match peers {
+            Ok(value) => self.state.sync.peers = value,
+            Err(error) => error_messages.push(format!("读取设备列表失败: {error}")),
+        }
+        match sessions {
+            Ok(value) => self.state.sync.recent_sessions = value,
+            Err(error) => error_messages.push(format!("读取同步统计失败: {error}")),
+        }
+
+        self.state.sync.error_message =
+            (!error_messages.is_empty()).then(|| error_messages.join("\n"));
+    }
+
+    fn add_sync_connection(&mut self) {
+        let host = self.state.sync.host_input.trim().to_string();
+        let port = self.state.sync.port_input.trim().parse::<u16>();
+
+        match port {
+            Ok(port) => match self.core.save_sync_connection(&host, port) {
+                Ok(record) => {
+                    self.state
+                        .sync
+                        .connections
+                        .retain(|item| item.id != record.id);
+                    self.state.sync.connections.push(record);
+                    self.state.sync.host_input.clear();
+                    self.state.sync.port_input.clear();
+                    self.state.sync.error_message = None;
+                }
+                Err(error) => {
+                    self.state.sync.error_message = Some(format!("保存连接失败: {error}"))
+                }
+            },
+            Err(_) => self.state.sync.error_message = Some("端口必须是有效数字".to_string()),
+        }
+    }
+
+    fn delete_sync_connection(&mut self, connection_id: &str) {
+        match self.core.delete_sync_connection(connection_id) {
+            Ok(()) => {
+                self.state
+                    .sync
+                    .connections
+                    .retain(|item| item.id != connection_id);
+                self.state.sync.error_message = None;
+            }
+            Err(error) => self.state.sync.error_message = Some(format!("删除连接失败: {error}")),
+        }
+    }
+
+    fn start_sync_pair(&mut self, host: String, port: u16, sender: &ComponentSender<Self>) {
+        self.state.sync.is_pairing = true;
+        self.state.sync.error_message = None;
+
+        let core = self.core.clone();
+        let sender = sender.clone();
+        gtk::glib::spawn_future_local(async move {
+            let result = core.connect_and_sync(&host, port);
+            let _ = sender
+                .input_sender()
+                .send(AppMsg::SyncSessionCompleted(result));
+        });
+    }
+
+    fn finish_sync_pair(
+        &mut self,
+        result: Result<synap_core::dto::SyncSessionDTO, synap_core::error::ServiceError>,
+    ) {
+        self.state.sync.is_pairing = false;
+        match result {
+            Ok(session) => {
+                self.state.sync.pending_trust_peer = (session.status
+                    == synap_core::dto::SyncStatusDTO::PendingTrust)
+                    .then_some(session.peer.clone());
+                self.state.sync.error_message = None;
+            }
+            Err(error) => self.state.sync.error_message = Some(format!("配对失败: {error}")),
+        }
+    }
+
+    fn trust_peer(&mut self, public_key: Vec<u8>, note: Option<String>) {
+        self.state.sync.is_managing_peer = true;
+        match self.core.trust_peer(&public_key, note) {
+            Ok(peer) => {
+                self.state.sync.is_managing_peer = false;
+                self.state.sync.pending_trust_peer = None;
+                self.state.sync.peers.retain(|item| item.id != peer.id);
+                self.state.sync.peers.push(peer);
+                self.state.sync.error_message = None;
+            }
+            Err(error) => {
+                self.state.sync.is_managing_peer = false;
+                self.state.sync.error_message = Some(format!("信任对端失败: {error}"));
+            }
+        }
+    }
+
+    fn update_peer_note(&mut self, peer_id: String, note: Option<String>) {
+        self.state.sync.is_managing_peer = true;
+        match self.core.update_peer_note(&peer_id, note) {
+            Ok(peer) => {
+                self.state.sync.is_managing_peer = false;
+                self.state.sync.peers.retain(|item| item.id != peer.id);
+                self.state.sync.peers.push(peer.clone());
+                self.state.sync.peer_note_draft = peer.note.clone().unwrap_or_default();
+                self.state.sync.error_message = None;
+            }
+            Err(error) => {
+                self.state.sync.is_managing_peer = false;
+                self.state.sync.error_message = Some(format!("更新设备备注失败: {error}"));
+            }
+        }
+    }
+
+    fn set_peer_status(&mut self, peer_id: String, status: synap_core::dto::PeerTrustStatusDTO) {
+        self.state.sync.is_managing_peer = true;
+        match self.core.set_peer_status(&peer_id, status) {
+            Ok(peer) => {
+                self.state.sync.is_managing_peer = false;
+                self.state.sync.peers.retain(|item| item.id != peer.id);
+                self.state.sync.peers.push(peer);
+                self.state.sync.error_message = None;
+            }
+            Err(error) => {
+                self.state.sync.is_managing_peer = false;
+                self.state.sync.error_message = Some(format!("更新设备状态失败: {error}"));
+            }
+        }
+    }
+
+    fn delete_peer(&mut self, peer_id: String) {
+        self.state.sync.is_managing_peer = true;
+        match self.core.delete_peer(&peer_id) {
+            Ok(()) => {
+                self.state.sync.is_managing_peer = false;
+                self.state.sync.peers.retain(|item| item.id != peer_id);
+                self.state.sync.error_message = None;
+            }
+            Err(error) => {
+                self.state.sync.is_managing_peer = false;
+                self.state.sync.error_message = Some(format!("删除设备失败: {error}"));
+            }
+        }
+    }
+
     fn rebuild_list(&self, sender: &ComponentSender<Self>) {
         while let Some(child) = self.list_box.first_child() {
             self.list_box.remove(&child);
@@ -631,6 +1038,7 @@ impl App {
         self.sync_detail_rows();
         self.sync_detail_sections(sender);
         self.sync_theme_dropdown();
+        self.sync_settings(sender);
         self.sync_tags(sender);
         self.sync_timeline(sender);
     }
@@ -764,6 +1172,253 @@ impl App {
         }
     }
 
+    fn sync_settings(&self, sender: &ComponentSender<Self>) {
+        let listener = &self.state.sync.listener;
+        self.sync_listener_row.set_subtitle(&format!(
+            "{}{}",
+            listener.status,
+            listener
+                .listen_port
+                .map(|port| format!(" · 端口 {port}"))
+                .unwrap_or_default()
+        ));
+        let addresses = if listener.local_addresses.is_empty() {
+            "未获取到局域网地址".to_string()
+        } else {
+            listener.local_addresses.join(", ")
+        };
+        self.sync_addresses_row.set_subtitle(&addresses);
+
+        self.sync_identity_row.set_subtitle(
+            self.state
+                .sync
+                .local_identity
+                .as_ref()
+                .map(|identity| identity.identity.kaomoji_fingerprint.as_str())
+                .unwrap_or("—"),
+        );
+        self.sync_signing_row.set_subtitle(
+            self.state
+                .sync
+                .local_identity
+                .as_ref()
+                .map(|identity| identity.signing.kaomoji_fingerprint.as_str())
+                .unwrap_or("—"),
+        );
+
+        self.sync_error_label
+            .set_visible(self.state.sync.error_message.is_some());
+        self.sync_error_label
+            .set_text(self.state.sync.error_message.as_deref().unwrap_or(""));
+
+        if self.sync_host_entry.text().as_str() != self.state.sync.host_input {
+            self.sync_host_entry.set_text(&self.state.sync.host_input);
+        }
+        if self.sync_port_entry.text().as_str() != self.state.sync.port_input {
+            self.sync_port_entry.set_text(&self.state.sync.port_input);
+        }
+
+        self.sync_settings_section_discovered(sender);
+        self.sync_settings_section_connections(sender);
+        self.sync_settings_section_peers(sender);
+        self.sync_settings_section_sessions();
+    }
+
+    fn sync_settings_section_discovered(&self, sender: &ComponentSender<Self>) {
+        clear_box(&self.sync_discovered_box);
+        if self.state.sync.discovered_peers.is_empty() {
+            self.sync_discovered_box.append(&simple_info_row(
+                "暂无发现设备",
+                "确认设备在同一局域网并已启动监听",
+            ));
+            return;
+        }
+
+        for peer in &self.state.sync.discovered_peers {
+            let row = adw::ActionRow::builder()
+                .title(&peer.display_name)
+                .subtitle(format!("{}:{} · 局域网发现", peer.host, peer.port))
+                .build();
+            let button = gtk::Button::with_label("配对");
+            let sender_clone = sender.input_sender().clone();
+            let host = peer.host.clone();
+            let port = peer.port;
+            button.connect_clicked(move |_| {
+                let _ = sender_clone.send(AppMsg::PairDiscoveredPeer {
+                    host: host.clone(),
+                    port,
+                });
+            });
+            row.add_suffix(&button);
+            self.sync_discovered_box.append(&row);
+        }
+    }
+
+    fn sync_settings_section_connections(&self, sender: &ComponentSender<Self>) {
+        clear_box(&self.sync_connections_box);
+        if self.state.sync.connections.is_empty() {
+            self.sync_connections_box.append(&simple_info_row(
+                "暂无已保存连接",
+                "可手动输入主机地址与端口添加",
+            ));
+            return;
+        }
+
+        for connection in &self.state.sync.connections {
+            let row = adw::ActionRow::builder()
+                .title(&connection.name)
+                .subtitle(&connection.status_message)
+                .build();
+            let pair_button = gtk::Button::with_label("配对");
+            let pair_sender = sender.input_sender().clone();
+            let connection_id = connection.id.clone();
+            pair_button.connect_clicked(move |_| {
+                let _ = pair_sender.send(AppMsg::PairSyncConnection(connection_id.clone()));
+            });
+
+            let delete_button = gtk::Button::with_label("删除");
+            delete_button.add_css_class("destructive-action");
+            let delete_sender = sender.input_sender().clone();
+            let delete_id = connection.id.clone();
+            delete_button.connect_clicked(move |_| {
+                let _ = delete_sender.send(AppMsg::DeleteSyncConnection(delete_id.clone()));
+            });
+
+            row.add_suffix(&delete_button);
+            row.add_suffix(&pair_button);
+            self.sync_connections_box.append(&row);
+        }
+    }
+
+    fn sync_settings_section_peers(&self, sender: &ComponentSender<Self>) {
+        clear_box(&self.sync_peers_box);
+
+        if let Some(peer) = &self.state.sync.pending_trust_peer {
+            let row = adw::ActionRow::builder()
+                .title("待信任设备")
+                .subtitle(format!(
+                    "{} · {}",
+                    peer.kaomoji_fingerprint,
+                    crate::domain::peer_status_label(&peer.status)
+                ))
+                .build();
+            let button = gtk::Button::with_label("信任");
+            button.add_css_class("suggested-action");
+            let sender_clone = sender.input_sender().clone();
+            let public_key = peer.public_key.clone();
+            button.connect_clicked(move |_| {
+                let _ = sender_clone.send(AppMsg::TrustPeer {
+                    public_key: public_key.clone(),
+                    note: None,
+                });
+            });
+            row.add_suffix(&button);
+            self.sync_peers_box.append(&row);
+        }
+
+        if self.state.sync.peers.is_empty() {
+            self.sync_peers_box.append(&simple_info_row(
+                "还没有设备记录",
+                "首次配对后会在这里显示公钥与信任状态",
+            ));
+            return;
+        }
+
+        for peer in &self.state.sync.peers {
+            let row = adw::ExpanderRow::builder()
+                .title(peer.note.as_deref().unwrap_or(&peer.kaomoji_fingerprint))
+                .subtitle(crate::domain::peer_status_label(&peer.status))
+                .build();
+
+            let note_row = adw::EntryRow::builder().title("备注").build();
+            note_row.set_text(peer.note.as_deref().unwrap_or(""));
+            let note_sender = sender.input_sender().clone();
+            let peer_id_for_note = peer.id.clone();
+            note_row.connect_apply(move |entry| {
+                let _ = note_sender.send(AppMsg::UpdatePeerNote {
+                    peer_id: peer_id_for_note.clone(),
+                    note: (!entry.text().is_empty()).then(|| entry.text().to_string()),
+                });
+            });
+            row.add_row(&note_row);
+
+            let trust_row = adw::ActionRow::builder()
+                .title("设为已信任")
+                .subtitle("允许后续同步直接完成")
+                .activatable(true)
+                .build();
+            let trust_sender = sender.input_sender().clone();
+            let trust_id = peer.id.clone();
+            let gesture = gtk::GestureClick::new();
+            gesture.connect_released(move |_, _, _, _| {
+                let _ = trust_sender.send(AppMsg::SetPeerStatus {
+                    peer_id: trust_id.clone(),
+                    status: synap_core::dto::PeerTrustStatusDTO::Trusted,
+                });
+            });
+            trust_row.add_controller(gesture);
+            row.add_row(&trust_row);
+
+            let revoke_row = adw::ActionRow::builder()
+                .title("设为已撤销")
+                .subtitle("拒绝该设备继续同步")
+                .activatable(true)
+                .build();
+            let revoke_sender = sender.input_sender().clone();
+            let revoke_id = peer.id.clone();
+            let revoke_gesture = gtk::GestureClick::new();
+            revoke_gesture.connect_released(move |_, _, _, _| {
+                let _ = revoke_sender.send(AppMsg::SetPeerStatus {
+                    peer_id: revoke_id.clone(),
+                    status: synap_core::dto::PeerTrustStatusDTO::Revoked,
+                });
+            });
+            revoke_row.add_controller(revoke_gesture);
+            row.add_row(&revoke_row);
+
+            let delete_row = adw::ActionRow::builder()
+                .title("删除设备记录")
+                .subtitle("移除本地记录")
+                .activatable(true)
+                .build();
+            let delete_sender = sender.input_sender().clone();
+            let delete_id = peer.id.clone();
+            let delete_gesture = gtk::GestureClick::new();
+            delete_gesture.connect_released(move |_, _, _, _| {
+                let _ = delete_sender.send(AppMsg::DeletePeer(delete_id.clone()));
+            });
+            delete_row.add_controller(delete_gesture);
+            row.add_row(&delete_row);
+
+            self.sync_peers_box.append(&row);
+        }
+    }
+
+    fn sync_settings_section_sessions(&self) {
+        clear_box(&self.sync_sessions_box);
+        if self.state.sync.recent_sessions.is_empty() {
+            self.sync_sessions_box.append(&simple_info_row(
+                "暂无同步记录",
+                "发起或接收一次同步后会显示在这里",
+            ));
+            return;
+        }
+
+        for session in &self.state.sync.recent_sessions {
+            self.sync_sessions_box.append(
+                &adw::ActionRow::builder()
+                    .title(session.peer_label.as_deref().unwrap_or("未知设备"))
+                    .subtitle(format!(
+                        "{} · {} · {}",
+                        crate::domain::sync_role_label(&session.role),
+                        crate::domain::sync_status_label(&session.status),
+                        crate::domain::format_timestamp(session.finished_at_ms)
+                    ))
+                    .build(),
+            );
+        }
+    }
+
     fn sync_tags(&self, sender: &ComponentSender<Self>) {
         while let Some(child) = self.tags_flow_box.first_child() {
             self.tags_flow_box.remove(&child);
@@ -893,4 +1548,17 @@ impl App {
             })
             .unwrap_or_default()
     }
+}
+
+fn clear_box(container: &gtk::Box) {
+    while let Some(child) = container.first_child() {
+        container.remove(&child);
+    }
+}
+
+fn simple_info_row(title: &str, subtitle: &str) -> adw::ActionRow {
+    adw::ActionRow::builder()
+        .title(title)
+        .subtitle(subtitle)
+        .build()
 }

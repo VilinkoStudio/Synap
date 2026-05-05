@@ -1,5 +1,11 @@
 use crate::domain::{ContentView, NoteDetailData, NoteLayout, Theme};
-use synap_core::{dto::NoteDTO, error::ServiceError};
+use synap_core::{
+    dto::{
+        LocalIdentityDTO, NoteDTO, PeerDTO, PeerTrustStatusDTO, SyncSessionDTO,
+        SyncSessionRecordDTO,
+    },
+    error::ServiceError,
+};
 
 #[derive(Debug)]
 pub enum AppMsg {
@@ -33,4 +39,38 @@ pub enum AppMsg {
     TagSuggestionsLoaded(Result<Vec<String>, ServiceError>),
     ClearFilters,
     TimelineLoaded(Result<Vec<synap_core::dto::TimelineSessionDTO>, ServiceError>),
+    RefreshSync,
+    SyncOverviewLoaded {
+        listener: Result<corenet::ListenerState, ServiceError>,
+        identity: Result<LocalIdentityDTO, ServiceError>,
+        peers: Result<Vec<PeerDTO>, ServiceError>,
+        sessions: Result<Vec<SyncSessionRecordDTO>, ServiceError>,
+        discovered_peers: Vec<crate::domain::DiscoveredSyncPeer>,
+        connections: Vec<crate::domain::SyncConnectionRecord>,
+    },
+    UpdateSyncHost(String),
+    UpdateSyncPort(String),
+    AddSyncConnection,
+    DeleteSyncConnection(String),
+    PairSyncConnection(String),
+    PairDiscoveredPeer {
+        host: String,
+        port: u16,
+    },
+    TrustPeer {
+        public_key: Vec<u8>,
+        note: Option<String>,
+    },
+    UpdatePeerNote {
+        peer_id: String,
+        note: Option<String>,
+    },
+    SetPeerStatus {
+        peer_id: String,
+        status: PeerTrustStatusDTO,
+    },
+    DeletePeer(String),
+    OpenPeer(String),
+    UpdatePeerDraft(String),
+    SyncSessionCompleted(Result<SyncSessionDTO, ServiceError>),
 }

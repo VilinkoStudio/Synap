@@ -1,4 +1,7 @@
-use synap_core::dto::{NoteDTO, NoteVersionDTO};
+use synap_core::dto::{
+    LocalIdentityDTO, NoteDTO, NoteVersionDTO, PeerDTO, PeerTrustStatusDTO, SyncSessionDTO,
+    SyncSessionRecordDTO, SyncSessionRoleDTO, SyncStatusDTO,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContentView {
@@ -168,6 +171,7 @@ pub struct AppState {
     pub timeline_sessions: Vec<synap_core::dto::TimelineSessionDTO>,
     pub timeline_cursor: Option<String>,
     pub has_more_timeline: bool,
+    pub sync: SyncState,
 }
 
 impl Default for AppState {
@@ -190,6 +194,7 @@ impl Default for AppState {
             timeline_sessions: Vec::new(),
             timeline_cursor: None,
             has_more_timeline: false,
+            sync: SyncState::default(),
         }
     }
 }
@@ -297,4 +302,122 @@ pub fn format_timestamp(timestamp_ms: u64) -> String {
     let timestamp = UNIX_EPOCH + Duration::from_millis(timestamp_ms);
     let datetime = chrono::DateTime::<chrono::Local>::from(timestamp);
     datetime.format("%Y-%m-%d %H:%M").to_string()
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SyncState {
+    pub is_loading: bool,
+    pub is_pairing: bool,
+    pub is_managing_peer: bool,
+    pub listener: SyncListenerState,
+    pub local_identity: Option<LocalIdentityDTO>,
+    pub discovered_peers: Vec<DiscoveredSyncPeer>,
+    pub connections: Vec<SyncConnectionRecord>,
+    pub peers: Vec<PeerDTO>,
+    pub pending_trust_peer: Option<PeerDTO>,
+    pub recent_sessions: Vec<SyncSessionRecordDTO>,
+    pub error_message: Option<String>,
+    pub host_input: String,
+    pub port_input: String,
+    pub peer_note_draft: String,
+    pub active_peer_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SyncListenerState {
+    pub protocol: String,
+    pub backend: String,
+    pub is_listening: bool,
+    pub listen_port: Option<u16>,
+    pub local_addresses: Vec<String>,
+    pub status: String,
+    pub error_message: Option<String>,
+}
+
+impl From<corenet::ListenerState> for SyncListenerState {
+    fn from(value: corenet::ListenerState) -> Self {
+        Self {
+            protocol: value.protocol,
+            backend: value.backend,
+            is_listening: value.is_listening,
+            listen_port: value.listen_port,
+            local_addresses: value.local_addresses,
+            status: value.status,
+            error_message: value.error_message,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SyncConnectionStatus {
+    Idle,
+    Connecting,
+    AwaitingTrust,
+    Connected,
+    Failed,
+}
+
+#[derive(Debug, Clone)]
+pub struct SyncConnectionRecord {
+    pub id: String,
+    pub name: String,
+    pub host: String,
+    pub port: u16,
+    pub status: SyncConnectionStatus,
+    pub status_message: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct DiscoveredSyncPeer {
+    pub service_name: String,
+    pub display_name: String,
+    pub host: String,
+    pub port: u16,
+    pub last_seen_at_ms: u64,
+}
+
+impl From<corenet::DiscoveredPeer> for DiscoveredSyncPeer {
+    fn from(value: corenet::DiscoveredPeer) -> Self {
+        Self {
+            service_name: value.service_name,
+            display_name: value.display_name,
+            host: value.host,
+            port: value.port,
+            last_seen_at_ms: value.last_seen_at_ms,
+        }
+    }
+}
+
+pub fn sync_status_label(status: &SyncStatusDTO) -> &'static str {
+    match status {
+        SyncStatusDTO::Completed => "已完成",
+        SyncStatusDTO::PendingTrust => "待信任",
+        SyncStatusDTO::Failed => "失败",
+    }
+}
+
+pub fn sync_role_label(role: &SyncSessionRoleDTO) -> &'static str {
+    match role {
+        SyncSessionRoleDTO::Initiator => "发起方",
+        SyncSessionRoleDTO::Listener => "监听方",
+    }
+}
+
+pub fn peer_status_label(status: &PeerTrustStatusDTO) -> &'static str {
+    match status {
+        PeerTrustStatusDTO::Pending => "待确认",
+        PeerTrustStatusDTO::Trusted => "已信任",
+        PeerTrustStatusDTO::Retired => "已停用",
+        PeerTrustStatusDTO::Revoked => "已撤销",
+    }
+}
+
+pub fn sync_session_summary(session: &SyncSessionDTO) -> String {
+    let peer_label = session
+        .peer
+        .note
+        .clone()
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| session.peer.kaomoji_fingerprint.clone());
+    format!("{} · {}", peer_label, sync_status_label(&session.status))
 }

@@ -17,6 +17,17 @@ pub struct ContentPages {
     pub detail_replies_box: gtk::Box,
     pub detail_versions_box: gtk::Box,
     pub theme_dropdown: gtk::DropDown,
+    pub sync_listener_row: adw::ActionRow,
+    pub sync_addresses_row: adw::ActionRow,
+    pub sync_identity_row: adw::ActionRow,
+    pub sync_signing_row: adw::ActionRow,
+    pub sync_error_label: gtk::Label,
+    pub sync_host_entry: gtk::Entry,
+    pub sync_port_entry: gtk::Entry,
+    pub sync_discovered_box: gtk::Box,
+    pub sync_connections_box: gtk::Box,
+    pub sync_peers_box: gtk::Box,
+    pub sync_sessions_box: gtk::Box,
     pub tags_flow_box: gtk::FlowBox,
     pub timeline_container: gtk::Box,
     pub layout_stack: gtk::Stack,
@@ -29,6 +40,7 @@ pub fn build_content_pages(state: &AppState, sender: &ComponentSender<App>) -> C
     content_stack.set_vexpand(true);
     content_stack.set_margin_start(12);
     content_stack.set_margin_end(12);
+    content_stack.set_margin_top(12);
     content_stack.set_margin_bottom(12);
 
     let list_box = gtk::ListBox::new();
@@ -40,13 +52,13 @@ pub fn build_content_pages(state: &AppState, sender: &ComponentSender<App>) -> C
     content_stack.add_named(&notes_page, Some("notes"));
 
     let empty_page = adw::StatusPage::new();
-    empty_page.set_icon_name(Some("document-edit-symbolic"));
+    empty_page.set_icon_name(Some("network-workgroup-symbolic"));
     content_stack.add_named(&empty_page, Some("empty"));
 
     let detail_page = build_detail_page(sender);
     content_stack.add_named(&detail_page.root, Some("detail"));
 
-    let settings_page = build_settings_page(state.theme, sender);
+    let settings_page = build_settings_page(state, sender);
     content_stack.add_named(&settings_page.root, Some("settings"));
 
     let tags_page = build_tags_page();
@@ -69,6 +81,17 @@ pub fn build_content_pages(state: &AppState, sender: &ComponentSender<App>) -> C
         detail_replies_box: detail_page.replies_box,
         detail_versions_box: detail_page.versions_box,
         theme_dropdown: settings_page.theme_dropdown,
+        sync_listener_row: settings_page.sync_listener_row,
+        sync_addresses_row: settings_page.sync_addresses_row,
+        sync_identity_row: settings_page.sync_identity_row,
+        sync_signing_row: settings_page.sync_signing_row,
+        sync_error_label: settings_page.sync_error_label,
+        sync_host_entry: settings_page.sync_host_entry,
+        sync_port_entry: settings_page.sync_port_entry,
+        sync_discovered_box: settings_page.sync_discovered_box,
+        sync_connections_box: settings_page.sync_connections_box,
+        sync_peers_box: settings_page.sync_peers_box,
+        sync_sessions_box: settings_page.sync_sessions_box,
         tags_flow_box: tags_page.tags_flow_box,
         timeline_container: timeline_page.timeline_container,
         layout_stack,
@@ -218,12 +241,135 @@ fn build_detail_page(sender: &ComponentSender<App>) -> DetailPage {
 }
 
 struct SettingsPage {
-    root: adw::PreferencesPage,
+    root: gtk::ScrolledWindow,
     theme_dropdown: gtk::DropDown,
+    sync_listener_row: adw::ActionRow,
+    sync_addresses_row: adw::ActionRow,
+    sync_identity_row: adw::ActionRow,
+    sync_signing_row: adw::ActionRow,
+    sync_error_label: gtk::Label,
+    sync_host_entry: gtk::Entry,
+    sync_port_entry: gtk::Entry,
+    sync_discovered_box: gtk::Box,
+    sync_connections_box: gtk::Box,
+    sync_peers_box: gtk::Box,
+    sync_sessions_box: gtk::Box,
 }
 
-fn build_settings_page(theme: Theme, sender: &ComponentSender<App>) -> SettingsPage {
-    let root = adw::PreferencesPage::new();
+fn build_settings_page(state: &AppState, sender: &ComponentSender<App>) -> SettingsPage {
+    let page = adw::PreferencesPage::new();
+    let root = gtk::ScrolledWindow::new();
+    root.set_child(Some(&page));
+
+    let sync_group = adw::PreferencesGroup::builder()
+        .title("同步与信任")
+        .description("桌面端监听、局域网发现、手动连接、设备信任和同步历史")
+        .build();
+
+    let sync_listener_row = adw::ActionRow::builder()
+        .title("监听状态")
+        .subtitle("正在读取…")
+        .build();
+    let refresh_button = gtk::Button::with_label("刷新");
+    let refresh_sender = sender.input_sender().clone();
+    refresh_button.connect_clicked(move |_| {
+        let _ = refresh_sender.send(AppMsg::RefreshSync);
+    });
+    sync_listener_row.add_suffix(&refresh_button);
+    sync_group.add(&sync_listener_row);
+
+    let sync_addresses_row = adw::ActionRow::builder()
+        .title("局域网地址")
+        .subtitle("—")
+        .build();
+    sync_group.add(&sync_addresses_row);
+
+    let sync_identity_row = adw::ActionRow::builder()
+        .title("身份公钥")
+        .subtitle("—")
+        .build();
+    sync_group.add(&sync_identity_row);
+
+    let sync_signing_row = adw::ActionRow::builder()
+        .title("签名公钥")
+        .subtitle("—")
+        .build();
+    sync_group.add(&sync_signing_row);
+
+    let sync_error_label = gtk::Label::new(None);
+    sync_error_label.add_css_class("error");
+    sync_error_label.set_halign(gtk::Align::Start);
+    sync_error_label.set_wrap(true);
+    sync_error_label.set_margin_start(12);
+    sync_error_label.set_margin_end(12);
+    sync_group.add(&sync_error_label);
+    page.add(&sync_group);
+
+    let connections_group = adw::PreferencesGroup::builder()
+        .title("连接目标")
+        .description("自动发现的设备可直接配对，也支持手动添加主机与端口")
+        .build();
+
+    let add_box = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+    add_box.set_margin_top(6);
+    add_box.set_margin_bottom(6);
+    add_box.set_margin_start(12);
+    add_box.set_margin_end(12);
+
+    let sync_host_entry = gtk::Entry::new();
+    sync_host_entry.set_hexpand(true);
+    sync_host_entry.set_placeholder_text(Some("主机地址"));
+    sync_host_entry.set_text(&state.sync.host_input);
+    let host_sender = sender.input_sender().clone();
+    sync_host_entry.connect_changed(move |entry| {
+        let _ = host_sender.send(AppMsg::UpdateSyncHost(entry.text().to_string()));
+    });
+
+    let sync_port_entry = gtk::Entry::new();
+    sync_port_entry.set_width_chars(8);
+    sync_port_entry.set_placeholder_text(Some("端口"));
+    sync_port_entry.set_input_purpose(gtk::InputPurpose::Digits);
+    sync_port_entry.set_text(&state.sync.port_input);
+    let port_sender = sender.input_sender().clone();
+    sync_port_entry.connect_changed(move |entry| {
+        let _ = port_sender.send(AppMsg::UpdateSyncPort(entry.text().to_string()));
+    });
+
+    let add_button = gtk::Button::with_label("添加");
+    add_button.add_css_class("suggested-action");
+    let add_sender = sender.input_sender().clone();
+    add_button.connect_clicked(move |_| {
+        let _ = add_sender.send(AppMsg::AddSyncConnection);
+    });
+
+    add_box.append(&sync_host_entry);
+    add_box.append(&sync_port_entry);
+    add_box.append(&add_button);
+    connections_group.add(&add_box);
+
+    let sync_discovered_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
+    let sync_connections_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
+    connections_group.add(&section_label("局域网发现"));
+    connections_group.add(&sync_discovered_box);
+    connections_group.add(&section_label("已保存连接"));
+    connections_group.add(&sync_connections_box);
+    page.add(&connections_group);
+
+    let peers_group = adw::PreferencesGroup::builder()
+        .title("设备列表")
+        .description("管理待信任、已信任和已撤销的对端公钥")
+        .build();
+    let sync_peers_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
+    peers_group.add(&sync_peers_box);
+    page.add(&peers_group);
+
+    let sessions_group = adw::PreferencesGroup::builder()
+        .title("同步统计")
+        .description("最近同步结果和角色信息")
+        .build();
+    let sync_sessions_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
+    sessions_group.add(&sync_sessions_box);
+
     let settings_group = adw::PreferencesGroup::builder().title("外观").build();
 
     let theme_row = adw::ActionRow::builder()
@@ -232,18 +378,30 @@ fn build_settings_page(theme: Theme, sender: &ComponentSender<App>) -> SettingsP
         .build();
 
     let theme_dropdown = gtk::DropDown::from_strings(&["跟随系统", "浅色", "深色"]);
-    theme_dropdown.set_selected(theme.index());
+    theme_dropdown.set_selected(state.theme.index());
     let sender_theme = sender.input_sender().clone();
     theme_dropdown.connect_selected_notify(move |dropdown| {
         let _ = sender_theme.send(AppMsg::ThemeChanged(Theme::from_index(dropdown.selected())));
     });
     theme_row.add_suffix(&theme_dropdown);
     settings_group.add(&theme_row);
-    root.add(&settings_group);
+    page.add(&sessions_group);
+    page.add(&settings_group);
 
     SettingsPage {
         root,
         theme_dropdown,
+        sync_listener_row,
+        sync_addresses_row,
+        sync_identity_row,
+        sync_signing_row,
+        sync_error_label,
+        sync_host_entry,
+        sync_port_entry,
+        sync_discovered_box,
+        sync_connections_box,
+        sync_peers_box,
+        sync_sessions_box,
     }
 }
 
@@ -330,4 +488,13 @@ fn initial_content_child(state: &AppState) -> &'static str {
             }
         }
     }
+}
+
+fn section_label(text: &str) -> gtk::Label {
+    let label = gtk::Label::new(Some(text));
+    label.add_css_class("heading");
+    label.set_halign(gtk::Align::Start);
+    label.set_margin_top(12);
+    label.set_margin_start(12);
+    label
 }
