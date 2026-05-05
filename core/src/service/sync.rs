@@ -1,6 +1,51 @@
 use super::*;
 
 impl SynapService {
+    pub fn local_relay_mailbox_public_key(&self) -> Result<[u8; 32], ServiceError> {
+        let tx = self.db.begin_read()?;
+        let reader = CryptoReader::new(&tx)?;
+        crypto::local_signing_public_key(&reader)?
+            .ok_or_else(|| ServiceError::NotFound("local signing public key".into()))
+    }
+
+    pub fn local_relay_recipient_identity_public_key(&self) -> Result<[u8; 32], ServiceError> {
+        let tx = self.db.begin_read()?;
+        let reader = CryptoReader::new(&tx)?;
+        crypto::local_identity_public_key(&reader)?
+            .ok_or_else(|| ServiceError::NotFound("local identity public key".into()))
+    }
+
+    pub(crate) fn sign_relay_mailbox_auth(&self, payload: &[u8]) -> Result<[u8; 64], ServiceError> {
+        let tx = self.db.begin_read()?;
+        let reader = CryptoReader::new(&tx)?;
+        crypto::sign_with_local_identity(&reader, payload)?
+            .ok_or_else(|| ServiceError::Other(anyhow::anyhow!("local signing identity is missing")))
+    }
+
+    pub fn seal_relay_payload_for(
+        &self,
+        recipient_identity_public_key: [u8; 32],
+        payload: &[u8],
+    ) -> Result<Vec<u8>, ServiceError> {
+        let tx = self.db.begin_read()?;
+        let reader = CryptoReader::new(&tx)?;
+        crypto::seal_for_recipient(&reader, recipient_identity_public_key, payload)
+            .map_err(|err| ServiceError::Other(anyhow::anyhow!(err)))
+    }
+
+    pub fn build_relay_inventory(&self) -> Result<RelayInventory, ServiceError> {
+        RelaySyncService::new(self)
+            .build_local_inventory()
+            .map_err(|err| ServiceError::Other(anyhow::anyhow!(err)))
+    }
+
+    pub fn export_relay_share_for_inventory(
+        &self,
+        remote_inventory: &RelayInventory,
+    ) -> Result<Vec<u8>, ServiceError> {
+        RelaySyncService::new(self).build_share_for_remote_inventory(remote_inventory)
+    }
+
     pub fn get_recent_sync_sessions(
         &self,
         limit: Option<usize>,

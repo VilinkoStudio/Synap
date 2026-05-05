@@ -1,6 +1,7 @@
 mod channel;
 mod fingerprint;
 mod identity;
+mod sealed_envelope;
 mod signing;
 mod trust;
 
@@ -12,6 +13,11 @@ pub use fingerprint::{generate_kaomoji_fingerprint, generate_public_key_avatar_p
 pub use identity::{
     ensure_local_identity, local_identity_key_id, local_identity_private_key,
     local_identity_public_key, local_identity_secret_id,
+};
+pub use sealed_envelope::{
+    inspect, inspect_verified, open_for_local_recipient, open_with_recipient_private_key,
+    seal_for_recipient, EnvelopeSenderIdentity, InspectedSealedEnvelope, OpenedSealedEnvelope,
+    SealedEnvelopeError, VerifiedSealedEnvelopeHeader, SEALED_ENVELOPE_MAGIC,
 };
 pub use signing::{
     ensure_local_signing_identity, local_signing_key_id, local_signing_public_key,

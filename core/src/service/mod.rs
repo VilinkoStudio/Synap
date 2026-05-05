@@ -38,7 +38,7 @@ use crate::{
     },
     nlp::{embedding::LocalHashEmbedding, NlpDocument, NlpTagIndex},
     search::{searcher::FuzzyIndex, semantic::SemanticIndex, types::Searchable},
-    sync::{ShareService, SyncPeerIdentity, SyncService},
+    sync::{RelayInventory, RelaySyncService, ShareService, SyncPeerIdentity, SyncService},
     views::{
         note_segment_view::{NoteSegmentDirection, NoteSegmentView},
         note_version_view::NoteVersionView,
