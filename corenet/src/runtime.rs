@@ -1,6 +1,6 @@
 use std::{
     collections::BTreeSet,
-    net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs, UdpSocket},
+    net::{IpAddr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs, UdpSocket},
     sync::{Arc, Mutex},
     thread,
     time::Duration,
@@ -239,35 +239,48 @@ fn configure_stream(stream: TcpStream) -> std::io::Result<TcpStream> {
 }
 
 fn current_local_addresses() -> Vec<String> {
+    current_local_ip_addrs()
+        .into_iter()
+        .map(|ip| ip.to_string())
+        .collect()
+}
+
+pub(crate) fn current_local_ip_addrs() -> Vec<IpAddr> {
     let mut addresses = BTreeSet::new();
 
-    if let Some(ip) = discover_local_ip_v4() {
+    if let Some(ip) = discover_local_ip_v4().map(IpAddr::V4) {
         addresses.insert(ip);
     }
 
-    if let Some(ip) = discover_local_ip_v6() {
+    if let Some(ip) = discover_local_ip_v6().map(IpAddr::V6) {
         addresses.insert(ip);
     }
 
     addresses.into_iter().collect()
 }
 
-fn discover_local_ip_v4() -> Option<String> {
+fn discover_local_ip_v4() -> Option<std::net::Ipv4Addr> {
     let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
     socket.connect("192.0.2.1:9").ok()?;
-    let ip = socket.local_addr().ok()?.ip();
+    let ip = match socket.local_addr().ok()?.ip() {
+        IpAddr::V4(ip) => ip,
+        IpAddr::V6(_) => return None,
+    };
     if ip.is_loopback() || ip.is_unspecified() {
         return None;
     }
-    Some(ip.to_string())
+    Some(ip)
 }
 
-fn discover_local_ip_v6() -> Option<String> {
+fn discover_local_ip_v6() -> Option<std::net::Ipv6Addr> {
     let socket = UdpSocket::bind("[::]:0").ok()?;
     socket.connect("[2001:db8::1]:9").ok()?;
-    let ip = socket.local_addr().ok()?.ip();
+    let ip = match socket.local_addr().ok()?.ip() {
+        IpAddr::V6(ip) => ip,
+        IpAddr::V4(_) => return None,
+    };
     if ip.is_loopback() || ip.is_unspecified() {
         return None;
     }
-    Some(ip.to_string())
+    Some(ip)
 }
