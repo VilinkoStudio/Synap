@@ -1,4 +1,5 @@
 package com.synap.app.ui.screens
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -46,6 +47,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -67,6 +70,7 @@ import kotlin.math.ln
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.max
+import java.util.concurrent.CancellationException
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,7 +79,33 @@ fun StarmapScreen(
     onNavigateBack: () -> Unit,
     onRefresh: () -> Unit,
 ) {
+    // ========== 预返回手势核心状态 ==========
+    var backProgress by remember { mutableFloatStateOf(0f) }
+
+    PredictiveBackHandler { progressFlow ->
+        try {
+            progressFlow.collect { backEvent ->
+                backProgress = backEvent.progress // 收集系统侧滑进度 (0.0 ~ 1.0)
+            }
+            onNavigateBack() // 手指松开且达到返回阈值时触发
+        } catch (e: CancellationException) {
+            backProgress = 0f // 用户取消了侧滑，重置进度
+        }
+    }
+
     Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            // ========== 应用预返回手势形变 ==========
+            .graphicsLayer {
+                val scale = 1f - (0.1f * backProgress) // 页面最多缩小到 90%
+                scaleX = scale
+                scaleY = scale
+                translationX = backProgress * 16.dp.toPx() // 向右边缘移动
+                transformOrigin = TransformOrigin(1f, 0.5f) // 缩放原点在右侧中心
+                shape = RoundedCornerShape(32.dp * backProgress) // 随进度增加圆角
+                clip = true
+            },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.starmap_title)) },

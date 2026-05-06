@@ -1,5 +1,6 @@
 package com.synap.app.ui.screens
 
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -81,12 +82,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.synap.app.R
 import kotlinx.coroutines.delay
+import java.util.concurrent.CancellationException
 
 @Composable
 fun TutorialScreen(
@@ -102,10 +106,37 @@ fun TutorialScreen(
     onLanguageSelect: (Int) -> Unit,
     onFinishTutorial: () -> Unit
 ) {
+    // ========== 预返回手势核心状态 ==========
+    var backProgress by remember { mutableFloatStateOf(0f) }
+
+    PredictiveBackHandler { progressFlow ->
+        try {
+            progressFlow.collect { backEvent ->
+                backProgress = backEvent.progress // 收集系统侧滑进度 (0.0 ~ 1.0)
+            }
+            onFinishTutorial() // 手指松开且达到返回阈值时触发
+        } catch (e: CancellationException) {
+            backProgress = 0f // 用户取消了侧滑，重置进度
+        }
+    }
+
     // 控制当前所处页面（0=欢迎页，1=卡片手势页，2=新建笔记页）
     var currentPage by remember { mutableIntStateOf(0) }
 
-    Scaffold { innerPadding ->
+    Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            // ========== 应用预返回手势形变 ==========
+            .graphicsLayer {
+                val scale = 1f - (0.1f * backProgress) // 页面最多缩小到 90%
+                scaleX = scale
+                scaleY = scale
+                translationX = backProgress * 16.dp.toPx() // 向右边缘移动
+                transformOrigin = TransformOrigin(1f, 0.5f) // 缩放原点在右侧中心
+                shape = RoundedCornerShape(32.dp * backProgress) // 随进度增加圆角
+                clip = true
+            }
+    ) { innerPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()

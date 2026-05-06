@@ -61,6 +61,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -129,6 +130,8 @@ fun SettingsScreen(
                 val scale = 1f - (0.1f * backProgress) // 页面最多缩小到 90%
                 scaleX = scale
                 scaleY = scale
+                translationX = backProgress * 16.dp.toPx() // 向右边缘移动
+                transformOrigin = TransformOrigin(1f, 0.5f) // 缩放原点在右侧中心
                 shape = RoundedCornerShape(32.dp * backProgress) // 随进度增加圆角
                 clip = true
             },
