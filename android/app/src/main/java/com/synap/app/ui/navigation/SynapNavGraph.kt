@@ -355,6 +355,7 @@ fun SynapNavGraph(
                         onContentChange = viewModel::updateContent,
                         onAddTag = viewModel::addTag,
                         onRemoveTag = viewModel::removeTag,
+                        onNoteColorHueChange = viewModel::setNoteColorHue,
                         onSave = viewModel::save,
                         sharedTransitionScope = this@SharedTransitionLayout,
                         animatedVisibilityScope = this@composable

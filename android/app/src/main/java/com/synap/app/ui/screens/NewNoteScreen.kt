@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -52,6 +53,8 @@ import androidx.compose.material.icons.filled.FormatUnderlined
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,8 +63,11 @@ import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
@@ -83,6 +89,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -106,6 +113,7 @@ import com.synap.app.LocalNoteFontWeight
 import com.synap.app.LocalNoteLineSpacing
 import com.synap.app.LocalNoteTextSize
 import com.synap.app.R
+import com.synap.app.ui.util.NoteColorUtil
 import com.synap.app.ui.viewmodel.EditorMode
 import com.synap.app.ui.viewmodel.EditorUiState
 import kotlinx.coroutines.CancellationException
@@ -138,6 +146,7 @@ fun NewNoteScreen(
     onContentChange: (String) -> Unit,
     onAddTag: (String) -> Unit,
     onRemoveTag: (Int) -> Unit,
+    onNoteColorHueChange: (Float?) -> Unit,
     onSave: () -> Unit,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
@@ -146,6 +155,13 @@ fun NewNoteScreen(
     var isTagInputVisible by remember { mutableStateOf(false) }
     val tagFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
+
+    var showColorDialog by remember { mutableStateOf(false) }
+    var localColorHue by remember { mutableFloatStateOf(uiState.noteColorHue ?: 210f) }
+
+    LaunchedEffect(uiState.noteColorHue) {
+        if (uiState.noteColorHue != null) localColorHue = uiState.noteColorHue!!
+    }
 
     var textFieldValue by remember {
         mutableStateOf(TextFieldValue(text = uiState.content, selection = TextRange(uiState.content.length)))
@@ -261,6 +277,23 @@ fun NewNoteScreen(
                 })) },
                 navigationIcon = { IconButton(onClick = { hideKeyboardAndNavigate { onNavigateBack() } }) { Icon(Icons.Filled.ArrowBack, "返回") } },
                 actions = {
+                    val isTabletTopBar = LocalConfiguration.current.screenWidthDp >= 700
+                    if (!isTabletTopBar) {
+                        val currentColor = uiState.noteColorHue?.let { NoteColorUtil.hueToColor(it) }
+                        TextButton(
+                            onClick = { showColorDialog = true },
+                            colors = ButtonDefaults.textButtonColors(
+                                containerColor = currentColor?.copy(alpha = 0.15f)
+                                    ?: MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                            )
+                        ) {
+                            if (currentColor != null) {
+                                Box(modifier = Modifier.size(10.dp).background(currentColor, CircleShape))
+                                Spacer(modifier = Modifier.width(6.dp))
+                            }
+                            Text("笔记颜色", color = currentColor ?: MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
                     IconButton(onClick = { hideKeyboardAndNavigate { onSave() } }, enabled = !uiState.isSaving && !uiState.isLoading) {
                         if (uiState.isSaving) CircularProgressIndicator(modifier = Modifier.size(24.dp)) else Icon(Icons.Filled.Check, "保存")
                     }
@@ -313,6 +346,19 @@ fun NewNoteScreen(
 
             val TagSectionContent: @Composable () -> Unit = {
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                    // 大屏幕：标签栏顶部直接放颜色选择器
+                    if (isTablet) {
+                        Text("笔记颜色", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                        NoteColorPickerContent(
+                            currentHue = uiState.noteColorHue,
+                            localHue = localColorHue,
+                            onLocalHueChange = { localColorHue = it },
+                            onColorChange = { onNoteColorHueChange(it) },
+                            onClear = { onNoteColorHueChange(null) }
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    }
+
                     if (isTagInputVisible) {
                         var hasGainedFocus by remember { mutableStateOf(false) }
                         LaunchedEffect(Unit) { try { tagFocusRequester.requestFocus() } catch (e: Exception) {} }
@@ -733,6 +779,104 @@ fun NewNoteScreen(
                     EditorSectionContent()
                 }
             }
+
+            // 小屏幕：颜色选择弹窗
+            if (showColorDialog) {
+                AlertDialog(
+                    onDismissRequest = { showColorDialog = false },
+                    title = { Text("笔记颜色") },
+                    text = {
+                        NoteColorPickerContent(
+                            currentHue = uiState.noteColorHue,
+                            localHue = localColorHue,
+                            onLocalHueChange = { localColorHue = it },
+                            onColorChange = { onNoteColorHueChange(it) },
+                            onClear = {
+                                onNoteColorHueChange(null)
+                                showColorDialog = false
+                            }
+                        )
+                    },
+                    confirmButton = {},
+                    dismissButton = {
+                        TextButton(onClick = { showColorDialog = false }) {
+                            Text("关闭")
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NoteColorPickerContent(
+    currentHue: Float?,
+    localHue: Float,
+    onLocalHueChange: (Float) -> Unit,
+    onColorChange: (Float) -> Unit,
+    onClear: () -> Unit,
+) {
+    Column {
+        val previewColor = NoteColorUtil.hueToColor(localHue)
+        Slider(
+            value = localHue,
+            onValueChange = { hue ->
+                onLocalHueChange(hue)
+                onColorChange(hue)
+            },
+            valueRange = 0f..360f,
+            colors = SliderDefaults.colors(
+                thumbColor = previewColor,
+                activeTrackColor = previewColor,
+            )
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        val presetHues = listOf(
+            0f to "红",
+            30f to "橙",
+            55f to "黄",
+            130f to "绿",
+            210f to "蓝",
+            270f to "紫",
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            presetHues.forEach { (hue, label) ->
+                val color = NoteColorUtil.hueToColor(hue)
+                val isSelected = currentHue != null && (currentHue - hue).let { it in -2f..2f }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(color, CircleShape)
+                            .clickable {
+                                onLocalHueChange(hue)
+                                onColorChange(hue)
+                            }
+                            .then(
+                                if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                                else Modifier
+                            )
+                    )
+                    Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        TextButton(
+            onClick = onClear,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("无颜色")
         }
     }
 }

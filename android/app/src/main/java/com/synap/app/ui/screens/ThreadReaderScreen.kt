@@ -62,6 +62,7 @@ import com.synap.app.LocalNoteTextSize
 import com.synap.app.ui.components.DagCanvasOrientation
 import com.synap.app.ui.components.ThreadDagCanvas
 import com.synap.app.ui.model.Note
+import com.synap.app.ui.util.NoteColorUtil
 import com.synap.app.ui.model.ThreadBranchChoice
 import com.synap.app.ui.viewmodel.ThreadReaderUiState
 
@@ -399,7 +400,7 @@ private fun ThreadStepCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = note.tags.joinToString(" · ").ifBlank { "无标签" },
+                    text = NoteColorUtil.filterDisplayTags(note.tags).joinToString(" · ").ifBlank { "无标签" },
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

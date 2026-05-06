@@ -5,6 +5,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.AnnotatedString
@@ -59,6 +61,7 @@ import com.synap.app.LocalNoteFontFamily
 import com.synap.app.LocalNoteFontWeight
 import com.synap.app.LocalNoteTextSize
 import com.synap.app.ui.model.Note
+import com.synap.app.ui.util.NoteColorUtil
 import com.synap.app.ui.util.formatNoteDate
 import com.synap.app.ui.util.formatNoteTime
 import kotlinx.coroutines.launch
@@ -203,6 +206,9 @@ fun NoteCardItem(
     // 【核心修复 1】：使用底层触摸 API，记录用户是否处于长按/滑动未松手状态
     var isPressed by remember { mutableStateOf(false) }
 
+    val noteColor = NoteColorUtil.parseNoteColor(note.tags)
+    val isDark = isSystemInDarkTheme()
+
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { dismissValue ->
             if (isSelectionMode) return@rememberSwipeToDismissBoxState false // 多选模式下禁用滑动
@@ -305,6 +311,10 @@ fun NoteCardItem(
                 containerColor = when {
                     note.isDeleted -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
                     isSelected -> MaterialTheme.colorScheme.secondaryContainer
+                    noteColor != null -> {
+                        val blendTarget = if (isDark) Color.Black else Color.White
+                        lerp(noteColor, blendTarget, 0.4f)
+                    }
                     else -> MaterialTheme.colorScheme.surfaceVariant
                 }
             ),
@@ -317,7 +327,7 @@ fun NoteCardItem(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        val primaryColor = MaterialTheme.colorScheme.primary
+                        val primaryColor = noteColor ?: MaterialTheme.colorScheme.primary
                         val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
                         val baseFontSize = LocalNoteTextSize.current.value
 
@@ -367,7 +377,8 @@ fun NoteCardItem(
                                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                note.tags.take(5).forEach { tag ->
+                                val displayTags = NoteColorUtil.filterDisplayTags(note.tags)
+                                displayTags.take(5).forEach { tag ->
                                     Surface(
                                         color = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.secondaryContainer,
                                         shape = MaterialTheme.shapes.small,
@@ -379,9 +390,9 @@ fun NoteCardItem(
                                         )
                                     }
                                 }
-                                if (note.tags.size > 5) {
+                                if (displayTags.size > 5) {
                                     Text(
-                                        text = "+${note.tags.size - 5}",
+                                        text = "+${displayTags.size - 5}",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(vertical = 4.dp),

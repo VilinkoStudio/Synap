@@ -54,6 +54,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -92,6 +93,7 @@ import com.synap.app.R
 import com.synap.app.ui.components.ShareExportSheet
 import com.synap.app.ui.model.Note
 import com.synap.app.ui.model.NoteVersion
+import com.synap.app.ui.util.NoteColorUtil
 import com.synap.app.ui.util.formatNoteTime
 import com.synap.app.ui.viewmodel.DetailUiState
 import kotlinx.coroutines.launch
@@ -370,6 +372,9 @@ fun NoteDetailScreen(
         }
     }
 
+    val noteColor = uiState.note?.let { NoteColorUtil.parseNoteColor(it.tags) }
+    val primaryColorForTheme = noteColor ?: MaterialTheme.colorScheme.primary
+
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
@@ -386,6 +391,9 @@ fun NoteDetailScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.notedetail_title)) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = primaryColorForTheme.copy(alpha = 0.1f)
+                ),
                 navigationIcon = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onNavigateBack) {
@@ -402,7 +410,7 @@ fun NoteDetailScreen(
             // ========== 沉浸式固定底部工具栏 ==========
             if (uiState.note != null) {
                 Surface(
-                    color = MaterialTheme.colorScheme.surface,
+                    color = primaryColorForTheme.copy(alpha = 0.1f),
                     tonalElevation = 3.dp,
                     shadowElevation = 8.dp,
                     modifier = Modifier.fillMaxWidth()
@@ -575,7 +583,7 @@ fun NoteDetailScreen(
                             modifier = Modifier.horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            note.tags.forEach { tag ->
+                            NoteColorUtil.filterDisplayTags(note.tags).forEach { tag ->
                                 Surface(
                                     color = MaterialTheme.colorScheme.secondaryContainer,
                                     shape = MaterialTheme.shapes.small,
@@ -590,7 +598,7 @@ fun NoteDetailScreen(
                         }
                     }
 
-                    val primaryColor = MaterialTheme.colorScheme.primary
+                    val primaryColor = noteColor ?: MaterialTheme.colorScheme.primary
                     val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
                     val baseFontSize = LocalNoteTextSize.current.value
 
@@ -623,21 +631,25 @@ fun NoteDetailScreen(
                     RelationSection(
                         title = stringResource(R.string.notedetail_origins),
                         notes = uiState.origins,
+                        noteColor = noteColor,
                         onOpenRelatedNote = onOpenRelatedNote,
                     )
                     VersionSection(
                         title = stringResource(R.string.notedetail_previousVersions),
                         versions = uiState.previousVersions,
+                        noteColor = noteColor,
                         onOpenRelatedNote = onOpenRelatedNote,
                     )
                     VersionSection(
                         title = stringResource(R.string.notedetail_nextVersions),
                         versions = uiState.nextVersions,
+                        noteColor = noteColor,
                         onOpenRelatedNote = onOpenRelatedNote,
                     )
                     RelationSection(
                         title = stringResource(R.string.notedetail_replies),
                         notes = uiState.replies,
+                        noteColor = noteColor,
                         onOpenRelatedNote = onOpenRelatedNote,
                     )
 
@@ -675,28 +687,31 @@ private fun buildCalendarReminderTitle(note: Note, fallback: String): String {
 private fun RelationSection(
     title: String,
     notes: List<Note>,
+    noteColor: Color?,
     onOpenRelatedNote: (String) -> Unit,
 ) {
     if (notes.isEmpty()) {
         return
     }
 
+    val primaryColor = noteColor ?: MaterialTheme.colorScheme.primary
+
     Text(
         text = title,
         style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.primary,
+        color = primaryColor,
         modifier = Modifier.padding(top = 24.dp, bottom = 12.dp),
     )
 
-    val primaryColor = MaterialTheme.colorScheme.primary
     val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
     val baseFontSize = (LocalNoteTextSize.current.value - 2).coerceAtLeast(10f)
+    val cardBackgroundColor = primaryColor.copy(alpha = 0.08f)
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         notes.forEach { note ->
             Surface(
                 shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surfaceVariant,
+                color = cardBackgroundColor,
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onOpenRelatedNote(note.id) },
@@ -718,9 +733,10 @@ private fun RelationSection(
                             lineHeight = baseFontSize.sp * LocalNoteLineSpacing.current
                         ),
                     )
-                    if (note.tags.isNotEmpty()) {
+                    val relationDisplayTags = NoteColorUtil.filterDisplayTags(note.tags)
+                    if (relationDisplayTags.isNotEmpty()) {
                         Text(
-                            text = note.tags.joinToString(" · "),
+                            text = relationDisplayTags.joinToString(" · "),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 6.dp),
@@ -736,22 +752,25 @@ private fun RelationSection(
 private fun VersionSection(
     title: String,
     versions: List<NoteVersion>,
+    noteColor: Color?,
     onOpenRelatedNote: (String) -> Unit,
 ) {
     if (versions.isEmpty()) {
         return
     }
 
+    val primaryColor = noteColor ?: MaterialTheme.colorScheme.primary
+
     Text(
         text = title,
         style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.primary,
+        color = primaryColor,
         modifier = Modifier.padding(top = 24.dp, bottom = 12.dp),
     )
 
-    val primaryColor = MaterialTheme.colorScheme.primary
     val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
     val baseFontSize = (LocalNoteTextSize.current.value - 2).coerceAtLeast(10f)
+    val cardBackgroundColor = primaryColor.copy(alpha = 0.08f)
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         versions.forEach { version ->
@@ -760,6 +779,7 @@ private fun VersionSection(
                 primaryColor = primaryColor,
                 highlightColor = highlightColor,
                 baseFontSize = baseFontSize,
+                cardBackgroundColor = cardBackgroundColor,
                 onOpenRelatedNote = onOpenRelatedNote,
             )
         }
@@ -772,13 +792,14 @@ private fun VersionCard(
     primaryColor: Color,
     highlightColor: Color,
     baseFontSize: Float,
+    cardBackgroundColor: Color,
     onOpenRelatedNote: (String) -> Unit,
 ) {
     val note = version.note
 
     Surface(
         shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        color = cardBackgroundColor,
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onOpenRelatedNote(note.id) },
@@ -806,9 +827,10 @@ private fun VersionCard(
                 ),
             )
 
-            if (note.tags.isNotEmpty()) {
+            val versionDisplayTags = NoteColorUtil.filterDisplayTags(note.tags)
+            if (versionDisplayTags.isNotEmpty()) {
                 Text(
-                    text = note.tags.joinToString(" · "),
+                    text = versionDisplayTags.joinToString(" · "),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 6.dp),

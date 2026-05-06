@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import com.synap.app.ui.util.NoteColorUtil
 import kotlinx.coroutines.launch
 
 sealed interface EditorMode {
@@ -31,6 +32,7 @@ data class EditorUiState(
     val mode: EditorMode = EditorMode.Create,
     val content: String = "",
     val tags: List<String> = emptyList(),
+    val noteColorHue: Float? = null,
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val isRecommendingTags: Boolean = false,
@@ -71,9 +73,12 @@ class EditorViewModel @Inject constructor(
                     repository.getNote(mode.noteId)
                 }.fold(
                     onSuccess = { note ->
+                        val colorHue = NoteColorUtil.extractColorHue(note.tags)
+                        val displayTags = NoteColorUtil.filterDisplayTags(note.tags)
                         _uiState.value = _uiState.value.copy(
                             content = note.content,
-                            tags = note.tags,
+                            tags = displayTags,
+                            noteColorHue = colorHue,
                             isLoading = false,
                             errorMessage = null,
                         )
@@ -141,6 +146,10 @@ class EditorViewModel @Inject constructor(
         }
     }
 
+    fun setNoteColorHue(hue: Float?) {
+        _uiState.update { it.copy(noteColorHue = hue) }
+    }
+
     fun save() {
         val content = uiState.value.content.trim()
         if (content.isEmpty()) {
@@ -148,19 +157,22 @@ class EditorViewModel @Inject constructor(
             return
         }
 
+        val state = uiState.value
+        val storageTags = NoteColorUtil.prepareStorageTags(state.tags, state.noteColorHue)
+
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, errorMessage = null) }
 
             runCatching {
-                when (val currentMode = uiState.value.mode) {
-                    EditorMode.Create -> repository.createNote(content, uiState.value.tags)
-                    is EditorMode.Reply -> repository.replyToNote(currentMode.parentId, content, uiState.value.tags)
-                    is EditorMode.Edit -> repository.editNote(currentMode.noteId, content, uiState.value.tags)
+                when (val currentMode = state.mode) {
+                    EditorMode.Create -> repository.createNote(content, storageTags)
+                    is EditorMode.Reply -> repository.replyToNote(currentMode.parentId, content, storageTags)
+                    is EditorMode.Edit -> repository.editNote(currentMode.noteId, content, storageTags)
                 }
             }.fold(
                 onSuccess = { note ->
                     _uiState.update { it.copy(isSaving = false) }
-                    _events.emit(EditorEvent.Saved(note.id, uiState.value.mode))
+                    _events.emit(EditorEvent.Saved(note.id, state.mode))
                 },
                 onFailure = { throwable ->
                     _uiState.update {
