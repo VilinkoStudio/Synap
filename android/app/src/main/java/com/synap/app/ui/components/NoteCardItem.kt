@@ -5,7 +5,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.AnnotatedString
@@ -207,7 +207,7 @@ fun NoteCardItem(
     var isPressed by remember { mutableStateOf(false) }
 
     val noteColor = NoteColorUtil.parseNoteColor(note.tags)
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { dismissValue ->
@@ -313,7 +313,7 @@ fun NoteCardItem(
                     isSelected -> MaterialTheme.colorScheme.secondaryContainer
                     noteColor != null -> {
                         val blendTarget = if (isDark) Color.Black else Color.White
-                        lerp(noteColor, blendTarget, 0.4f)
+                        lerp(noteColor, blendTarget, 0.6f)
                     }
                     else -> MaterialTheme.colorScheme.surfaceVariant
                 }
