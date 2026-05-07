@@ -320,17 +320,17 @@ fun NewNoteScreen(
                     val iconColor = MaterialTheme.colorScheme.onSurface
                     val textStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = iconColor)
 
-                    IconButton(onClick = { applyStyle("**", "**") }) { Icon(Icons.Filled.FormatBold, null, tint = iconColor) }
-                    IconButton(onClick = { applyStyle("*", "*") }) { Icon(Icons.Filled.FormatItalic, null, tint = iconColor) }
-                    IconButton(onClick = { applyStyle("~~", "~~") }) { Icon(Icons.Filled.FormatStrikethrough, null, tint = iconColor) }
-                    IconButton(onClick = { applyStyle("<u>", "</u>") }) { Icon(Icons.Filled.FormatUnderlined, null, tint = iconColor) }
-                    IconButton(onClick = { applyStyle("==", "==") }) { Icon(Icons.Filled.FormatColorText, null, tint = iconColor) }
-                    IconButton(onClick = { applyLinePrefix("> ") }) { Icon(Icons.Filled.FormatQuote, null, tint = iconColor) }
-                    IconButton(onClick = { applyLinePrefix("# ") }) { Text("H1", style = textStyle) }
-                    IconButton(onClick = { applyLinePrefix("## ") }) { Text("H2", style = textStyle) }
+                    IconButton(onClick = { applyLinePrefix("- [ ] ") }) { Icon(Icons.Filled.CheckBox, null, tint = iconColor) }
                     IconButton(onClick = { applyLinePrefix("- ") }) { Icon(Icons.Filled.FormatListBulleted, null, tint = iconColor) }
                     IconButton(onClick = { applyLinePrefix("1. ") }) { Text("1.", style = textStyle) }
-                    IconButton(onClick = { applyLinePrefix("- [ ] ") }) { Icon(Icons.Filled.CheckBox, null, tint = iconColor) }
+                    IconButton(onClick = { applyLinePrefix("# ") }) { Text("H1", style = textStyle) }
+                    IconButton(onClick = { applyLinePrefix("## ") }) { Text("H2", style = textStyle) }
+                    IconButton(onClick = { applyLinePrefix("> ") }) { Icon(Icons.Filled.FormatQuote, null, tint = iconColor) }
+                    IconButton(onClick = { applyStyle("**", "**") }) { Icon(Icons.Filled.FormatBold, null, tint = iconColor) }
+                    IconButton(onClick = { applyStyle("*", "*") }) { Icon(Icons.Filled.FormatItalic, null, tint = iconColor) }
+                    IconButton(onClick = { applyStyle("<u>", "</u>") }) { Icon(Icons.Filled.FormatUnderlined, null, tint = iconColor) }
+                    IconButton(onClick = { applyStyle("~~", "~~") }) { Icon(Icons.Filled.FormatStrikethrough, null, tint = iconColor) }
+                    IconButton(onClick = { applyStyle("==", "==") }) { Icon(Icons.Filled.FormatColorText, null, tint = iconColor) }
                 }
             }
         }
