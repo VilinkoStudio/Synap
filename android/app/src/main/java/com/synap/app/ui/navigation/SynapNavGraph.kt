@@ -344,6 +344,11 @@ fun SynapNavGraph(
                     val draftStore = remember { com.synap.app.data.service.DraftStore(context) }
                     var draftCount by remember { mutableIntStateOf(draftStore.count()) }
 
+                    // 自动刷新草稿箱数量
+                    LaunchedEffect(Unit) {
+                        draftCount = draftStore.count()
+                    }
+
                     // ========== 核心自动填充逻辑 ==========
                     val initialContent = backStackEntry.arguments?.getString("initialContent")
                     LaunchedEffect(initialContent) {

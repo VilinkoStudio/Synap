@@ -254,8 +254,8 @@ private fun AppearanceSection(
 
         // 6. 草稿箱容量
         var expanded by remember { mutableStateOf(false) }
-        val capacities = listOf(0, 2, 5, 10, 20, 50, 100)
-        val capacityLabels = listOf("关闭", "2", "5", "10", "20", "50", "100")
+        val capacities = listOf(0, 5, 10, 20, 50, 100)
+        val capacityLabels = listOf("关闭", "5", "10", "20", "50", "100")
 
         Row(
             modifier = Modifier

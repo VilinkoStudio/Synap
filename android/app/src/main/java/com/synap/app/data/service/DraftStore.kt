@@ -154,7 +154,7 @@ class DraftStore @Inject constructor(
     companion object {
         private const val PREFS_NAME = "drafts"
         private const val KEY_DRAFTS = "draft_list"
-        private const val KEY_CAPACITY = "draft_capacity"
+        private const val KEY_CAPACITY = "draftCapacity"
         private const val DEFAULT_CAPACITY = 20
     }
 }

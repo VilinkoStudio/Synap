@@ -23,7 +23,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -76,9 +80,20 @@ fun DraftScreen(
     val context = LocalContext.current
     val draftStore = remember { DraftStore(context) }
     var drafts by remember { mutableStateOf(draftStore.list()) }
+    var showMessage by remember { mutableStateOf(true) }
+    var showClearDialog by remember { mutableStateOf(false) }
+
+    // 每次重组时读取最新容量
+    val capacity = draftStore.getCapacity()
+    val currentCount = drafts.size
 
     fun refreshDrafts() {
         drafts = draftStore.list()
+    }
+
+    // 自动刷新草稿箱数据
+    LaunchedEffect(Unit) {
+        refreshDrafts()
     }
 
     var backProgress by remember { mutableFloatStateOf(0f) }
@@ -114,6 +129,16 @@ fun DraftScreen(
                         Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
+                actions = {
+                    Text(
+                        text = "$currentCount/$capacity",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    IconButton(onClick = { showClearDialog = true }) {
+                        Icon(Icons.Filled.DeleteSweep, contentDescription = "清空草稿箱")
+                    }
+                },
             )
         },
     ) { innerPadding ->
@@ -123,29 +148,31 @@ fun DraftScreen(
                 .padding(innerPadding)
         ) {
             // 提示信息
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "这里存放还未保存的笔记，向右滑动笔记卡片即可继续编辑，向左滑动即可永久删除。您可以在设置中调整草稿箱的容量，若草稿箱已满，会按时间顺序移除最早的笔记。草稿箱仅用于笔记数据临时存放，注意及时保存数据。",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                    ) {
-                        TextButton(onClick = {
-                            draftStore.clear()
-                            refreshDrafts()
-                        }) {
-                            Text("清空草稿箱")
+            if (showMessage) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "这里存放还未保存的笔记，向右滑动笔记卡片即可继续编辑，向左滑动即可永久删除。您可以在设置中调整草稿箱的容量，若草稿箱已满，会按时间顺序移除最早的笔记。草稿箱仅用于笔记数据临时存放，注意及时保存数据。",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                        ) {
+                            TextButton(onClick = { showMessage = false }) {
+                                Text("永久关闭")
+                            }
+                            Button(onClick = { showMessage = false }) {
+                                Text("关闭")
+                            }
                         }
                     }
                 }
@@ -183,6 +210,34 @@ fun DraftScreen(
                 }
             }
         }
+    }
+
+    // 清空草稿箱确认弹窗
+    if (showClearDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearDialog = false },
+            title = { Text("确认删除") },
+            text = { Text("是否确认删除草稿箱内的全部${currentCount}条笔记") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        draftStore.clear()
+                        refreshDrafts()
+                        showClearDialog = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("删除")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
 
