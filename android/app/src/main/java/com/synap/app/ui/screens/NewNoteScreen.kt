@@ -223,11 +223,14 @@ fun NewNoteScreen(
 
     LaunchedEffect(Unit) {
         val latestDraft = draftStore.getLatestDraft()
-        if (latestDraft != null && latestDraft.reason == "auto") {
+        if (latestDraft != null) {
             if (isContentMatchingLatestDraft()) {
                 // 内容相同，标记为已读，不显示弹窗
                 onMarkDraftAsRead(latestDraft.id)
-            } else {
+            } else if (latestDraft.status == "pending") {
+                // 有pending状态的笔记，显示恢复弹窗
+                recoveryDraft = latestDraft
+            } else if (latestDraft.reason == "auto" && latestDraft.status != "read") {
                 // 内容不同，将最新草稿状态改为pending，显示恢复弹窗
                 draftStore.updateStatus(latestDraft.id, "pending")
                 recoveryDraft = latestDraft.copy(status = "pending")
@@ -974,34 +977,53 @@ fun NewNoteScreen(
                     },
                     confirmButton = {},
                     dismissButton = {
-                        Row(
+                        Column(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            Button(
+                                onClick = {
+                                    showBackDialog = false
+                                    onSave()
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("保存")
+                            }
+                            Button(
+                                onClick = {
+                                    showBackDialog = false
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            ) {
+                                Text("继续编辑")
+                            }
+                            TextButton(
+                                onClick = {
+                                    showBackDialog = false
+                                    onSaveDraft()
+                                    hideKeyboardAndNavigate { onNavigateToHome() }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("存到草稿箱")
+                            }
                             TextButton(
                                 onClick = {
                                     showBackDialog = false
                                     onDiscardDraft()
                                     hideKeyboardAndNavigate { onNavigateToHome() }
                                 },
+                                modifier = Modifier.fillMaxWidth(),
                                 colors = ButtonDefaults.textButtonColors(
                                     contentColor = MaterialTheme.colorScheme.error
                                 )
                             ) {
                                 Text("废弃")
-                            }
-                            TextButton(onClick = {
-                                showBackDialog = false
-                                onSaveDraft()
-                                hideKeyboardAndNavigate { onNavigateToHome() }
-                            }) {
-                                Text("存到草稿箱")
-                            }
-                            Button(onClick = {
-                                showBackDialog = false
-                                onSave()
-                            }) {
-                                Text("保存")
                             }
                         }
                     }
@@ -1011,7 +1033,7 @@ fun NewNoteScreen(
             // 进程意外终止后的恢复弹窗
             recoveryDraft?.let { draft ->
                 AlertDialog(
-                    onDismissRequest = { recoveryDraft = null },
+                    onDismissRequest = {}, // 屏蔽点击空白关闭
                     title = { Text("有未保存的笔记") },
                     text = {
                         Column {
@@ -1105,7 +1127,7 @@ fun NewNoteScreen(
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("稍后处理")
+                                Text("仍存储在草稿箱内（不推荐）")
                             }
                         }
                     }
