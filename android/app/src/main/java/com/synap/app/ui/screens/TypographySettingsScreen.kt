@@ -315,10 +315,7 @@ fun TypographySettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
-                val scale = 1f - (0.1f * backProgress)
-                scaleX = scale
-                scaleY = scale
-                translationX = backProgress * 16.dp.toPx()
+                translationX = backProgress * 64.dp.toPx()
                 transformOrigin = TransformOrigin(1f, 0.5f)
                 shape = RoundedCornerShape(32.dp * backProgress)
                 clip = true

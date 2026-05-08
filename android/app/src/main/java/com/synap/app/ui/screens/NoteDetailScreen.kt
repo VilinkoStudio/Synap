@@ -380,10 +380,7 @@ fun NoteDetailScreen(
             .fillMaxSize()
             // ========== 应用预返回手势形变 ==========
             .graphicsLayer {
-                val scale = 1f - (0.1f * backProgress) // 页面最多缩小到 90%
-                scaleX = scale
-                scaleY = scale
-                translationX = backProgress * 16.dp.toPx() // 向右边缘移动
+                translationX = backProgress * 64.dp.toPx() // 向右边缘移动
                 transformOrigin = TransformOrigin(1f, 0.5f) // 缩放原点在右侧中心
                 shape = RoundedCornerShape(32.dp * backProgress) // 随进度增加圆角
                 clip = true
