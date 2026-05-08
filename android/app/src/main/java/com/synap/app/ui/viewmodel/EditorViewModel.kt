@@ -4,6 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.synap.app.data.repository.SynapRepository
+import com.synap.app.data.service.DraftRecord
+import com.synap.app.data.service.DraftStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -44,6 +46,7 @@ data class EditorUiState(
 class EditorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: SynapRepository,
+    private val draftStore: DraftStore,
 ) : ViewModel() {
     private val mode: EditorMode = when {
         !savedStateHandle.get<String>("editNoteId").isNullOrBlank() -> {
@@ -65,6 +68,10 @@ class EditorViewModel @Inject constructor(
     private var recommendTagsJob: Job? = null
     private var recommendedTagCandidates: List<String> = emptyList()
     private var lastRecommendedContent: String? = null
+    private var autoSaveJob: Job? = null
+    private var currentDraftId: String? = null
+    private var initialContent: String = ""
+    private var hasBeenModified = false
 
     init {
         if (mode is EditorMode.Edit) {
@@ -97,7 +104,11 @@ class EditorViewModel @Inject constructor(
 
     fun updateContent(value: String) {
         _uiState.update { it.copy(content = value, errorMessage = null) }
+        if (value != initialContent) {
+            hasBeenModified = true
+        }
         scheduleTagRecommendations(value)
+        scheduleAutoSave()
     }
 
     fun addTag(value: String) {
@@ -113,6 +124,8 @@ class EditorViewModel @Inject constructor(
                 errorMessage = null,
             )
         }
+        hasBeenModified = true
+        scheduleAutoSave()
     }
 
     fun updateTag(index: Int, value: String) {
@@ -130,6 +143,8 @@ class EditorViewModel @Inject constructor(
                 )
             }
         }
+        hasBeenModified = true
+        scheduleAutoSave()
     }
 
     fun removeTag(index: Int) {
@@ -144,10 +159,14 @@ class EditorViewModel @Inject constructor(
                 )
             }
         }
+        hasBeenModified = true
+        scheduleAutoSave()
     }
 
     fun setNoteColorHue(hue: Float?) {
         _uiState.update { it.copy(noteColorHue = hue) }
+        hasBeenModified = true
+        scheduleAutoSave()
     }
 
     fun save() {
@@ -172,6 +191,7 @@ class EditorViewModel @Inject constructor(
             }.fold(
                 onSuccess = { note ->
                     _uiState.update { it.copy(isSaving = false) }
+                    clearCurrentDraft()
                     _events.emit(EditorEvent.Saved(note.id, state.mode))
                 },
                 onFailure = { throwable ->
@@ -184,6 +204,74 @@ class EditorViewModel @Inject constructor(
                 },
             )
         }
+    }
+
+    fun hasUnsavedChanges(): Boolean {
+        if (!hasBeenModified) return false
+        val state = uiState.value
+        return state.content.trim().isNotEmpty()
+    }
+
+    fun saveDraftManually() {
+        saveDraft("manual")
+    }
+
+    private fun scheduleAutoSave() {
+        autoSaveJob?.cancel()
+        autoSaveJob = viewModelScope.launch {
+            delay(AUTO_SAVE_DEBOUNCE_MS)
+            saveDraft("auto")
+        }
+    }
+
+    private fun saveDraft(reason: String) {
+        if (!draftStore.isEnabled()) return
+        val state = uiState.value
+        val content = state.content.trim()
+        if (content.isEmpty()) return
+
+        val draft = DraftRecord(
+            id = currentDraftId ?: java.util.UUID.randomUUID().toString(),
+            content = content,
+            tags = state.tags,
+            noteColorHue = state.noteColorHue,
+            mode = when (state.mode) {
+                EditorMode.Create -> "create"
+                is EditorMode.Reply -> "reply"
+                is EditorMode.Edit -> "edit"
+            },
+            parentId = (state.mode as? EditorMode.Reply)?.parentId,
+            parentSummary = (state.mode as? EditorMode.Reply)?.parentSummary,
+            editNoteId = (state.mode as? EditorMode.Edit)?.noteId,
+            savedAt = System.currentTimeMillis(),
+            reason = reason,
+            status = "editing", // 自动保存的草稿状态为编辑中
+        )
+
+        if (currentDraftId == null) {
+            currentDraftId = draft.id
+        }
+
+        draftStore.save(draft)
+    }
+
+    private fun clearCurrentDraft() {
+        currentDraftId?.let { draftStore.delete(it) }
+        currentDraftId = null
+    }
+
+    fun getCurrentDraftId(): String? {
+        return currentDraftId
+    }
+
+    fun isContentMatchingLatestDraft(): Boolean {
+        val latestDraft = draftStore.getLatestDraft() ?: return false
+        val currentContent = uiState.value.content.trim()
+        return latestDraft.content.trim() == currentContent && currentContent.isNotEmpty()
+    }
+
+    fun markDraftAsRead(draftId: String) {
+        draftStore.updateStatus(draftId, "read")
     }
 
     private fun scheduleTagRecommendations(content: String) {
@@ -263,5 +351,6 @@ class EditorViewModel @Inject constructor(
     private companion object {
         private const val TAG_RECOMMENDATION_DEBOUNCE_MS = 350L
         private val TAG_RECOMMENDATION_LIMIT = 6u
+        private const val AUTO_SAVE_DEBOUNCE_MS = 3000L // 3 seconds
     }
 }

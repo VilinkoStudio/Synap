@@ -52,6 +52,9 @@ import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.FormatStrikethrough
 import androidx.compose.material.icons.filled.FormatUnderlined
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -109,6 +112,7 @@ import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -185,11 +189,20 @@ private fun deleteCustomColor(context: Context, index: Int) {
 fun NewNoteScreen(
     uiState: EditorUiState,
     onNavigateBack: () -> Unit,
+    onNavigateToHome: () -> Unit,
     onContentChange: (String) -> Unit,
     onAddTag: (String) -> Unit,
     onRemoveTag: (Int) -> Unit,
     onNoteColorHueChange: (Float?) -> Unit,
     onSave: () -> Unit,
+    onNavigateToDrafts: () -> Unit,
+    draftCount: Int,
+    hasUnsavedChanges: Boolean,
+    onSaveDraft: () -> Unit,
+    onDiscardDraft: () -> Unit,
+    isContentMatchingLatestDraft: () -> Boolean,
+    onMarkDraftAsRead: (String) -> Unit,
+    onRefreshDraftCount: () -> Unit,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
 ) {
@@ -203,6 +216,24 @@ fun NewNoteScreen(
     var showAddPresetDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     var customColors by remember { mutableStateOf(loadCustomColors(context)) }
+
+    // 检查是否有需要恢复的草稿（进程意外终止）
+    val draftStore = remember { com.synap.app.data.service.DraftStore(context) }
+    var recoveryDraft by remember { mutableStateOf<com.synap.app.data.service.DraftRecord?>(null) }
+
+    LaunchedEffect(Unit) {
+        val latestDraft = draftStore.getLatestDraft()
+        if (latestDraft != null && latestDraft.reason == "auto") {
+            if (isContentMatchingLatestDraft()) {
+                // 内容相同，标记为已读，不显示弹窗
+                onMarkDraftAsRead(latestDraft.id)
+            } else {
+                // 内容不同，将最新草稿状态改为pending，显示恢复弹窗
+                draftStore.updateStatus(latestDraft.id, "pending")
+                recoveryDraft = latestDraft.copy(status = "pending")
+            }
+        }
+    }
 
     LaunchedEffect(uiState.noteColorHue) {
         if (uiState.noteColorHue != null) localColorHue = uiState.noteColorHue!!
@@ -281,11 +312,24 @@ fun NewNoteScreen(
         action()
     }
 
+    var showUnsavedDialog by remember { mutableStateOf(false) }
+    var showBackDialog by remember { mutableStateOf(false) }
+
     var backProgress by remember { mutableFloatStateOf(0f) }
+
+    fun handleBackNavigation() {
+        if (hasUnsavedChanges) {
+            backProgress = 0f // 归位预返回手势动画
+            showBackDialog = true
+        } else {
+            onNavigateBack()
+        }
+    }
+
     PredictiveBackHandler { progressFlow ->
         try {
             progressFlow.collect { backEvent -> backProgress = backEvent.progress }
-            hideKeyboardAndNavigate { onNavigateBack() }
+            hideKeyboardAndNavigate { handleBackNavigation() }
         } catch (e: CancellationException) {
             backProgress = 0f
         }
@@ -320,7 +364,7 @@ fun NewNoteScreen(
                     is EditorMode.Reply -> R.string.edit_title_reply
                     is EditorMode.Edit -> R.string.edit_title_edit
                 })) },
-                navigationIcon = { IconButton(onClick = { hideKeyboardAndNavigate { onNavigateBack() } }) { Icon(Icons.Filled.ArrowBack, "返回") } },
+                navigationIcon = { IconButton(onClick = { hideKeyboardAndNavigate { handleBackNavigation() } }) { Icon(Icons.Filled.ArrowBack, "返回") } },
                 actions = {
                     val isTabletTopBar = LocalConfiguration.current.screenWidthDp >= 700
                     if (!isTabletTopBar) {
@@ -337,6 +381,20 @@ fun NewNoteScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                             }
                             Text("笔记颜色", color = currentColor ?: MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                    // Draft box icon
+                    if (draftCount > 0) {
+                        BadgedBox(
+                            badge = { Badge { Text("$draftCount") } }
+                        ) {
+                            IconButton(onClick = { hideKeyboardAndNavigate { onNavigateToDrafts() } }) {
+                                Icon(Icons.Filled.Inventory2, "草稿箱")
+                            }
+                        }
+                    } else {
+                        IconButton(onClick = { hideKeyboardAndNavigate { onNavigateToDrafts() } }) {
+                            Icon(Icons.Filled.Inventory2, "草稿箱")
                         }
                     }
                     IconButton(onClick = { hideKeyboardAndNavigate { onSave() } }, enabled = !uiState.isSaving && !uiState.isLoading) {
@@ -872,6 +930,184 @@ fun NewNoteScreen(
                         saveCustomColor(context, CustomColor(hue, name))
                         customColors = loadCustomColors(context)
                         showAddPresetDialog = false
+                    }
+                )
+            }
+
+            // 未保存提示弹窗
+            if (showBackDialog) {
+                AlertDialog(
+                    onDismissRequest = { showBackDialog = false },
+                    title = { Text("保存笔记") },
+                    text = {
+                        Column {
+                            Text("您还未保存当前的笔记，请选择一个处理方式。")
+                            Spacer(modifier = Modifier.height(12.dp))
+                            // 笔记卡片预览
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.background,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        text = uiState.content.take(200),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 4,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    val displayTags = NoteColorUtil.filterDisplayTags(uiState.tags)
+                                    if (displayTags.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = displayTags.joinToString(" · "),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {},
+                    dismissButton = {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    showBackDialog = false
+                                    onDiscardDraft()
+                                    hideKeyboardAndNavigate { onNavigateToHome() }
+                                },
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                )
+                            ) {
+                                Text("废弃")
+                            }
+                            TextButton(onClick = {
+                                showBackDialog = false
+                                onSaveDraft()
+                                hideKeyboardAndNavigate { onNavigateToHome() }
+                            }) {
+                                Text("存到草稿箱")
+                            }
+                            Button(onClick = {
+                                showBackDialog = false
+                                onSave()
+                            }) {
+                                Text("保存")
+                            }
+                        }
+                    }
+                )
+            }
+
+            // 进程意外终止后的恢复弹窗
+            recoveryDraft?.let { draft ->
+                AlertDialog(
+                    onDismissRequest = { recoveryDraft = null },
+                    title = { Text("有未保存的笔记") },
+                    text = {
+                        Column {
+                            Text("检测到您上次编辑的笔记还未保存，我们已经为您自动保存到草稿箱。请选择一个处理上次笔记的方式：")
+                            Spacer(modifier = Modifier.height(12.dp))
+                            // 笔记卡片预览
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.background,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        text = draft.content.take(200),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 4,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    val displayTags = NoteColorUtil.filterDisplayTags(draft.tags)
+                                    if (displayTags.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = displayTags.joinToString(" · "),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {},
+                    dismissButton = {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    // 继续编辑 - 加载草稿内容到编辑器
+                                    onContentChange(draft.content)
+                                    draft.tags.forEach { tag -> onAddTag(tag) }
+                                    draft.noteColorHue?.let { onNoteColorHueChange(it) }
+                                    draftStore.delete(draft.id)
+                                    recoveryDraft = null
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("继续编辑")
+                            }
+                            Button(
+                                onClick = {
+                                    // 保存 - 加载草稿内容到编辑器，删除草稿，然后保存
+                                    onContentChange(draft.content)
+                                    draft.tags.forEach { tag -> onAddTag(tag) }
+                                    draft.noteColorHue?.let { onNoteColorHueChange(it) }
+                                    draftStore.delete(draft.id)
+                                    recoveryDraft = null
+                                    onSave()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            ) {
+                                Text("保存")
+                            }
+                            Button(
+                                onClick = {
+                                    draftStore.delete(draft.id)
+                                    recoveryDraft = null
+                                    onRefreshDraftCount()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
+                                )
+                            ) {
+                                Text("废弃")
+                            }
+                            TextButton(
+                                onClick = {
+                                    // 标记为已读
+                                    onMarkDraftAsRead(draft.id)
+                                    recoveryDraft = null
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("稍后处理")
+                            }
+                        }
                     }
                 )
             }

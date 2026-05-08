@@ -220,8 +220,8 @@ fun NoteCardItem(
                 SwipeToDismissBoxValue.Settled -> true
             }
         },
-        // 【核心修复 2】：滑动 20% 即可触发状态（背景变色）
-        positionalThreshold = { totalDistance -> totalDistance * 0.2f }
+        // 滑动 5% 即可触发状态（背景变色）
+        positionalThreshold = { totalDistance -> totalDistance * 0.05f }
     )
 
     // 【核心修复 3】：只有等用户彻底松手（isPressed = false）并且状态已切换，才执行真正动作

@@ -51,7 +51,9 @@ fun SettingsContainer(
     onNavigateToSync: () -> Unit,
     onNavigateToTeam: () -> Unit,
     onNavigateToTutorial: () -> Unit,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    draftCapacity: Int,
+    onDraftCapacityChange: (Int) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -183,7 +185,7 @@ fun SettingsContainer(
         onNavigateToTypographySettings = onNavigateToTypographySettings,
         onNavigateToColorSettings = onNavigateToColorSettings,
         onNavigateToLanguageSelection = onNavigateToLanguageSelection,
-        onNavigateToAppIcon = onNavigateToAppIcon, // ===== 传递事件 =====
+        onNavigateToAppIcon = onNavigateToAppIcon,
         onNavigateToHomeLayout = onNavigateToHomeLayout,
         onNavigateToAIService = onNavigateToAIService,
         onNavigateToAIScenarios = onNavigateToAIScenarios,
@@ -191,6 +193,8 @@ fun SettingsContainer(
         onNavigateToTeam = onNavigateToTeam,
         onNavigateToTutorial = onNavigateToTutorial,
         onNavigateBack = onNavigateBack,
+        draftCapacity = draftCapacity,
+        onDraftCapacityChange = onDraftCapacityChange,
     )
 }
 

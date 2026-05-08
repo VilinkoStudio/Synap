@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,9 +21,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Link
@@ -33,6 +36,8 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -44,6 +49,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -66,6 +72,8 @@ private fun AppearanceSection(
     onNavigateToLanguageSelection: () -> Unit,
     onNavigateToAppIcon: () -> Unit,
     onNavigateToHomeLayout: () -> Unit,
+    draftCapacity: Int,
+    onDraftCapacityChange: (Int) -> Unit,
 ) {
     Text(
         text = stringResource(R.string.appearance),
@@ -237,6 +245,82 @@ private fun AppearanceSection(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+
+        // 6. 草稿箱容量
+        var expanded by remember { mutableStateOf(false) }
+        val capacities = listOf(0, 2, 5, 10, 20, 50, 100)
+        val capacityLabels = listOf("关闭", "2", "5", "10", "20", "50", "100")
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = true }
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Inventory2,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(end = 16.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "草稿箱容量",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = if (draftCapacity == 0) "已关闭" else "最多保存 $draftCapacity 条",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        // 下拉菜单 - 靠右对齐
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+            ) {
+                capacities.forEachIndexed { index, capacity ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = capacityLabels[index],
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (draftCapacity == capacity) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            )
+                        },
+                        onClick = {
+                            onDraftCapacityChange(capacity)
+                            expanded = false
+                        },
+                        trailingIcon = if (draftCapacity == capacity) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        } else null,
+                    )
+                }
+            }
         }
     }
 }
@@ -674,6 +758,8 @@ fun SettingsScreen(
     onNavigateToTeam: () -> Unit,
     onNavigateToTutorial: () -> Unit,
     onNavigateBack: () -> Unit,
+    draftCapacity: Int,
+    onDraftCapacityChange: (Int) -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -728,6 +814,8 @@ fun SettingsScreen(
                     onNavigateToLanguageSelection = onNavigateToLanguageSelection,
                     onNavigateToAppIcon = onNavigateToAppIcon,
                     onNavigateToHomeLayout = onNavigateToHomeLayout,
+                    draftCapacity = draftCapacity,
+                    onDraftCapacityChange = onDraftCapacityChange,
                 )
             }
 

@@ -91,6 +91,7 @@ fun SynapApp(activity: MainActivity?) {
 
     var handedness by remember { mutableStateOf(prefs.getString("handedness", "靠右") ?: "靠右") }
     var hasSeenTutorial by remember { mutableStateOf(prefs.getBoolean("hasSeenTutorial", false)) }
+    var draftCapacity by remember { mutableIntStateOf(prefs.getInt("draftCapacity", 20)) }
 
     val sessionViewModel: AppSessionViewModel = hiltViewModel()
     val sessionState by sessionViewModel.uiState.collectAsState()
@@ -177,6 +178,7 @@ fun SynapApp(activity: MainActivity?) {
                             noteLineSpacing = noteLineSpacing, onNoteLineSpacingChange = { noteLineSpacing = it; prefs.edit().putFloat("noteLineSpacing", it).apply() }, // --- 传递行距属性与持久化 ---
                             hasSeenTutorial = hasSeenTutorial, onTutorialFinished = { hasSeenTutorial = true; prefs.edit().putBoolean("hasSeenTutorial", true).apply() },
                             databaseActivity = activity,
+                            draftCapacity = draftCapacity, onDraftCapacityChange = { draftCapacity = it; prefs.edit().putInt("draftCapacity", it).apply() },
                         )
                     }
 
