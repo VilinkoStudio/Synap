@@ -52,7 +52,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VerticalAlignTop
-import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -847,7 +847,7 @@ fun HomeScreen(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Filled.Memory, null)
+                            Icon(Icons.Filled.Map, null)
                             Spacer(Modifier.width(16.dp))
                             Text(stringResource(R.string.starmap_title), style = MaterialTheme.typography.titleMedium)
                         }
@@ -967,7 +967,7 @@ fun HomeScreen(
                                     }
 
                                      IconButton(onClick = onOpenStarmap) {
-                                        Icon(Icons.Filled.Memory, contentDescription = stringResource(R.string.starmap_title))
+                                        Icon(Icons.Filled.Map, contentDescription = stringResource(R.string.starmap_title))
                                     }
 
                                     IconButton(onClick = onOpenTrash) {

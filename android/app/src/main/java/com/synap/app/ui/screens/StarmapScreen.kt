@@ -4,18 +4,19 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -29,11 +30,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -67,9 +68,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.ln
+import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
-import kotlin.math.max
 import java.util.concurrent.CancellationException
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,7 +94,7 @@ fun StarmapScreen(
         }
     }
 
-    Scaffold(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             // ========== 应用预返回手势形变 ==========
@@ -105,29 +106,12 @@ fun StarmapScreen(
                 transformOrigin = TransformOrigin(1f, 0.5f) // 缩放原点在右侧中心
                 shape = RoundedCornerShape(32.dp * backProgress) // 随进度增加圆角
                 clip = true
-            },
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.starmap_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-                actions = {
-                    TextButton(onClick = onRefresh) {
-                        Text(stringResource(R.string.retry))
-                    }
-                },
-            )
-        },
-    ) { innerPadding ->
+            }
+    ) {
         when {
             uiState.isLoading && uiState.points.isEmpty() -> {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
+                    modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
                     CircularProgressIndicator()
@@ -136,9 +120,7 @@ fun StarmapScreen(
 
             uiState.errorMessage != null && uiState.points.isEmpty() -> {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
+                    modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -157,13 +139,29 @@ fun StarmapScreen(
                 StarmapUniverse(
                     points = uiState.points,
                     noteSnapshots = uiState.noteSnapshots,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                        .padding(16.dp)
+                    modifier = Modifier.fillMaxSize()
                 )
             }
         }
+
+        // 透明标题栏覆盖在画布上方
+        TopAppBar(
+            title = { Text(stringResource(R.string.starmap_title)) },
+            navigationIcon = {
+                IconButton(onClick = onNavigateBack) {
+                    Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                }
+            },
+            actions = {
+                TextButton(onClick = onRefresh) {
+                    Text(stringResource(R.string.retry))
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent
+            ),
+            modifier = Modifier.statusBarsPadding()
+        )
     }
 }
 
@@ -209,7 +207,6 @@ private fun StarmapUniverse(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(28.dp))
             .background(
                 brush = Brush.radialGradient(
                     colors = listOf(
@@ -380,7 +377,7 @@ private fun StarmapUniverse(
         Surface(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(16.dp),
+                .padding(start = 16.dp, top = 120.dp, end = 16.dp),
             shape = RoundedCornerShape(22.dp),
             color = cardColor.copy(alpha = 0.92f),
             tonalElevation = 6.dp,

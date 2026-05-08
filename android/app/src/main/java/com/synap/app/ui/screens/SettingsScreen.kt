@@ -79,6 +79,7 @@ private fun AppearanceSection(
             .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
+        // 1. 主题和颜色
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -111,38 +112,7 @@ private fun AppearanceSection(
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onNavigateToTypographySettings() }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.FormatSize,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(end = 16.dp)
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.note_typography_style),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-            Icon(
-                Icons.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        HorizontalDivider(
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-            modifier = Modifier.padding(horizontal = 16.dp),
-        )
-
+        // 2. 语言
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -175,6 +145,7 @@ private fun AppearanceSection(
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
+        // 3. 应用图标
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -207,6 +178,7 @@ private fun AppearanceSection(
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
+        // 4. 首页布局
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -223,6 +195,39 @@ private fun AppearanceSection(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(R.string.setting_home_layout),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            Icon(
+                Icons.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+
+        // 5. 笔记文字样式
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onNavigateToTypographySettings() }
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.FormatSize,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(end = 16.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.note_typography_style),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
