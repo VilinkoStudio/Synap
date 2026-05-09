@@ -395,7 +395,7 @@ fun NoteDetailScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.notedetail_title)) },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = primaryColorForTheme.copy(alpha = 0.1f)
+                    containerColor = primaryColorForTheme.copy(alpha = 0.15f)
                 ),
                 navigationIcon = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -413,7 +413,7 @@ fun NoteDetailScreen(
             // ========== 手机端：沉浸式固定底部工具栏 ==========
             if (uiState.note != null && !isLargeScreen) {
                 Surface(
-                    color = primaryColorForTheme.copy(alpha = 0.1f),
+                    color = primaryColorForTheme.copy(alpha = 0.15f),
                     tonalElevation = 3.dp,
                     shadowElevation = 8.dp,
                     modifier = Modifier.fillMaxWidth()
@@ -567,10 +567,12 @@ fun NoteDetailScreen(
 
                 val contentStartPadding = if (isLargeScreen && widgetAlignment != "right") 100.dp else 16.dp
                 val contentEndPadding = if (isLargeScreen && widgetAlignment == "right") 100.dp else 16.dp
+                val bgColor = noteColor?.copy(alpha = 0.06f) ?: MaterialTheme.colorScheme.background
 
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        .background(bgColor)
                         .verticalScroll(scrollState)
                         .padding(start = contentStartPadding, end = contentEndPadding, top = 16.dp, bottom = 16.dp),
                 ) {
@@ -683,7 +685,7 @@ fun NoteDetailScreen(
                     ) {
                         Surface(
                             shape = RoundedCornerShape(28.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            color = primaryColorForTheme.copy(alpha = 0.15f),
                             tonalElevation = 3.dp,
                             shadowElevation = 8.dp,
                         ) {
@@ -814,7 +816,7 @@ private fun RelationSection(
 
     val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
     val baseFontSize = (LocalNoteTextSize.current.value - 2).coerceAtLeast(10f)
-    val cardBackgroundColor = primaryColor.copy(alpha = 0.08f)
+    val cardBackgroundColor = primaryColor.copy(alpha = 0.12f)
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         notes.forEach { note ->
@@ -879,7 +881,7 @@ private fun VersionSection(
 
     val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
     val baseFontSize = (LocalNoteTextSize.current.value - 2).coerceAtLeast(10f)
-    val cardBackgroundColor = primaryColor.copy(alpha = 0.08f)
+    val cardBackgroundColor = primaryColor.copy(alpha = 0.12f)
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         versions.forEach { version ->
