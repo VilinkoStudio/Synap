@@ -14,6 +14,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -44,6 +45,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -375,6 +377,10 @@ fun NoteDetailScreen(
     val noteColor = uiState.note?.let { NoteColorUtil.parseNoteColor(it.tags) }
     val primaryColorForTheme = noteColor ?: MaterialTheme.colorScheme.primary
 
+    val prefs = remember { context.getSharedPreferences("synap_prefs", android.content.Context.MODE_PRIVATE) }
+    val widgetAlignment = remember { prefs.getString("widget_alignment", "default") ?: "default" }
+    val isLargeScreen = remember { context.resources.configuration.screenWidthDp >= 700 }
+
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
@@ -404,8 +410,8 @@ fun NoteDetailScreen(
             )
         },
         bottomBar = {
-            // ========== 沉浸式固定底部工具栏 ==========
-            if (uiState.note != null) {
+            // ========== 手机端：沉浸式固定底部工具栏 ==========
+            if (uiState.note != null && !isLargeScreen) {
                 Surface(
                     color = primaryColorForTheme.copy(alpha = 0.1f),
                     tonalElevation = 3.dp,
@@ -415,10 +421,9 @@ fun NoteDetailScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            // navigationBarsPadding 使小白条颜色与 Surface 一致，且内容不被遮挡
                             .navigationBarsPadding()
                             .padding(horizontal = 8.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceAround,
+                        horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val iconTint = MaterialTheme.colorScheme.onSurface
@@ -560,11 +565,14 @@ fun NoteDetailScreen(
             } else {
                 val note = uiState.note
 
+                val contentStartPadding = if (isLargeScreen && widgetAlignment != "right") 100.dp else 16.dp
+                val contentEndPadding = if (isLargeScreen && widgetAlignment == "right") 100.dp else 16.dp
+
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(scrollState)
-                        .padding(16.dp),
+                        .padding(start = contentStartPadding, end = contentEndPadding, top = 16.dp, bottom = 16.dp),
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -659,6 +667,110 @@ fun NoteDetailScreen(
                         }
                     }
                     Spacer(modifier = Modifier.height(32.dp))
+                }
+
+                // 大屏浮动工具栏（垂直）
+                if (isLargeScreen) {
+                    val alignment = when (widgetAlignment) {
+                        "right" -> Alignment.CenterEnd
+                        else -> Alignment.CenterStart
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        contentAlignment = alignment
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(28.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            tonalElevation = 3.dp,
+                            shadowElevation = 8.dp,
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                val iconTint = MaterialTheme.colorScheme.onSurface
+
+                                IconButton(onClick = { showDeleteDialog = true }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Delete,
+                                        contentDescription = stringResource(R.string.delete),
+                                        modifier = Modifier.size(24.dp),
+                                        tint = iconTint
+                                    )
+                                }
+
+                                IconButton(onClick = {
+                                    val hasMarkdown = Regex("\\*\\*|(?<!\\*)\\*(?!\\*)|~~|<u>|==|^#{1,4} |^> |^-\\s+\\[[ x]\\]\\s+|^-\\s+|^\\d+\\.\\s+", RegexOption.MULTILINE).containsMatchIn(note.content)
+                                    if (hasMarkdown) {
+                                        showCopyDialog = true
+                                    } else {
+                                        clipboardManager.setText(AnnotatedString(note.content))
+                                    }
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.ContentCopy,
+                                        contentDescription = "复制",
+                                        modifier = Modifier.size(24.dp),
+                                        tint = iconTint
+                                    )
+                                }
+
+                                IconButton(onClick = {
+                                    val intent = Intent(Intent.ACTION_INSERT).apply {
+                                        data = CalendarContract.Events.CONTENT_URI
+                                        putExtra(
+                                            CalendarContract.Events.TITLE,
+                                            buildCalendarReminderTitle(note = note, fallback = defaultCalendarTitle),
+                                        )
+                                        putExtra(CalendarContract.Events.DESCRIPTION, note.content)
+                                    }
+                                    try {
+                                        context.startActivity(intent)
+                                    } catch (_: ActivityNotFoundException) {
+                                        Toast.makeText(context, calendarUnavailableMessage, Toast.LENGTH_SHORT).show()
+                                    }
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Alarm,
+                                        contentDescription = addCalendarReminderLabel,
+                                        modifier = Modifier.size(24.dp),
+                                        tint = iconTint
+                                    )
+                                }
+
+                                IconButton(onClick = { showShareBottomSheet = true }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Share,
+                                        contentDescription = "分享",
+                                        modifier = Modifier.size(24.dp),
+                                        tint = iconTint
+                                    )
+                                }
+
+                                IconButton(onClick = onReply) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Reply,
+                                        contentDescription = stringResource(R.string.reply),
+                                        modifier = Modifier.size(24.dp),
+                                        tint = iconTint
+                                    )
+                                }
+
+                                IconButton(onClick = onEdit) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Edit,
+                                        contentDescription = stringResource(R.string.edit),
+                                        modifier = Modifier.size(24.dp),
+                                        tint = iconTint
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,7 +13,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
@@ -26,6 +30,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -54,6 +60,8 @@ fun SettingHomeScreen(
     val prefs = remember { context.getSharedPreferences("synap_prefs", Context.MODE_PRIVATE) }
 
     var isWaterfall by remember { mutableStateOf(prefs.getBoolean("is_waterfall_mode", true)) }
+    var widgetAlignment by remember { mutableStateOf(prefs.getString("widget_alignment", "default") ?: "default") }
+    var showAlignmentMenu by remember { mutableStateOf(false) }
 
     var backProgress by remember { mutableFloatStateOf(0f) }
 
@@ -100,7 +108,8 @@ fun SettingHomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
         ) {
             Text(
                 text = stringResource(R.string.setting_home_layout_mode),
@@ -192,6 +201,88 @@ fun SettingHomeScreen(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // ==================== 其它 ====================
+            Text(
+                text = stringResource(R.string.setting_other),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showAlignmentMenu = true }
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.setting_widget_alignment),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = stringResource(R.string.setting_widget_alignment_desc),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = when (widgetAlignment) {
+                            "left" -> stringResource(R.string.setting_widget_alignment_left)
+                            "right" -> stringResource(R.string.setting_widget_alignment_right)
+                            else -> stringResource(R.string.setting_widget_alignment_default)
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Box {
+                        DropdownMenu(
+                            expanded = showAlignmentMenu,
+                            onDismissRequest = { showAlignmentMenu = false },
+                        ) {
+                            listOf("default", "left", "right").forEach { value ->
+                                val label = when (value) {
+                                    "left" -> stringResource(R.string.setting_widget_alignment_left)
+                                    "right" -> stringResource(R.string.setting_widget_alignment_right)
+                                    else -> stringResource(R.string.setting_widget_alignment_default)
+                                }
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        widgetAlignment = value
+                                        prefs.edit().putString("widget_alignment", value).apply()
+                                        showAlignmentMenu = false
+                                    },
+                                    trailingIcon = if (widgetAlignment == value) {
+                                        {
+                                            Icon(
+                                                imageVector = Icons.Filled.Check,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                            )
+                                        }
+                                    } else null,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
