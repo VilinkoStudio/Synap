@@ -44,6 +44,34 @@ object NoteColorUtil {
 
     fun hueToColor(hue: Float): Color = Color.hsv(hue, 1f, 1f)
 
+    private val PRESET_HUES = listOf(
+        0f to "红",
+        30f to "橙",
+        55f to "黄",
+        130f to "绿",
+        210f to "蓝",
+        270f to "紫",
+    )
+
+    fun hueToDisplayName(hue: Float): String {
+        for ((presetHue, name) in PRESET_HUES) {
+            if (kotlin.math.abs(hue - presetHue) <= 5f) return name
+        }
+        return hue.toInt().toString()
+    }
+
+    fun colorTagToDisplayName(tag: String): String? {
+        val color = parseNoteColor(listOf(tag)) ?: return null
+        val hsv = FloatArray(3)
+        android.graphics.Color.RGBToHSV(
+            (color.red * 255).toInt(),
+            (color.green * 255).toInt(),
+            (color.blue * 255).toInt(),
+            hsv
+        )
+        return hueToDisplayName(hsv[0])
+    }
+
     fun filterDisplayTags(tags: List<String>): List<String> {
         return tags
             .filter { !COLOR_TAG_REGEX.matches(it) }
