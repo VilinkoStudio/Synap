@@ -17,6 +17,10 @@
         <package android:name="com.samsung.android.visionintelligence" />
         <package android:name="com.nubia.vision" />
         <package android:name="com.google.ar.lens" />
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
     </queries>
 
     <application

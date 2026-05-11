@@ -20,15 +20,20 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material.icons.filled.ViewStream
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -62,6 +67,10 @@ fun SettingHomeScreen(
     var isWaterfall by remember { mutableStateOf(prefs.getBoolean("is_waterfall_mode", true)) }
     var widgetAlignment by remember { mutableStateOf(prefs.getString("widget_alignment", "default") ?: "default") }
     var showAlignmentMenu by remember { mutableStateOf(false) }
+    var scanMethod by remember { mutableStateOf(prefs.getString("scan_method", "default") ?: "default") }
+    var customScanPackage by remember { mutableStateOf(prefs.getString("scan_custom_package", "") ?: "") }
+    var showCustomScanDialog by remember { mutableStateOf(false) }
+    var customScanInput by remember { mutableStateOf("") }
 
     var backProgress by remember { mutableFloatStateOf(0f) }
 
@@ -204,6 +213,158 @@ fun SettingHomeScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // ==================== 扫码方式 ====================
+            Text(
+                text = stringResource(R.string.setting_scan_method),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                // 默认
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            scanMethod = "default"
+                            prefs.edit().putString("scan_method", "default").apply()
+                        }
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.QrCodeScanner,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 16.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.setting_scan_default),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = stringResource(R.string.setting_scan_default_desc),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (scanMethod == "default") {
+                        Icon(
+                            Icons.Filled.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                }
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+
+                // 系统相机
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            scanMethod = "system_camera"
+                            prefs.edit().putString("scan_method", "system_camera").apply()
+                        }
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.CameraAlt,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 16.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.setting_scan_system_camera),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = stringResource(R.string.setting_scan_system_camera_desc),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (scanMethod == "system_camera") {
+                        Icon(
+                            Icons.Filled.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                }
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+
+                // 自定义扫码APP
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            if (scanMethod == "custom" && customScanPackage.isNotBlank()) {
+                                customScanInput = customScanPackage
+                            } else {
+                                customScanInput = ""
+                            }
+                            showCustomScanDialog = true
+                        }
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.QrCodeScanner,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 16.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.setting_scan_custom),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (scanMethod == "custom" && customScanPackage.isNotBlank()) customScanPackage
+                                   else stringResource(R.string.setting_scan_custom_desc),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (scanMethod == "custom") {
+                        Icon(
+                            Icons.Filled.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
             // ==================== 其它 ====================
             Text(
                 text = stringResource(R.string.setting_other),
@@ -284,5 +445,49 @@ fun SettingHomeScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
         }
+    }
+
+    // 自定义扫码APP配置弹窗
+    if (showCustomScanDialog) {
+        AlertDialog(
+            onDismissRequest = { showCustomScanDialog = false },
+            title = { Text(stringResource(R.string.setting_scan_custom_dialog_title)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.setting_scan_custom_dialog_text))
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = customScanInput,
+                        onValueChange = { customScanInput = it },
+                        label = { Text(stringResource(R.string.setting_scan_custom_package_name)) },
+                        placeholder = { Text(stringResource(R.string.setting_scan_custom_dialog_hint)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (customScanInput.isNotBlank()) {
+                            scanMethod = "custom"
+                            customScanPackage = customScanInput.trim()
+                            prefs.edit()
+                                .putString("scan_method", "custom")
+                                .putString("scan_custom_package", customScanPackage)
+                                .apply()
+                        }
+                        showCustomScanDialog = false
+                    }
+                ) {
+                    Text(stringResource(android.R.string.ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCustomScanDialog = false }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            }
+        )
     }
 }

@@ -320,34 +320,78 @@ fun HomeScreen(
     }
 
     val openScanner = {
-        val scannerPackages = listOf(
-            "com.xiaomi.scanner",
-            "com.huawei.scanner",
-            "com.huawei.hms.image.vision",
-            "com.coloros.ocrscanner",
-            "com.vivo.scan",
-            "com.bbk.vision",
-            "com.hihonor.vision",
-            "com.meizu.media.camera",
-            "com.samsung.android.visionintelligence",
-            "com.nubia.vision",
-            "com.google.ar.lens"
-        )
+        val scanPrefs = context.getSharedPreferences("synap_prefs", Context.MODE_PRIVATE)
+        val scanMethod = scanPrefs.getString("scan_method", "default") ?: "default"
+        val customScanPackage = scanPrefs.getString("scan_custom_package", "") ?: ""
+
         var opened = false
-        for (pkg in scannerPackages) {
-            try {
-                val intent = context.packageManager.getLaunchIntentForPackage(pkg)
-                if (intent != null) {
+        when (scanMethod) {
+            "system_camera" -> {
+                try {
+                    val intent = Intent("android.media.action.STILL_IMAGE_CAMERA")
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     context.startActivity(intent)
                     opened = true
-                    break
+                } catch (_: Exception) {
                 }
-            } catch (e: Exception) {
+            }
+            "custom" -> {
+                if (customScanPackage.isNotBlank()) {
+                    try {
+                        // 方式1: 使用 getLaunchIntentForPackage
+                        val launchIntent = context.packageManager.getLaunchIntentForPackage(customScanPackage)
+                        if (launchIntent != null) {
+                            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(launchIntent)
+                            opened = true
+                        } else {
+                            // 方式2: 使用 ACTION_MAIN + CATEGORY_LAUNCHER
+                            val mainIntent = Intent(Intent.ACTION_MAIN).apply {
+                                addCategory(Intent.CATEGORY_LAUNCHER)
+                                setPackage(customScanPackage)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            val resolveInfo = context.packageManager.resolveActivity(mainIntent, 0)
+                            if (resolveInfo != null) {
+                                context.startActivity(mainIntent)
+                                opened = true
+                            }
+                        }
+                    } catch (_: Exception) {
+                    }
+                }
+            }
+            else -> {
+                // 默认：逐一尝试系统扫码APP
+                val scannerPackages = listOf(
+                    "com.xiaomi.scanner",
+                    "com.huawei.scanner",
+                    "com.huawei.hms.image.vision",
+                    "com.coloros.ocrscanner",
+                    "com.vivo.scan",
+                    "com.bbk.vision",
+                    "com.hihonor.vision",
+                    "com.meizu.media.camera",
+                    "com.samsung.android.visionintelligence",
+                    "com.nubia.vision",
+                    "com.google.ar.lens"
+                )
+                for (pkg in scannerPackages) {
+                    try {
+                        val intent = context.packageManager.getLaunchIntentForPackage(pkg)
+                        if (intent != null) {
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
+                            opened = true
+                            break
+                        }
+                    } catch (_: Exception) {
+                    }
+                }
             }
         }
         if (!opened) {
-            Toast.makeText(context, "未找到系统扫一扫应用", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.scan_launch_failed), Toast.LENGTH_SHORT).show()
         }
     }
 
