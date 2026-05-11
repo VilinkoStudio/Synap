@@ -7,9 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.synap.app.data.service.SynapServiceApi
-import com.synap.app.ui.viewmodel.HomeViewModel
 import com.synap.app.ui.viewmodel.ShareImportViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
@@ -22,21 +20,10 @@ class MainActivity : AppCompatActivity() {
     @Inject
     lateinit var synapService: SynapServiceApi
 
-    private val homeViewModel: HomeViewModel by viewModels()
     private val shareImportViewModel: ShareImportViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
-
-        val startTime = System.currentTimeMillis()
-        val timeout = 100L
-
-        splashScreen.setKeepOnScreenCondition {
-            val uiState = homeViewModel.uiState.value
-            val currentTime = System.currentTimeMillis()
-            uiState.isLoading && uiState.errorMessage == null && (currentTime - startTime < timeout)
-        }
 
         // ========== 处理冷启动时的外部文字传入 ==========
         handleExternalTextIntent(intent)

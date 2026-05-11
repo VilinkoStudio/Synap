@@ -42,16 +42,18 @@ fun SettingsContainer(
     onHandednessChange: (String) -> Unit,
     databaseActivity: MainActivity?,
     onNavigateToTypographySettings: () -> Unit,
-    onNavigateToDarkMode: () -> Unit,
+    onNavigateToColorSettings: () -> Unit,
     onNavigateToLanguageSelection: () -> Unit,
-    onNavigateToAppIcon: () -> Unit, // ===== 新增：接收跳转到图标设置的事件 =====
+    onNavigateToAppIcon: () -> Unit,
     onNavigateToHomeLayout: () -> Unit,
     onNavigateToAIService: () -> Unit,
     onNavigateToAIScenarios: () -> Unit,
     onNavigateToSync: () -> Unit,
     onNavigateToTeam: () -> Unit,
     onNavigateToTutorial: () -> Unit,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    draftCapacity: Int,
+    onDraftCapacityChange: (Int) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -181,9 +183,9 @@ fun SettingsContainer(
             }
         },
         onNavigateToTypographySettings = onNavigateToTypographySettings,
-        onNavigateToDarkMode = onNavigateToDarkMode,
+        onNavigateToColorSettings = onNavigateToColorSettings,
         onNavigateToLanguageSelection = onNavigateToLanguageSelection,
-        onNavigateToAppIcon = onNavigateToAppIcon, // ===== 传递事件 =====
+        onNavigateToAppIcon = onNavigateToAppIcon,
         onNavigateToHomeLayout = onNavigateToHomeLayout,
         onNavigateToAIService = onNavigateToAIService,
         onNavigateToAIScenarios = onNavigateToAIScenarios,
@@ -191,6 +193,8 @@ fun SettingsContainer(
         onNavigateToTeam = onNavigateToTeam,
         onNavigateToTutorial = onNavigateToTutorial,
         onNavigateBack = onNavigateBack,
+        draftCapacity = draftCapacity,
+        onDraftCapacityChange = onDraftCapacityChange,
     )
 }
 

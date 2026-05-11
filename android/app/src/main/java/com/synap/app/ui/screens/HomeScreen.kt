@@ -16,6 +16,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,14 +48,17 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VerticalAlignTop
-import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilterChip
@@ -101,6 +105,7 @@ import com.synap.app.ui.components.ShareExportSheet
 import com.synap.app.ui.components.HomeNoteFeed
 import com.synap.app.ui.components.HomeSessionFeed
 import com.synap.app.ui.model.Note
+import com.synap.app.ui.util.NoteColorUtil
 import com.synap.app.ui.viewmodel.HomeUiState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -136,6 +141,7 @@ fun HomeScreen(
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val prefs = remember { context.getSharedPreferences("synap_prefs", Context.MODE_PRIVATE) }
+    val isNavCollapsed = remember { prefs.getBoolean("is_nav_collapsed", false) }
 
     val navVisibilityScope = animatedVisibilityScope
 
@@ -162,6 +168,7 @@ fun HomeScreen(
 
     var showMultiDeleteDialog by remember { mutableStateOf(false) }
     var noteToCopy by remember { mutableStateOf<Note?>(null) }
+    var showNavMenu by remember { mutableStateOf(false) }
 
     var showShareBottomSheet by remember { mutableStateOf(false) }
 
@@ -318,34 +325,78 @@ fun HomeScreen(
     }
 
     val openScanner = {
-        val scannerPackages = listOf(
-            "com.xiaomi.scanner",
-            "com.huawei.scanner",
-            "com.huawei.hms.image.vision",
-            "com.coloros.ocrscanner",
-            "com.vivo.scan",
-            "com.bbk.vision",
-            "com.hihonor.vision",
-            "com.meizu.media.camera",
-            "com.samsung.android.visionintelligence",
-            "com.nubia.vision",
-            "com.google.ar.lens"
-        )
+        val scanPrefs = context.getSharedPreferences("synap_prefs", Context.MODE_PRIVATE)
+        val scanMethod = scanPrefs.getString("scan_method", "default") ?: "default"
+        val customScanPackage = scanPrefs.getString("scan_custom_package", "") ?: ""
+
         var opened = false
-        for (pkg in scannerPackages) {
-            try {
-                val intent = context.packageManager.getLaunchIntentForPackage(pkg)
-                if (intent != null) {
+        when (scanMethod) {
+            "system_camera" -> {
+                try {
+                    val intent = Intent("android.media.action.STILL_IMAGE_CAMERA")
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     context.startActivity(intent)
                     opened = true
-                    break
+                } catch (_: Exception) {
                 }
-            } catch (e: Exception) {
+            }
+            "custom" -> {
+                if (customScanPackage.isNotBlank()) {
+                    try {
+                        // 方式1: 使用 getLaunchIntentForPackage
+                        val launchIntent = context.packageManager.getLaunchIntentForPackage(customScanPackage)
+                        if (launchIntent != null) {
+                            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(launchIntent)
+                            opened = true
+                        } else {
+                            // 方式2: 使用 ACTION_MAIN + CATEGORY_LAUNCHER
+                            val mainIntent = Intent(Intent.ACTION_MAIN).apply {
+                                addCategory(Intent.CATEGORY_LAUNCHER)
+                                setPackage(customScanPackage)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            val resolveInfo = context.packageManager.resolveActivity(mainIntent, 0)
+                            if (resolveInfo != null) {
+                                context.startActivity(mainIntent)
+                                opened = true
+                            }
+                        }
+                    } catch (_: Exception) {
+                    }
+                }
+            }
+            else -> {
+                // 默认：逐一尝试系统扫码APP
+                val scannerPackages = listOf(
+                    "com.xiaomi.scanner",
+                    "com.huawei.scanner",
+                    "com.huawei.hms.image.vision",
+                    "com.coloros.ocrscanner",
+                    "com.vivo.scan",
+                    "com.bbk.vision",
+                    "com.hihonor.vision",
+                    "com.meizu.media.camera",
+                    "com.samsung.android.visionintelligence",
+                    "com.nubia.vision",
+                    "com.google.ar.lens"
+                )
+                for (pkg in scannerPackages) {
+                    try {
+                        val intent = context.packageManager.getLaunchIntentForPackage(pkg)
+                        if (intent != null) {
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
+                            opened = true
+                            break
+                        }
+                    } catch (_: Exception) {
+                    }
+                }
             }
         }
         if (!opened) {
-            Toast.makeText(context, "未找到系统扫一扫应用", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.scan_launch_failed), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -467,10 +518,28 @@ fun HomeScreen(
                 label = { Text(stringResource(R.string.home_filter_untagged), maxLines = 1, overflow = TextOverflow.Ellipsis) }
             )
             uiState.availableTags.forEach { tag ->
+                val isColorTag = NoteColorUtil.isColorTag(tag)
+                val colorName = if (isColorTag) NoteColorUtil.colorTagToDisplayName(tag) else null
+                val tagColor = if (isColorTag) NoteColorUtil.parseNoteColor(listOf(tag)) else null
+
                 FilterChip(
                     selected = !isAllSelected && tag !in uiState.unselectedTags,
                     onClick = { onToggleTagFilter(tag) },
-                    label = { Text(tag, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    label = {
+                        if (isColorTag && tagColor != null) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .background(tagColor, CircleShape)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(colorName ?: tag, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        } else {
+                            Text(tag, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
                 )
             }
         }
@@ -493,7 +562,29 @@ fun HomeScreen(
                 item { FilterChip(selected = isAllSelected, onClick = onToggleAllTags, label = { Text(stringResource(R.string.home_filter_all), maxLines = 1, overflow = TextOverflow.Ellipsis) }) }
                 item { FilterChip(selected = !isAllSelected && !uiState.isUntaggedUnselected, onClick = onToggleUntaggedFilter, label = { Text(stringResource(R.string.home_filter_untagged), maxLines = 1, overflow = TextOverflow.Ellipsis) }) }
                 items(uiState.availableTags) { tag ->
-                    FilterChip(selected = !isAllSelected && tag !in uiState.unselectedTags, onClick = { onToggleTagFilter(tag) }, label = { Text(tag, maxLines = 1, overflow = TextOverflow.Ellipsis) })
+                    val isColorTag = NoteColorUtil.isColorTag(tag)
+                    val colorName = if (isColorTag) NoteColorUtil.colorTagToDisplayName(tag) else null
+                    val tagColor = if (isColorTag) NoteColorUtil.parseNoteColor(listOf(tag)) else null
+
+                    FilterChip(
+                        selected = !isAllSelected && tag !in uiState.unselectedTags,
+                        onClick = { onToggleTagFilter(tag) },
+                        label = {
+                            if (isColorTag && tagColor != null) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(12.dp)
+                                            .background(tagColor, CircleShape)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(colorName ?: tag, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            } else {
+                                Text(tag, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    )
                 }
             }
         }
@@ -847,7 +938,7 @@ fun HomeScreen(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Filled.Memory, null)
+                            Icon(Icons.Filled.Map, null)
                             Spacer(Modifier.width(16.dp))
                             Text(stringResource(R.string.starmap_title), style = MaterialTheme.typography.titleMedium)
                         }
@@ -962,20 +1053,53 @@ fun HomeScreen(
                                         }
                                     }
 
-                                    IconButton(onClick = openScanner) {
-                                        Icon(Icons.Filled.QrCodeScanner, contentDescription = "扫一扫")
-                                    }
+                                    if (isNavCollapsed && !isTablet) {
+                                        Box {
+                                            IconButton(onClick = { showNavMenu = !showNavMenu }) {
+                                                Icon(Icons.Filled.MoreVert, contentDescription = "更多")
+                                            }
+                                            DropdownMenu(
+                                                expanded = showNavMenu,
+                                                onDismissRequest = { showNavMenu = false }
+                                            ) {
+                                                DropdownMenuItem(
+                                                    text = { Text("扫一扫") },
+                                                    onClick = { showNavMenu = false; openScanner() },
+                                                    leadingIcon = { Icon(Icons.Filled.QrCodeScanner, contentDescription = null) }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.starmap_title)) },
+                                                    onClick = { showNavMenu = false; onOpenStarmap() },
+                                                    leadingIcon = { Icon(Icons.Filled.Map, contentDescription = null) }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.trash_title)) },
+                                                    onClick = { showNavMenu = false; onOpenTrash() },
+                                                    leadingIcon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null) }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.settings)) },
+                                                    onClick = { showNavMenu = false; onOpenSettings() },
+                                                    leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) }
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        IconButton(onClick = openScanner) {
+                                            Icon(Icons.Filled.QrCodeScanner, contentDescription = "扫一扫")
+                                        }
 
-                                     IconButton(onClick = onOpenStarmap) {
-                                        Icon(Icons.Filled.Memory, contentDescription = stringResource(R.string.starmap_title))
-                                    }
+                                         IconButton(onClick = onOpenStarmap) {
+                                            Icon(Icons.Filled.Map, contentDescription = stringResource(R.string.starmap_title))
+                                        }
 
-                                    IconButton(onClick = onOpenTrash) {
-                                        Icon(Icons.Filled.DeleteSweep, contentDescription = stringResource(R.string.trash_title))
-                                    }
+                                        IconButton(onClick = onOpenTrash) {
+                                            Icon(Icons.Filled.DeleteSweep, contentDescription = stringResource(R.string.trash_title))
+                                        }
 
-                                    IconButton(onClick = onOpenSettings) {
-                                        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.content_desc_settings))
+                                        IconButton(onClick = onOpenSettings) {
+                                            Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.content_desc_settings))
+                                        }
                                     }
                                 },
                             )

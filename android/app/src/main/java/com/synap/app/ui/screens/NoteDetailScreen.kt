@@ -14,6 +14,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -44,6 +45,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -54,6 +56,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -68,6 +71,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -91,6 +95,7 @@ import com.synap.app.R
 import com.synap.app.ui.components.ShareExportSheet
 import com.synap.app.ui.model.Note
 import com.synap.app.ui.model.NoteVersion
+import com.synap.app.ui.util.NoteColorUtil
 import com.synap.app.ui.util.formatNoteTime
 import com.synap.app.ui.viewmodel.DetailUiState
 import kotlinx.coroutines.launch
@@ -369,20 +374,29 @@ fun NoteDetailScreen(
         }
     }
 
+    val noteColor = uiState.note?.let { NoteColorUtil.parseNoteColor(it.tags) }
+    val primaryColorForTheme = noteColor ?: MaterialTheme.colorScheme.primary
+
+    val prefs = remember { context.getSharedPreferences("synap_prefs", android.content.Context.MODE_PRIVATE) }
+    val widgetAlignment = remember { prefs.getString("widget_alignment", "default") ?: "default" }
+    val isLargeScreen = remember { context.resources.configuration.screenWidthDp >= 700 }
+
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
             // ========== 应用预返回手势形变 ==========
             .graphicsLayer {
-                val scale = 1f - (0.1f * backProgress) // 页面最多缩小到 90%
-                scaleX = scale
-                scaleY = scale
+                translationX = backProgress * 64.dp.toPx() // 向右边缘移动
+                transformOrigin = TransformOrigin(1f, 0.5f) // 缩放原点在右侧中心
                 shape = RoundedCornerShape(32.dp * backProgress) // 随进度增加圆角
                 clip = true
             },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.notedetail_title)) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = primaryColorForTheme.copy(alpha = 0.15f)
+                ),
                 navigationIcon = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onNavigateBack) {
@@ -396,10 +410,10 @@ fun NoteDetailScreen(
             )
         },
         bottomBar = {
-            // ========== 沉浸式固定底部工具栏 ==========
-            if (uiState.note != null) {
+            // ========== 手机端：沉浸式固定底部工具栏 ==========
+            if (uiState.note != null && !isLargeScreen) {
                 Surface(
-                    color = MaterialTheme.colorScheme.surface,
+                    color = primaryColorForTheme.copy(alpha = 0.15f),
                     tonalElevation = 3.dp,
                     shadowElevation = 8.dp,
                     modifier = Modifier.fillMaxWidth()
@@ -407,10 +421,9 @@ fun NoteDetailScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            // navigationBarsPadding 使小白条颜色与 Surface 一致，且内容不被遮挡
                             .navigationBarsPadding()
                             .padding(horizontal = 8.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceAround,
+                        horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val iconTint = MaterialTheme.colorScheme.onSurface
@@ -552,11 +565,16 @@ fun NoteDetailScreen(
             } else {
                 val note = uiState.note
 
+                val contentStartPadding = if (isLargeScreen && widgetAlignment != "right") 100.dp else 16.dp
+                val contentEndPadding = if (isLargeScreen && widgetAlignment == "right") 100.dp else 16.dp
+                val bgColor = noteColor?.copy(alpha = 0.06f) ?: MaterialTheme.colorScheme.background
+
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        .background(bgColor)
                         .verticalScroll(scrollState)
-                        .padding(16.dp),
+                        .padding(start = contentStartPadding, end = contentEndPadding, top = 16.dp, bottom = 16.dp),
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -572,7 +590,7 @@ fun NoteDetailScreen(
                             modifier = Modifier.horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            note.tags.forEach { tag ->
+                            NoteColorUtil.filterDisplayTags(note.tags).forEach { tag ->
                                 Surface(
                                     color = MaterialTheme.colorScheme.secondaryContainer,
                                     shape = MaterialTheme.shapes.small,
@@ -587,7 +605,7 @@ fun NoteDetailScreen(
                         }
                     }
 
-                    val primaryColor = MaterialTheme.colorScheme.primary
+                    val primaryColor = noteColor ?: MaterialTheme.colorScheme.primary
                     val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
                     val baseFontSize = LocalNoteTextSize.current.value
 
@@ -620,21 +638,25 @@ fun NoteDetailScreen(
                     RelationSection(
                         title = stringResource(R.string.notedetail_origins),
                         notes = uiState.origins,
+                        noteColor = noteColor,
                         onOpenRelatedNote = onOpenRelatedNote,
                     )
                     VersionSection(
                         title = stringResource(R.string.notedetail_previousVersions),
                         versions = uiState.previousVersions,
+                        noteColor = noteColor,
                         onOpenRelatedNote = onOpenRelatedNote,
                     )
                     VersionSection(
                         title = stringResource(R.string.notedetail_nextVersions),
                         versions = uiState.nextVersions,
+                        noteColor = noteColor,
                         onOpenRelatedNote = onOpenRelatedNote,
                     )
                     RelationSection(
                         title = stringResource(R.string.notedetail_replies),
                         notes = uiState.replies,
+                        noteColor = noteColor,
                         onOpenRelatedNote = onOpenRelatedNote,
                     )
 
@@ -647,6 +669,110 @@ fun NoteDetailScreen(
                         }
                     }
                     Spacer(modifier = Modifier.height(32.dp))
+                }
+
+                // 大屏浮动工具栏（垂直）
+                if (isLargeScreen) {
+                    val alignment = when (widgetAlignment) {
+                        "right" -> Alignment.CenterEnd
+                        else -> Alignment.CenterStart
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        contentAlignment = alignment
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(28.dp),
+                            color = primaryColorForTheme.copy(alpha = 0.15f),
+                            tonalElevation = 3.dp,
+                            shadowElevation = 8.dp,
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                val iconTint = MaterialTheme.colorScheme.onSurface
+
+                                IconButton(onClick = { showDeleteDialog = true }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Delete,
+                                        contentDescription = stringResource(R.string.delete),
+                                        modifier = Modifier.size(24.dp),
+                                        tint = iconTint
+                                    )
+                                }
+
+                                IconButton(onClick = {
+                                    val hasMarkdown = Regex("\\*\\*|(?<!\\*)\\*(?!\\*)|~~|<u>|==|^#{1,4} |^> |^-\\s+\\[[ x]\\]\\s+|^-\\s+|^\\d+\\.\\s+", RegexOption.MULTILINE).containsMatchIn(note.content)
+                                    if (hasMarkdown) {
+                                        showCopyDialog = true
+                                    } else {
+                                        clipboardManager.setText(AnnotatedString(note.content))
+                                    }
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.ContentCopy,
+                                        contentDescription = "复制",
+                                        modifier = Modifier.size(24.dp),
+                                        tint = iconTint
+                                    )
+                                }
+
+                                IconButton(onClick = {
+                                    val intent = Intent(Intent.ACTION_INSERT).apply {
+                                        data = CalendarContract.Events.CONTENT_URI
+                                        putExtra(
+                                            CalendarContract.Events.TITLE,
+                                            buildCalendarReminderTitle(note = note, fallback = defaultCalendarTitle),
+                                        )
+                                        putExtra(CalendarContract.Events.DESCRIPTION, note.content)
+                                    }
+                                    try {
+                                        context.startActivity(intent)
+                                    } catch (_: ActivityNotFoundException) {
+                                        Toast.makeText(context, calendarUnavailableMessage, Toast.LENGTH_SHORT).show()
+                                    }
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Alarm,
+                                        contentDescription = addCalendarReminderLabel,
+                                        modifier = Modifier.size(24.dp),
+                                        tint = iconTint
+                                    )
+                                }
+
+                                IconButton(onClick = { showShareBottomSheet = true }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Share,
+                                        contentDescription = "分享",
+                                        modifier = Modifier.size(24.dp),
+                                        tint = iconTint
+                                    )
+                                }
+
+                                IconButton(onClick = onReply) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Reply,
+                                        contentDescription = stringResource(R.string.reply),
+                                        modifier = Modifier.size(24.dp),
+                                        tint = iconTint
+                                    )
+                                }
+
+                                IconButton(onClick = onEdit) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Edit,
+                                        contentDescription = stringResource(R.string.edit),
+                                        modifier = Modifier.size(24.dp),
+                                        tint = iconTint
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -672,28 +798,31 @@ private fun buildCalendarReminderTitle(note: Note, fallback: String): String {
 private fun RelationSection(
     title: String,
     notes: List<Note>,
+    noteColor: Color?,
     onOpenRelatedNote: (String) -> Unit,
 ) {
     if (notes.isEmpty()) {
         return
     }
 
+    val primaryColor = noteColor ?: MaterialTheme.colorScheme.primary
+
     Text(
         text = title,
         style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.primary,
+        color = primaryColor,
         modifier = Modifier.padding(top = 24.dp, bottom = 12.dp),
     )
 
-    val primaryColor = MaterialTheme.colorScheme.primary
     val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
     val baseFontSize = (LocalNoteTextSize.current.value - 2).coerceAtLeast(10f)
+    val cardBackgroundColor = primaryColor.copy(alpha = 0.12f)
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         notes.forEach { note ->
             Surface(
                 shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surfaceVariant,
+                color = cardBackgroundColor,
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onOpenRelatedNote(note.id) },
@@ -715,9 +844,10 @@ private fun RelationSection(
                             lineHeight = baseFontSize.sp * LocalNoteLineSpacing.current
                         ),
                     )
-                    if (note.tags.isNotEmpty()) {
+                    val relationDisplayTags = NoteColorUtil.filterDisplayTags(note.tags)
+                    if (relationDisplayTags.isNotEmpty()) {
                         Text(
-                            text = note.tags.joinToString(" · "),
+                            text = relationDisplayTags.joinToString(" · "),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 6.dp),
@@ -733,22 +863,25 @@ private fun RelationSection(
 private fun VersionSection(
     title: String,
     versions: List<NoteVersion>,
+    noteColor: Color?,
     onOpenRelatedNote: (String) -> Unit,
 ) {
     if (versions.isEmpty()) {
         return
     }
 
+    val primaryColor = noteColor ?: MaterialTheme.colorScheme.primary
+
     Text(
         text = title,
         style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.primary,
+        color = primaryColor,
         modifier = Modifier.padding(top = 24.dp, bottom = 12.dp),
     )
 
-    val primaryColor = MaterialTheme.colorScheme.primary
     val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
     val baseFontSize = (LocalNoteTextSize.current.value - 2).coerceAtLeast(10f)
+    val cardBackgroundColor = primaryColor.copy(alpha = 0.12f)
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         versions.forEach { version ->
@@ -757,6 +890,7 @@ private fun VersionSection(
                 primaryColor = primaryColor,
                 highlightColor = highlightColor,
                 baseFontSize = baseFontSize,
+                cardBackgroundColor = cardBackgroundColor,
                 onOpenRelatedNote = onOpenRelatedNote,
             )
         }
@@ -769,13 +903,14 @@ private fun VersionCard(
     primaryColor: Color,
     highlightColor: Color,
     baseFontSize: Float,
+    cardBackgroundColor: Color,
     onOpenRelatedNote: (String) -> Unit,
 ) {
     val note = version.note
 
     Surface(
         shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        color = cardBackgroundColor,
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onOpenRelatedNote(note.id) },
@@ -803,9 +938,10 @@ private fun VersionCard(
                 ),
             )
 
-            if (note.tags.isNotEmpty()) {
+            val versionDisplayTags = NoteColorUtil.filterDisplayTags(note.tags)
+            if (versionDisplayTags.isNotEmpty()) {
                 Text(
-                    text = note.tags.joinToString(" · "),
+                    text = versionDisplayTags.joinToString(" · "),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 6.dp),

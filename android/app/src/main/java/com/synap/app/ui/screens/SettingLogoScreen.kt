@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -90,9 +91,8 @@ fun SettingLogoScreen(onNavigateBack: () -> Unit) {
             .fillMaxSize()
             // ========== 应用预返回手势的视觉形变 ==========
             .graphicsLayer {
-                val scale = 1f - (0.1f * backProgress) // 页面最多缩小到 90%
-                scaleX = scale
-                scaleY = scale
+                translationX = backProgress * 64.dp.toPx() // 向右边缘移动
+                transformOrigin = TransformOrigin(1f, 0.5f) // 缩放原点在右侧中心
                 shape = RoundedCornerShape(32.dp * backProgress) // 随进度增加圆角
                 clip = true
             },
@@ -114,7 +114,7 @@ fun SettingLogoScreen(onNavigateBack: () -> Unit) {
                 .padding(16.dp)
         ) {
             Text(
-                text = "选择桌面图标",
+                text = "桌面图标样式",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
@@ -126,7 +126,7 @@ fun SettingLogoScreen(onNavigateBack: () -> Unit) {
                     .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                val options = listOf("默认图标 (Synap)", "经典图标 (Old)")
+                val options = listOf("Synap彩色图标", "莫奈取色图标")
 
                 options.forEachIndexed { index, title ->
                     Row(
@@ -163,7 +163,7 @@ fun SettingLogoScreen(onNavigateBack: () -> Unit) {
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "注意：部分定制化 Android 系统（如 MIUI/HyperOS 等）在切换图标后可能会出现轻微闪烁或短时退回桌面的情况，这属于系统刷新桌面的正常表现。",
+                text = "注意：由于系统限制，切换图标后可能会出现闪退到桌面的情况。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 8.dp)

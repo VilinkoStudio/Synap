@@ -13,8 +13,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -66,6 +69,8 @@ fun SynapNavGraph(
     hasSeenTutorial: Boolean,
     onTutorialFinished: () -> Unit,
     databaseActivity: MainActivity?,
+    draftCapacity: Int,
+    onDraftCapacityChange: (Int) -> Unit,
 ) {
     val navController = rememberNavController()
     val startDestination = remember { if (hasSeenTutorial) "home" else "tutorial" }
@@ -226,7 +231,7 @@ fun SynapNavGraph(
                         handedness = handedness, onHandednessChange = onHandednessChange,
                         databaseActivity = databaseActivity,
                         onNavigateToTypographySettings = { navController.navigate("typography_settings") },
-                        onNavigateToDarkMode = { navController.navigate("setting_darkmode") },
+                        onNavigateToColorSettings = { navController.navigate("setting_color") },
                         onNavigateToLanguageSelection = { navController.navigate("language_selection") },
                         onNavigateToAppIcon = { navController.navigate("app_icon") },
                         onNavigateToHomeLayout = { navController.navigate("setting_home_layout") },
@@ -235,7 +240,9 @@ fun SynapNavGraph(
                         onNavigateToSync = { navController.navigate("sync") },
                         onNavigateToTeam = { navController.navigate("team") },
                         onNavigateToTutorial = { navController.navigate("tutorial") },
-                        onNavigateBack = { navController.popBackStack() }
+                        onNavigateBack = { navController.popBackStack() },
+                        draftCapacity = draftCapacity,
+                        onDraftCapacityChange = onDraftCapacityChange,
                     )
                 }
 
@@ -263,10 +270,15 @@ fun SynapNavGraph(
                     SettingLogoScreen(onNavigateBack = { navController.popBackStack() })
                 }
 
-                composable("setting_darkmode") {
-                    SettingDarkmodeScreen(
+                composable("setting_color") {
+                    SettingColorScreen(
                         currentThemeMode = themeMode,
                         onThemeModeChange = onThemeModeChange,
+                        useMonet = useMonet,
+                        supportsMonet = supportsMonet,
+                        onUseMonetChange = onUseMonetChange,
+                        customThemeHue = customThemeHue,
+                        onCustomThemeHueChange = onCustomThemeHueChange,
                         onNavigateBack = { navController.popBackStack() }
                     )
                 }
@@ -328,6 +340,14 @@ fun SynapNavGraph(
                 ) { backStackEntry ->
                     val viewModel: EditorViewModel = hiltViewModel()
                     val uiState by viewModel.uiState.collectAsState()
+                    val context = LocalContext.current
+                    val draftStore = remember { com.synap.app.data.service.DraftStore(context) }
+                    var draftCount by remember { mutableIntStateOf(draftStore.count()) }
+
+                    // 自动刷新草稿箱数量
+                    LaunchedEffect(Unit) {
+                        draftCount = draftStore.count()
+                    }
 
                     // ========== 核心自动填充逻辑 ==========
                     val initialContent = backStackEntry.arguments?.getString("initialContent")
@@ -340,6 +360,7 @@ fun SynapNavGraph(
                     LaunchedEffect(viewModel) {
                         viewModel.events.collect { event ->
                             if (event is EditorEvent.Saved) {
+                                draftCount = draftStore.count()
                                 if (event.mode is EditorMode.Edit) {
                                     navController.popBackStack()
                                     navController.popBackStack()
@@ -352,12 +373,56 @@ fun SynapNavGraph(
                     NewNoteScreen(
                         uiState = uiState,
                         onNavigateBack = { navController.popBackStack() },
+                        onNavigateToHome = {
+                            navController.navigate("home") {
+                                popUpTo("home") { inclusive = true }
+                            }
+                        },
                         onContentChange = viewModel::updateContent,
                         onAddTag = viewModel::addTag,
                         onRemoveTag = viewModel::removeTag,
+                        onNoteColorHueChange = viewModel::setNoteColorHue,
                         onSave = viewModel::save,
+                        onNavigateToDrafts = { navController.navigate("drafts") },
+                        draftCount = draftCount,
+                        hasUnsavedChanges = viewModel.hasUnsavedChanges(),
+                        onSaveDraft = {
+                            viewModel.saveDraftManually()
+                            // 将当前草稿标记为已读
+                            viewModel.getCurrentDraftId()?.let { viewModel.markDraftAsRead(it) }
+                            draftCount = draftStore.count()
+                        },
+                        onDiscardDraft = {
+                            // 删除当前草稿
+                            viewModel.getCurrentDraftId()?.let { draftStore.delete(it) }
+                            draftCount = draftStore.count()
+                        },
+                        isContentMatchingLatestDraft = viewModel::isContentMatchingLatestDraft,
+                        onMarkDraftAsRead = viewModel::markDraftAsRead,
+                        onRefreshDraftCount = { draftCount = draftStore.count() },
                         sharedTransitionScope = this@SharedTransitionLayout,
                         animatedVisibilityScope = this@composable
+                    )
+                }
+
+                composable("drafts") {
+                    val context = LocalContext.current
+                    DraftScreen(
+                        onNavigateBack = { navController.popBackStack() },
+                        onDraftClick = { draft ->
+                            // Navigate to editor with draft content
+                            navController.navigate(
+                                editorRoute(
+                                    parentId = draft.parentId,
+                                    parentSummary = draft.parentSummary,
+                                    editNoteId = draft.editNoteId,
+                                    initialContent = draft.content,
+                                )
+                            )
+                            // Delete the draft after navigating to editor
+                            val draftStore = com.synap.app.data.service.DraftStore(context)
+                            draftStore.delete(draft.id)
+                        },
                     )
                 }
             }
