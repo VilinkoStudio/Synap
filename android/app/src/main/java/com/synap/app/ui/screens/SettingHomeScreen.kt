@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material.icons.filled.ViewStream
@@ -32,6 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -67,6 +69,7 @@ fun SettingHomeScreen(
     var isWaterfall by remember { mutableStateOf(prefs.getBoolean("is_waterfall_mode", true)) }
     var widgetAlignment by remember { mutableStateOf(prefs.getString("widget_alignment", "default") ?: "default") }
     var showAlignmentMenu by remember { mutableStateOf(false) }
+    var isNavCollapsed by remember { mutableStateOf(prefs.getBoolean("is_nav_collapsed", false)) }
     var scanMethod by remember { mutableStateOf(prefs.getString("scan_method", "default") ?: "default") }
     var customScanPackage by remember { mutableStateOf(prefs.getString("scan_custom_package", "") ?: "") }
     var showCustomScanDialog by remember { mutableStateOf(false) }
@@ -208,6 +211,45 @@ fun SettingHomeScreen(
                             modifier = Modifier.size(24.dp),
                         )
                     }
+                }
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 16.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.setting_collapse_nav_buttons),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = stringResource(R.string.setting_collapse_nav_buttons_desc),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = isNavCollapsed,
+                        onCheckedChange = {
+                            isNavCollapsed = it
+                            prefs.edit().putBoolean("is_nav_collapsed", it).apply()
+                        }
+                    )
                 }
             }
 

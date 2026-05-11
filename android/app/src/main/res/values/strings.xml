@@ -109,6 +109,8 @@
     <string name="setting_home_layout_mode">首页布局</string>
     <string name="setting_home_layout_waterfall_desc">笔记以瀑布流形式展示</string>
     <string name="setting_home_layout_timeline_desc">笔记按时间分组展示</string>
+    <string name="setting_collapse_nav_buttons">折叠首页导航栏的按钮</string>
+    <string name="setting_collapse_nav_buttons_desc">此选项仅适用于手机布局，不适用于大屏幕布局</string>
     <string name="setting_other">其它</string>
     <string name="setting_widget_alignment">控件对齐方向</string>
     <string name="setting_widget_alignment_desc">选择部分控件（如工具栏、浮动按钮）的对齐方向</string>

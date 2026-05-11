@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -56,6 +57,8 @@ import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilterChip
@@ -138,6 +141,7 @@ fun HomeScreen(
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val prefs = remember { context.getSharedPreferences("synap_prefs", Context.MODE_PRIVATE) }
+    val isNavCollapsed = remember { prefs.getBoolean("is_nav_collapsed", false) }
 
     val navVisibilityScope = animatedVisibilityScope
 
@@ -164,6 +168,7 @@ fun HomeScreen(
 
     var showMultiDeleteDialog by remember { mutableStateOf(false) }
     var noteToCopy by remember { mutableStateOf<Note?>(null) }
+    var showNavMenu by remember { mutableStateOf(false) }
 
     var showShareBottomSheet by remember { mutableStateOf(false) }
 
@@ -1048,20 +1053,53 @@ fun HomeScreen(
                                         }
                                     }
 
-                                    IconButton(onClick = openScanner) {
-                                        Icon(Icons.Filled.QrCodeScanner, contentDescription = "扫一扫")
-                                    }
+                                    if (isNavCollapsed && !isTablet) {
+                                        Box {
+                                            IconButton(onClick = { showNavMenu = !showNavMenu }) {
+                                                Icon(Icons.Filled.MoreVert, contentDescription = "更多")
+                                            }
+                                            DropdownMenu(
+                                                expanded = showNavMenu,
+                                                onDismissRequest = { showNavMenu = false }
+                                            ) {
+                                                DropdownMenuItem(
+                                                    text = { Text("扫一扫") },
+                                                    onClick = { showNavMenu = false; openScanner() },
+                                                    leadingIcon = { Icon(Icons.Filled.QrCodeScanner, contentDescription = null) }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.starmap_title)) },
+                                                    onClick = { showNavMenu = false; onOpenStarmap() },
+                                                    leadingIcon = { Icon(Icons.Filled.Map, contentDescription = null) }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.trash_title)) },
+                                                    onClick = { showNavMenu = false; onOpenTrash() },
+                                                    leadingIcon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null) }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.settings)) },
+                                                    onClick = { showNavMenu = false; onOpenSettings() },
+                                                    leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) }
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        IconButton(onClick = openScanner) {
+                                            Icon(Icons.Filled.QrCodeScanner, contentDescription = "扫一扫")
+                                        }
 
-                                     IconButton(onClick = onOpenStarmap) {
-                                        Icon(Icons.Filled.Map, contentDescription = stringResource(R.string.starmap_title))
-                                    }
+                                         IconButton(onClick = onOpenStarmap) {
+                                            Icon(Icons.Filled.Map, contentDescription = stringResource(R.string.starmap_title))
+                                        }
 
-                                    IconButton(onClick = onOpenTrash) {
-                                        Icon(Icons.Filled.DeleteSweep, contentDescription = stringResource(R.string.trash_title))
-                                    }
+                                        IconButton(onClick = onOpenTrash) {
+                                            Icon(Icons.Filled.DeleteSweep, contentDescription = stringResource(R.string.trash_title))
+                                        }
 
-                                    IconButton(onClick = onOpenSettings) {
-                                        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.content_desc_settings))
+                                        IconButton(onClick = onOpenSettings) {
+                                            Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.content_desc_settings))
+                                        }
                                     }
                                 },
                             )
