@@ -10,6 +10,7 @@ mod convert;
 mod note_command;
 mod note_query;
 mod peer;
+mod relay_peer;
 mod search;
 mod starmap;
 mod support;
@@ -21,18 +22,21 @@ use crate::{
     crypto,
     db::umap::UmapCache,
     dto::{
-        LocalIdentityDTO, NoteDTO, NoteNeighborContextDTO, NoteNeighborsDTO, NoteSegmentDTO,
-        NoteSegmentDirectionDTO, NoteVersionDTO, PeerDTO, PeerTrustStatusDTO, PublicKeyInfoDTO,
-        SearchResultDTO, SearchSourceDTO, ShareStatsDTO, StarmapPointDTO, SyncSessionDTO,
-        SyncSessionRecordDTO, SyncSessionRoleDTO, SyncStatsDTO, SyncStatusDTO,
-        TimelineNotesPageDTO, TimelineSessionDTO, TimelineSessionsPageDTO,
+        LocalIdentityDTO, NoteDTO, NoteNeighborsDTO, NoteSegmentDTO, NoteSegmentDirectionDTO,
+        NoteVersionDTO, PeerDTO, PeerSyncStatsDTO, PeerTrustStatusDTO, PublicKeyInfoDTO,
+        RelayFetchStatsDTO, RelayPushStatsDTO, SearchResultDTO, SearchSourceDTO, ShareStatsDTO,
+        StarmapPointDTO, SyncSessionDTO, SyncSessionRecordDTO, SyncSessionRoleDTO, SyncStatsDTO,
+        SyncStatusDTO, SyncTransportKindDTO, TimelineNotesPageDTO, TimelineSessionDTO,
+        TimelineSessionsPageDTO,
     },
     error::ServiceError,
     models::{
         crypto::{CryptoReader, CryptoWriter},
         note::{Note, NoteReader, NoteRef},
+        relay_peer::{RelayPeerReader, RelayPeerRecord, RelayPeerWriter},
         sync_stats::{
-            SyncSessionRole, SyncSessionStatus, SyncStatsReader, SyncStatsRecord, SyncStatsWriter,
+            PeerSyncStatsRecord, SyncSessionRole, SyncSessionStatus, SyncStatsReader,
+            SyncStatsRecord, SyncStatsWriter, SyncTransportKind,
         },
         tag::{Tag, TagReader, TagWriter},
     },

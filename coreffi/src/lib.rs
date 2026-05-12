@@ -20,9 +20,10 @@ pub use types::{
     NoteDTO, NoteNeighborContextDTO, NoteNeighborsDTO, NoteSegmentBranchChoiceDTO, NoteSegmentDTO,
     NoteSegmentDirectionDTO, NoteSegmentStepDTO, NoteTagDiffDTO, NoteTextChangeDTO,
     NoteTextChangeKindDTO, NoteVersionDTO, NoteVersionDiffDTO, PeerDTO, PeerTrustStatusDTO,
-    PublicKeyInfoDTO, SearchResultDTO, SearchSourceDTO, ShareStatsDTO, StarmapPointDTO,
-    SyncSessionDTO, SyncSessionRecordDTO, SyncSessionRoleDTO, SyncStatsDTO, SyncStatusDTO,
-    TimelineDirection, TimelineNotesPageDTO, TimelineSessionDTO, TimelineSessionsPageDTO,
+    PublicKeyInfoDTO, RelayFetchStatsDTO, RelayPushStatsDTO, SearchResultDTO, SearchSourceDTO,
+    ShareStatsDTO, StarmapPointDTO, SyncSessionDTO, SyncSessionRecordDTO, SyncSessionRoleDTO,
+    SyncStatsDTO, SyncStatusDTO, SyncTransportKindDTO, TimelineDirection, TimelineNotesPageDTO,
+    TimelineSessionDTO, TimelineSessionsPageDTO,
 };
 
 // Include uniffi bindings - this will generate the Kotlin bindings

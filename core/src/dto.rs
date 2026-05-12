@@ -202,6 +202,7 @@ pub struct PeerDTO {
     pub fingerprint: Vec<u8>,
     pub avatar_png: Vec<u8>,
     pub kaomoji_fingerprint: String,
+    pub display_public_key_base64: String,
     pub note: Option<String>,
     pub status: PeerTrustStatusDTO,
 }
@@ -229,6 +230,24 @@ pub struct ShareStatsDTO {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct RelayFetchStatsDTO {
+    pub fetched_messages: u64,
+    pub imported_messages: u64,
+    pub dropped_untrusted_messages: u64,
+    pub acked_messages: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RelayPushStatsDTO {
+    pub trusted_peers: u64,
+    pub posted_messages: u64,
+    pub full_sync_messages: u64,
+    pub incremental_sync_messages: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum SyncStatusDTO {
     Completed,
     PendingTrust,
@@ -248,6 +267,16 @@ pub struct SyncSessionDTO {
 pub enum SyncSessionRoleDTO {
     Initiator,
     Listener,
+    RelayFetch,
+    RelayPush,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum SyncTransportKindDTO {
+    Direct,
+    RelayFetch,
+    RelayPush,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -256,9 +285,12 @@ pub struct SyncSessionRecordDTO {
     pub id: String,
     pub role: SyncSessionRoleDTO,
     pub status: SyncStatusDTO,
+    pub transport: SyncTransportKindDTO,
+    pub relay_url: Option<String>,
     pub peer_label: Option<String>,
-    pub peer_public_key: Option<Vec<u8>>,
-    pub peer_fingerprint: Option<Vec<u8>>,
+    pub peer_public_key: Vec<u8>,
+    pub peer_fingerprint: Vec<u8>,
+    pub display_peer_fingerprint_base64: String,
     pub started_at_ms: u64,
     pub finished_at_ms: u64,
     pub records_sent: u64,
@@ -269,4 +301,14 @@ pub struct SyncSessionRecordDTO {
     pub bytes_received: u64,
     pub duration_ms: u64,
     pub error_message: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PeerSyncStatsDTO {
+    pub peer_label: Option<String>,
+    pub peer_public_key: Vec<u8>,
+    pub peer_fingerprint: Vec<u8>,
+    pub peer_status: Option<PeerTrustStatusDTO>,
+    pub recent_sessions: Vec<SyncSessionRecordDTO>,
 }

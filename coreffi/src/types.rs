@@ -10,11 +10,13 @@ use synap_core::dto::{
     NoteTextChangeDTO as CoreNoteTextChangeDto, NoteTextChangeKindDTO as CoreNoteTextChangeKindDto,
     NoteVersionDTO as CoreNoteVersionDto, NoteVersionDiffDTO as CoreNoteVersionDiffDto,
     PeerDTO as CorePeerDto, PeerTrustStatusDTO as CorePeerTrustStatusDto,
-    PublicKeyInfoDTO as CorePublicKeyInfoDto, SearchResultDTO as CoreSearchResultDto,
+    PublicKeyInfoDTO as CorePublicKeyInfoDto, RelayFetchStatsDTO as CoreRelayFetchStatsDto,
+    RelayPushStatsDTO as CoreRelayPushStatsDto, SearchResultDTO as CoreSearchResultDto,
     SearchSourceDTO as CoreSearchSourceDto, ShareStatsDTO as CoreShareStatsDto,
     StarmapPointDTO as CoreStarmapPointDto, SyncSessionDTO as CoreSyncSessionDto,
     SyncSessionRecordDTO as CoreSyncSessionRecordDto, SyncSessionRoleDTO as CoreSyncSessionRoleDto,
     SyncStatsDTO as CoreSyncStatsDto, SyncStatusDTO as CoreSyncStatusDto,
+    SyncTransportKindDTO as CoreSyncTransportKindDto,
     TimelineNotesPageDTO as CoreTimelineNotesPageDto, TimelineSessionDTO as CoreTimelineSessionDto,
     TimelineSessionsPageDTO as CoreTimelineSessionsPageDto,
 };
@@ -447,10 +449,50 @@ impl From<CoreSyncStatsDto> for SyncStatsDTO {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RelayFetchStatsDTO {
+    pub fetched_messages: u64,
+    pub imported_messages: u64,
+    pub dropped_untrusted_messages: u64,
+    pub acked_messages: u64,
+}
+
+impl From<CoreRelayFetchStatsDto> for RelayFetchStatsDTO {
+    fn from(stats: CoreRelayFetchStatsDto) -> Self {
+        Self {
+            fetched_messages: stats.fetched_messages,
+            imported_messages: stats.imported_messages,
+            dropped_untrusted_messages: stats.dropped_untrusted_messages,
+            acked_messages: stats.acked_messages,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RelayPushStatsDTO {
+    pub trusted_peers: u64,
+    pub posted_messages: u64,
+    pub full_sync_messages: u64,
+    pub incremental_sync_messages: u64,
+}
+
+impl From<CoreRelayPushStatsDto> for RelayPushStatsDTO {
+    fn from(stats: CoreRelayPushStatsDto) -> Self {
+        Self {
+            trusted_peers: stats.trusted_peers,
+            posted_messages: stats.posted_messages,
+            full_sync_messages: stats.full_sync_messages,
+            incremental_sync_messages: stats.incremental_sync_messages,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SyncSessionRoleDTO {
     Initiator,
     Listener,
+    RelayFetch,
+    RelayPush,
 }
 
 impl From<CoreSyncSessionRoleDto> for SyncSessionRoleDTO {
@@ -458,6 +500,25 @@ impl From<CoreSyncSessionRoleDto> for SyncSessionRoleDTO {
         match role {
             CoreSyncSessionRoleDto::Initiator => Self::Initiator,
             CoreSyncSessionRoleDto::Listener => Self::Listener,
+            CoreSyncSessionRoleDto::RelayFetch => Self::RelayFetch,
+            CoreSyncSessionRoleDto::RelayPush => Self::RelayPush,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SyncTransportKindDTO {
+    Direct,
+    RelayFetch,
+    RelayPush,
+}
+
+impl From<CoreSyncTransportKindDto> for SyncTransportKindDTO {
+    fn from(kind: CoreSyncTransportKindDto) -> Self {
+        match kind {
+            CoreSyncTransportKindDto::Direct => Self::Direct,
+            CoreSyncTransportKindDto::RelayFetch => Self::RelayFetch,
+            CoreSyncTransportKindDto::RelayPush => Self::RelayPush,
         }
     }
 }
@@ -540,6 +601,7 @@ pub struct PeerDTO {
     pub fingerprint: Vec<u8>,
     pub avatar_png: Vec<u8>,
     pub kaomoji_fingerprint: String,
+    pub display_public_key_base64: String,
     pub note: Option<String>,
     pub status: PeerTrustStatusDTO,
 }
@@ -553,6 +615,7 @@ impl From<CorePeerDto> for PeerDTO {
             fingerprint: peer.fingerprint,
             avatar_png: peer.avatar_png,
             kaomoji_fingerprint: peer.kaomoji_fingerprint,
+            display_public_key_base64: peer.display_public_key_base64,
             note: peer.note,
             status: peer.status.into(),
         }
@@ -581,9 +644,12 @@ pub struct SyncSessionRecordDTO {
     pub id: String,
     pub role: SyncSessionRoleDTO,
     pub status: SyncStatusDTO,
+    pub transport: SyncTransportKindDTO,
+    pub relay_url: Option<String>,
     pub peer_label: Option<String>,
-    pub peer_public_key: Option<Vec<u8>>,
-    pub peer_fingerprint: Option<Vec<u8>>,
+    pub peer_public_key: Vec<u8>,
+    pub peer_fingerprint: Vec<u8>,
+    pub display_peer_fingerprint_base64: String,
     pub started_at_ms: u64,
     pub finished_at_ms: u64,
     pub records_sent: u64,
@@ -602,9 +668,12 @@ impl From<CoreSyncSessionRecordDto> for SyncSessionRecordDTO {
             id: record.id,
             role: record.role.into(),
             status: record.status.into(),
+            transport: record.transport.into(),
+            relay_url: record.relay_url,
             peer_label: record.peer_label,
             peer_public_key: record.peer_public_key,
             peer_fingerprint: record.peer_fingerprint,
+            display_peer_fingerprint_base64: record.display_peer_fingerprint_base64,
             started_at_ms: record.started_at_ms,
             finished_at_ms: record.finished_at_ms,
             records_sent: record.records_sent,

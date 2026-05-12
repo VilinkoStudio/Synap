@@ -20,6 +20,8 @@ import com.synap.app.data.model.NoteSegmentDirection
 import com.synap.app.data.model.NoteSegmentRecord
 import com.synap.app.data.model.NoteVersionRecord
 import com.synap.app.data.model.PeerRecord
+import com.synap.app.data.model.RelayFetchStats
+import com.synap.app.data.model.RelayPushStats
 import com.synap.app.data.model.SearchResultRecord
 import com.synap.app.data.model.ShareImportStats
 import com.synap.app.data.model.StarmapPointRecord
@@ -30,6 +32,8 @@ import com.synap.app.data.model.TimelineSessionRecord
 import com.synap.app.data.model.toLocalIdentity
 import com.synap.app.data.model.toPeerRecord
 import com.synap.app.data.model.toPeerRecords
+import com.synap.app.data.model.toRelayFetchStats
+import com.synap.app.data.model.toRelayPushStats
 import com.synap.app.data.model.toSyncSession
 import com.synap.app.data.model.toSyncSessionRecords
 import com.synap.app.data.model.toShareImportStats
@@ -225,6 +229,22 @@ class CoreffiRuntime @Inject constructor(
     override suspend fun getRecentSyncSessions(limit: UInt?): Result<List<SyncSessionRecord>> =
         withService { service ->
             service.getRecentSyncSessions(limit).toSyncSessionRecords()
+        }
+
+    override suspend fun relayFetchUpdates(
+        baseUrl: String,
+        apiKey: String?,
+    ): Result<RelayFetchStats> =
+        withService { service ->
+            service.relayFetchUpdates(baseUrl, apiKey).toRelayFetchStats()
+        }
+
+    override suspend fun relayPushUpdates(
+        baseUrl: String,
+        apiKey: String?,
+    ): Result<RelayPushStats> =
+        withService { service ->
+            service.relayPushUpdates(baseUrl, apiKey).toRelayPushStats()
         }
 
     override suspend fun initiateSync(transport: SyncTransportChannel): Result<SyncSession> =

@@ -9,6 +9,8 @@ import com.synap.app.data.model.NoteSegmentRecord
 import com.synap.app.data.model.NoteVersionRecord
 import com.synap.app.data.model.PeerRecord
 import com.synap.app.data.model.PeerTrustStatus
+import com.synap.app.data.model.RelayFetchStats
+import com.synap.app.data.model.RelayPushStats
 import com.synap.app.data.model.SearchResultRecord
 import com.synap.app.data.model.ShareImportStats
 import com.synap.app.data.model.StarmapPointRecord
@@ -50,6 +52,10 @@ interface SynapServiceApi {
     suspend fun deletePeer(peerId: String): Result<Unit>
 
     suspend fun getRecentSyncSessions(limit: UInt? = null): Result<List<SyncSessionRecord>>
+
+    suspend fun relayFetchUpdates(baseUrl: String, apiKey: String?): Result<RelayFetchStats>
+
+    suspend fun relayPushUpdates(baseUrl: String, apiKey: String?): Result<RelayPushStats>
 
     suspend fun initiateSync(transport: SyncTransportChannel): Result<SyncSession>
 

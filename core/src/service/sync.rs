@@ -8,28 +8,31 @@ impl SynapService {
             .ok_or_else(|| ServiceError::NotFound("local signing public key".into()))
     }
 
-    pub fn local_relay_recipient_identity_public_key(&self) -> Result<[u8; 32], ServiceError> {
+    pub fn local_relay_exchange_public_key(&self) -> Result<[u8; 32], ServiceError> {
         let tx = self.db.begin_read()?;
         let reader = CryptoReader::new(&tx)?;
-        crypto::local_identity_public_key(&reader)?
-            .ok_or_else(|| ServiceError::NotFound("local identity public key".into()))
+        crypto::local_signing_exchange_public_key(&reader)?
+            .ok_or_else(|| ServiceError::NotFound("local signing exchange public key".into()))
     }
 
     pub(crate) fn sign_relay_mailbox_auth(&self, payload: &[u8]) -> Result<[u8; 64], ServiceError> {
         let tx = self.db.begin_read()?;
         let reader = CryptoReader::new(&tx)?;
-        crypto::sign_with_local_identity(&reader, payload)?
-            .ok_or_else(|| ServiceError::Other(anyhow::anyhow!("local signing identity is missing")))
+        crypto::sign_with_local_identity(&reader, payload)?.ok_or_else(|| {
+            ServiceError::Other(anyhow::anyhow!("local signing identity is missing"))
+        })
     }
 
     pub fn seal_relay_payload_for(
         &self,
-        recipient_identity_public_key: [u8; 32],
+        recipient_mailbox_ed25519_public_key: [u8; 32],
         payload: &[u8],
     ) -> Result<Vec<u8>, ServiceError> {
         let tx = self.db.begin_read()?;
         let reader = CryptoReader::new(&tx)?;
-        crypto::seal_for_recipient(&reader, recipient_identity_public_key, payload)
+        let recipient_exchange_public_key =
+            crypto::ed25519_public_key_to_x25519(recipient_mailbox_ed25519_public_key)?;
+        crypto::seal_for_recipient(&reader, recipient_exchange_public_key, payload)
             .map_err(|err| ServiceError::Other(anyhow::anyhow!(err)))
     }
 
@@ -46,6 +49,36 @@ impl SynapService {
         RelaySyncService::new(self).build_share_for_remote_inventory(remote_inventory)
     }
 
+    pub fn relay_fetch_updates(
+        &self,
+        base_url: &str,
+        api_key: Option<&str>,
+    ) -> Result<RelayFetchStatsDTO, ServiceError> {
+        let mut client = crate::sync::RelayHttpService::new(self, base_url);
+        if let Some(api_key) = api_key {
+            client = client.with_api_key(api_key);
+        }
+        client
+            .fetch_relay_updates()
+            .map(Self::relay_fetch_stats_to_dto)
+            .map_err(|err| ServiceError::Other(anyhow::anyhow!(err)))
+    }
+
+    pub fn relay_push_updates(
+        &self,
+        base_url: &str,
+        api_key: Option<&str>,
+    ) -> Result<RelayPushStatsDTO, ServiceError> {
+        let mut client = crate::sync::RelayHttpService::new(self, base_url);
+        if let Some(api_key) = api_key {
+            client = client.with_api_key(api_key);
+        }
+        client
+            .push_relay_updates()
+            .map(Self::relay_push_stats_to_dto)
+            .map_err(|err| ServiceError::Other(anyhow::anyhow!(err)))
+    }
+
     pub fn get_recent_sync_sessions(
         &self,
         limit: Option<usize>,
@@ -53,22 +86,40 @@ impl SynapService {
         let limit = limit.unwrap_or(10);
         let tx = self.db.begin_read()?;
         let reader = SyncStatsReader::new(&tx)?;
-        let mut records = reader
-            .all()
-            .map_err(redb::Error::from)?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(redb::Error::from)?;
-        records.sort_by(|left, right| {
-            right
-                .finished_at_ms
-                .cmp(&left.finished_at_ms)
-                .then_with(|| right.started_at_ms.cmp(&left.started_at_ms))
-        });
-        records.truncate(limit);
+        let crypto_reader = CryptoReader::new(&tx)?;
+        let records = reader.recent(limit)?;
         Ok(records
             .into_iter()
-            .map(Self::sync_stats_record_to_dto)
-            .collect())
+            .map(|record| {
+                let peer =
+                    crypto::get_known_public_key_by_bytes(&crypto_reader, record.peer_public_key)?;
+                Ok::<SyncSessionRecordDTO, redb::Error>(Self::sync_stats_record_to_dto(
+                    record, peer,
+                ))
+            })
+            .collect::<Result<Vec<_>, _>>()?)
+    }
+
+    pub fn get_peer_sync_stats(
+        &self,
+        peers_limit: Option<usize>,
+        sessions_per_peer: Option<usize>,
+    ) -> Result<Vec<PeerSyncStatsDTO>, ServiceError> {
+        let peers_limit = peers_limit.unwrap_or(20);
+        let sessions_per_peer = sessions_per_peer.unwrap_or(5);
+        let tx = self.db.begin_read()?;
+        let reader = SyncStatsReader::new(&tx)?;
+        let crypto_reader = CryptoReader::new(&tx)?;
+        let records = reader.grouped_by_peer(peers_limit, sessions_per_peer)?;
+
+        Ok(records
+            .into_iter()
+            .map(|record| {
+                let peer =
+                    crypto::get_known_public_key_by_bytes(&crypto_reader, record.peer_public_key)?;
+                Ok::<PeerSyncStatsDTO, redb::Error>(Self::peer_sync_stats_to_dto(record, peer))
+            })
+            .collect::<Result<Vec<_>, _>>()?)
     }
 
     pub fn export_share(&self, note_ids: &[String]) -> Result<Vec<u8>, ServiceError> {

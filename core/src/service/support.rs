@@ -256,6 +256,7 @@ impl SynapService {
         UmapCache::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
         TagWriter::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
         CryptoWriter::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
+        RelayPeerWriter::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
         SyncStatsWriter::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
         crypto::ensure_local_identity(&CryptoWriter::new(&tx))
             .map_err(|err| ServiceError::Db(err.into()))?;

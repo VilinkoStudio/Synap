@@ -632,6 +632,8 @@ fn SyncHistorySection(
                                                 {match session.role {
                                                     SyncSessionRoleDTO::Initiator => "主动同步",
                                                     SyncSessionRoleDTO::Listener => "监听接入",
+                                                    SyncSessionRoleDTO::RelayFetch => "Relay 拉取",
+                                                    SyncSessionRoleDTO::RelayPush => "Relay 推送",
                                                 }}
                                             </div>
                                             <h3>{session.peer_label.clone().unwrap_or_else(|| "未命名设备".to_string())}</h3>

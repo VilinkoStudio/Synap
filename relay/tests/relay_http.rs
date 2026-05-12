@@ -2,7 +2,7 @@ use std::{net::SocketAddr, time::Duration};
 
 use anyhow::Context;
 use relay::{
-    app::{AppState, AppStateParts},
+    app::{AppState, AppStateParts, RelayAuth},
     embedded_redis::EmbeddedRedisHandle,
     http::build_router,
     redis::RedisRuntime,
@@ -19,12 +19,14 @@ use tokio::{
 
 struct TestRelayServer {
     base_url: String,
+    api_key: String,
     _redis: EmbeddedRedisHandle,
     server_task: JoinHandle<()>,
 }
 
 impl TestRelayServer {
     async fn spawn() -> anyhow::Result<Self> {
+        let api_key = "relay-test-key".to_owned();
         let redis = EmbeddedRedisHandle::spawn("127.0.0.1:0".parse()?).await?;
         let redis_url = format!("redis://{}", redis.listen_addr());
         let redis_runtime = RedisRuntime::new(redis_url)?;
@@ -32,6 +34,7 @@ impl TestRelayServer {
             server_name: "relay-test".to_owned(),
             redis_runtime,
             embedded_redis: None,
+            auth: RelayAuth::ApiKey(api_key.clone()),
         });
 
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -47,6 +50,7 @@ impl TestRelayServer {
 
         Ok(Self {
             base_url: format!("http://{}", local_addr),
+            api_key,
             _redis: redis,
             server_task,
         })
@@ -54,6 +58,10 @@ impl TestRelayServer {
 
     fn base_url(&self) -> &str {
         &self.base_url
+    }
+
+    fn api_key(&self) -> &str {
+        &self.api_key
     }
 }
 
@@ -76,14 +84,9 @@ async fn relay_round_trip_post_get_open_ack_then_empty() -> anyhow::Result<()> {
         .as_slice()
         .try_into()
         .context("recipient signing public key should be 32 bytes")?;
-    let recipient_x25519: [u8; 32] = recipient_identity
-        .identity
-        .public_key
-        .as_slice()
-        .try_into()
-        .context("recipient identity public key should be 32 bytes")?;
 
-    let envelope = sender.seal_relay_payload_for(recipient_x25519, b"relay integration payload")?;
+    let envelope =
+        sender.seal_relay_payload_for(recipient_mailbox_ed25519, b"relay integration payload")?;
     let sender_identity = sender.get_local_identity()?;
     let sender_ed25519: [u8; 32] = sender_identity
         .signing
@@ -92,8 +95,10 @@ async fn relay_round_trip_post_get_open_ack_then_empty() -> anyhow::Result<()> {
         .try_into()
         .context("sender signing public key should be 32 bytes")?;
 
-    let sender_client = RelayHttpService::new(&sender, relay.base_url());
-    let recipient_client = RelayHttpService::new(&recipient, relay.base_url());
+    let sender_client =
+        RelayHttpService::new(&sender, relay.base_url()).with_api_key(relay.api_key());
+    let recipient_client =
+        RelayHttpService::new(&recipient, relay.base_url()).with_api_key(relay.api_key());
 
     sender_client.post_envelope(recipient_mailbox_ed25519, &envelope)?;
 
@@ -128,14 +133,14 @@ async fn relay_round_trip_supports_single_round_inventory_share_sync() -> anyhow
 
     let mailbox_a = service_a.local_relay_mailbox_public_key()?;
     let mailbox_b = service_b.local_relay_mailbox_public_key()?;
-    let x25519_a = service_a.local_relay_recipient_identity_public_key()?;
-    let x25519_b = service_b.local_relay_recipient_identity_public_key()?;
 
-    let client_a = RelayHttpService::new(&service_a, relay.base_url());
-    let client_b = RelayHttpService::new(&service_b, relay.base_url());
+    let client_a =
+        RelayHttpService::new(&service_a, relay.base_url()).with_api_key(relay.api_key());
+    let client_b =
+        RelayHttpService::new(&service_b, relay.base_url()).with_api_key(relay.api_key());
 
     let initial_inventory = service_a.build_relay_inventory()?;
-    post_inventory_envelope(&service_a, &client_a, mailbox_b, x25519_b, &initial_inventory)?;
+    post_inventory_envelope(&service_a, &client_a, mailbox_b, &initial_inventory)?;
 
     let inventory_from_a = recv_inventory_and_ack(&service_b, &client_b, mailbox_b)?
         .context("service b should receive initial inventory")?;
@@ -145,23 +150,33 @@ async fn relay_round_trip_supports_single_round_inventory_share_sync() -> anyhow
         inventory: inventory_b,
         share: Some(share_for_a),
     };
-    post_sync_envelope(&service_b, &client_b, mailbox_a, x25519_a, &response)?;
+    post_sync_envelope(&service_b, &client_b, mailbox_a, &response)?;
 
     let sync_from_b = recv_sync_envelope_and_ack(&service_a, &client_a, mailbox_a)?
         .context("service a should receive response inventory/share")?;
     let share_for_b = service_a.export_relay_share_for_inventory(&sync_from_b.inventory)?;
-    service_a.import_share(sync_from_b.share.as_deref().context("missing share from b")?)?;
+    service_a.import_share(
+        sync_from_b
+            .share
+            .as_deref()
+            .context("missing share from b")?,
+    )?;
     if !share_for_b.is_empty() {
         let follow_up = RelaySyncEnvelope {
             inventory: service_a.build_relay_inventory()?,
             share: Some(share_for_b),
         };
-        post_sync_envelope(&service_a, &client_a, mailbox_b, x25519_b, &follow_up)?;
+        post_sync_envelope(&service_a, &client_a, mailbox_b, &follow_up)?;
     }
 
     let final_from_a = recv_sync_envelope_and_ack(&service_b, &client_b, mailbox_b)?
         .context("service b should receive follow-up share")?;
-    service_b.import_share(final_from_a.share.as_deref().context("missing share from a")?)?;
+    service_b.import_share(
+        final_from_a
+            .share
+            .as_deref()
+            .context("missing share from a")?,
+    )?;
 
     let notes_a = service_a.get_recent_note(None, Some(20))?;
     let notes_b = service_b.get_recent_note(None, Some(20))?;
@@ -188,32 +203,29 @@ fn post_inventory_envelope(
     sender: &SynapService,
     client: &RelayHttpService<'_>,
     recipient_mailbox: [u8; 32],
-    recipient_x25519: [u8; 32],
     inventory: &RelayInventory,
 ) -> anyhow::Result<()> {
     let body = postcard::to_allocvec(inventory)?;
-    post_raw_envelope(sender, client, recipient_mailbox, recipient_x25519, &body)
+    post_raw_envelope(sender, client, recipient_mailbox, &body)
 }
 
 fn post_sync_envelope(
     sender: &SynapService,
     client: &RelayHttpService<'_>,
     recipient_mailbox: [u8; 32],
-    recipient_x25519: [u8; 32],
     payload: &RelaySyncEnvelope,
 ) -> anyhow::Result<()> {
     let body = postcard::to_allocvec(payload)?;
-    post_raw_envelope(sender, client, recipient_mailbox, recipient_x25519, &body)
+    post_raw_envelope(sender, client, recipient_mailbox, &body)
 }
 
 fn post_raw_envelope(
     sender: &SynapService,
     client: &RelayHttpService<'_>,
     recipient_mailbox: [u8; 32],
-    recipient_x25519: [u8; 32],
     body: &[u8],
 ) -> anyhow::Result<()> {
-    let envelope = sender.seal_relay_payload_for(recipient_x25519, body)?;
+    let envelope = sender.seal_relay_payload_for(recipient_mailbox, body)?;
     client.post_envelope(recipient_mailbox, &envelope)?;
     Ok(())
 }

@@ -4,11 +4,14 @@ import com.fuwaki.synap.bindings.uniffi.synap_coreffi.LocalIdentityDto
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.PeerDto
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.PeerTrustStatusDto
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.PublicKeyInfoDto
+import com.fuwaki.synap.bindings.uniffi.synap_coreffi.RelayFetchStatsDto
+import com.fuwaki.synap.bindings.uniffi.synap_coreffi.RelayPushStatsDto
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.SyncSessionDto
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.SyncSessionRecordDto
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.SyncSessionRoleDto
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.SyncStatsDto
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.SyncStatusDto
+import com.fuwaki.synap.bindings.uniffi.synap_coreffi.SyncTransportKindDto
 
 data class PublicKeyInfo(
     val id: String,
@@ -39,6 +42,7 @@ data class PeerRecord(
     val fingerprint: ByteArray,
     val avatarPng: ByteArray,
     val kaomojiFingerprint: String,
+    val displayPublicKeyBase64: String,
     val note: String?,
     val status: PeerTrustStatus,
 )
@@ -87,6 +91,14 @@ enum class SyncStatus {
 enum class SyncSessionRole {
     Initiator,
     Listener,
+    RelayFetch,
+    RelayPush,
+}
+
+enum class SyncTransportKind {
+    Direct,
+    RelayFetch,
+    RelayPush,
 }
 
 data class SyncStats(
@@ -109,9 +121,12 @@ data class SyncSessionRecord(
     val id: String,
     val role: SyncSessionRole,
     val status: SyncStatus,
+    val transport: SyncTransportKind,
+    val relayUrl: String?,
     val peerLabel: String?,
-    val peerPublicKey: ByteArray?,
-    val peerFingerprint: ByteArray?,
+    val peerPublicKey: ByteArray,
+    val peerFingerprint: ByteArray,
+    val displayPeerFingerprintBase64: String,
     val startedAtMs: ULong,
     val finishedAtMs: ULong,
     val recordsSent: ULong,
@@ -122,6 +137,20 @@ data class SyncSessionRecord(
     val bytesReceived: ULong,
     val durationMs: ULong,
     val errorMessage: String?,
+)
+
+data class RelayFetchStats(
+    val fetchedMessages: ULong,
+    val importedMessages: ULong,
+    val droppedUntrustedMessages: ULong,
+    val ackedMessages: ULong,
+)
+
+data class RelayPushStats(
+    val trustedPeers: ULong,
+    val postedMessages: ULong,
+    val fullSyncMessages: ULong,
+    val incrementalSyncMessages: ULong,
 )
 
 internal fun PublicKeyInfoDto.toPublicKeyInfo(): PublicKeyInfo = PublicKeyInfo(
@@ -160,6 +189,7 @@ internal fun PeerDto.toPeerRecord(): PeerRecord = PeerRecord(
     fingerprint = fingerprint,
     avatarPng = avatarPng,
     kaomojiFingerprint = kaomojiFingerprint,
+    displayPublicKeyBase64 = displayPublicKeyBase64,
     note = note,
     status = status.toPeerTrustStatus(),
 )
@@ -175,6 +205,14 @@ internal fun SyncStatusDto.toSyncStatus(): SyncStatus = when (this) {
 internal fun SyncSessionRoleDto.toSyncSessionRole(): SyncSessionRole = when (this) {
     SyncSessionRoleDto.INITIATOR -> SyncSessionRole.Initiator
     SyncSessionRoleDto.LISTENER -> SyncSessionRole.Listener
+    SyncSessionRoleDto.RELAY_FETCH -> SyncSessionRole.RelayFetch
+    SyncSessionRoleDto.RELAY_PUSH -> SyncSessionRole.RelayPush
+}
+
+internal fun SyncTransportKindDto.toSyncTransportKind(): SyncTransportKind = when (this) {
+    SyncTransportKindDto.DIRECT -> SyncTransportKind.Direct
+    SyncTransportKindDto.RELAY_FETCH -> SyncTransportKind.RelayFetch
+    SyncTransportKindDto.RELAY_PUSH -> SyncTransportKind.RelayPush
 }
 
 internal fun SyncStatsDto.toSyncStats(): SyncStats = SyncStats(
@@ -197,9 +235,12 @@ internal fun SyncSessionRecordDto.toSyncSessionRecord(): SyncSessionRecord = Syn
     id = id,
     role = role.toSyncSessionRole(),
     status = status.toSyncStatus(),
+    transport = transport.toSyncTransportKind(),
+    relayUrl = relayUrl,
     peerLabel = peerLabel,
     peerPublicKey = peerPublicKey,
     peerFingerprint = peerFingerprint,
+    displayPeerFingerprintBase64 = displayPeerFingerprintBase64,
     startedAtMs = startedAtMs,
     finishedAtMs = finishedAtMs,
     recordsSent = recordsSent,
@@ -214,3 +255,17 @@ internal fun SyncSessionRecordDto.toSyncSessionRecord(): SyncSessionRecord = Syn
 
 internal fun List<SyncSessionRecordDto>.toSyncSessionRecords(): List<SyncSessionRecord> =
     map(SyncSessionRecordDto::toSyncSessionRecord)
+
+internal fun RelayFetchStatsDto.toRelayFetchStats(): RelayFetchStats = RelayFetchStats(
+    fetchedMessages = fetchedMessages,
+    importedMessages = importedMessages,
+    droppedUntrustedMessages = droppedUntrustedMessages,
+    ackedMessages = ackedMessages,
+)
+
+internal fun RelayPushStatsDto.toRelayPushStats(): RelayPushStats = RelayPushStats(
+    trustedPeers = trustedPeers,
+    postedMessages = postedMessages,
+    fullSyncMessages = fullSyncMessages,
+    incrementalSyncMessages = incrementalSyncMessages,
+)

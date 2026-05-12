@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use anyhow::Context;
 use clap::Parser;
 use relay::{
-    app::{AppState, AppStateParts},
+    app::{AppState, AppStateParts, RelayAuth},
     cli::{Cli, Commands, EmbeddedRedisMode, ServeArgs},
     embedded_redis::EmbeddedRedisHandle,
     http::build_router,
@@ -26,10 +26,12 @@ async fn main() -> anyhow::Result<()> {
 async fn serve(args: ServeArgs) -> anyhow::Result<()> {
     let embedded_redis = start_embedded_redis_if_needed(&args).await?;
     let redis_runtime = RedisRuntime::new(args.redis_url.clone())?;
+    let auth = relay_auth(&args)?;
     let app_state = AppState::from_parts(AppStateParts {
         server_name: args.server_name,
         redis_runtime,
         embedded_redis,
+        auth,
     });
 
     let listener = bind_listener(args.listen).await?;
@@ -123,4 +125,17 @@ fn init_tracing() {
         .with_target(false)
         .compact()
         .init();
+}
+
+fn relay_auth(args: &ServeArgs) -> anyhow::Result<RelayAuth> {
+    if args.no_key {
+        return Ok(RelayAuth::Disabled);
+    }
+
+    let api_key = args
+        .api_key
+        .as_ref()
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| anyhow::anyhow!("--api-key must not be empty unless --no-key is set"))?;
+    Ok(RelayAuth::ApiKey(api_key.clone()))
 }

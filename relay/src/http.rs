@@ -2,7 +2,8 @@ use axum::{
     Json, Router,
     body::Bytes,
     extract::{Path, State},
-    http::{HeaderMap, HeaderName, HeaderValue, StatusCode},
+    http::{HeaderMap, HeaderName, HeaderValue, Request, StatusCode},
+    middleware::{self, Next},
     response::IntoResponse,
     routing::{get, post},
 };
@@ -11,7 +12,7 @@ use hex::FromHex;
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
-use crate::app::AppState;
+use crate::app::{AppState, RelayAuth};
 use crate::error::AppError;
 use crate::redis::{LeasedEnvelope, RelayStatusSnapshot, StoredEnvelope};
 use synap_core::crypto::{SEALED_ENVELOPE_MAGIC, inspect_verified};
@@ -24,6 +25,7 @@ const AUTH_SIGNATURE_HEADER: &str = "x-synap-signature";
 const MESSAGE_SENDER_HEADER: &str = "x-synap-sender-ed25519";
 const LEASE_ID_HEADER: &str = "x-synap-lease-id";
 const LEASED_UNTIL_HEADER: &str = "x-synap-leased-until";
+const API_KEY_HEADER: &str = "x-api-key";
 
 pub fn build_router(state: AppState) -> Router {
     Router::new()
@@ -33,7 +35,32 @@ pub fn build_router(state: AppState) -> Router {
         .route(STATUS_ROUTE, get(status))
         .route(MAILBOX_ROUTE, post(post_mailbox).get(get_mailbox))
         .route(ACK_ROUTE, post(post_ack))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            require_api_key,
+        ))
         .with_state(state)
+}
+
+async fn require_api_key(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    request: Request<axum::body::Body>,
+    next: Next,
+) -> Result<impl IntoResponse, AppError> {
+    match state.auth() {
+        RelayAuth::Disabled => Ok(next.run(request).await),
+        RelayAuth::ApiKey(expected) => {
+            let provided = header_string(&headers, API_KEY_HEADER)?;
+            if provided != *expected {
+                return Err(AppError::unauthorized(
+                    "invalid_api_key",
+                    "invalid relay api key",
+                ));
+            }
+            Ok(next.run(request).await)
+        }
+    }
 }
 
 async fn root(State(state): State<AppState>) -> Json<ServiceInfo> {
@@ -50,7 +77,7 @@ async fn healthz(State(state): State<AppState>) -> Result<Json<HealthResponse>, 
     let redis = state.redis_runtime();
     let status = redis.health().await.map_err(|error| {
         error!(error = %error, "redis health probe failed");
-        AppError::service_unavailable(format!("redis probe failed: {error}"))
+        AppError::service_unavailable("redis_unavailable", format!("redis probe failed: {error}"))
     })?;
 
     Ok(Json(HealthResponse {
@@ -69,7 +96,7 @@ async fn readyz(State(state): State<AppState>) -> Result<Json<ReadyResponse>, Ap
     let redis = state.redis_runtime();
     let status = redis.health().await.map_err(|error| {
         error!(error = %error, "redis readiness probe failed");
-        AppError::service_unavailable(format!("redis not ready: {error}"))
+        AppError::service_unavailable("redis_unavailable", format!("redis not ready: {error}"))
     })?;
 
     Ok(Json(ReadyResponse {
@@ -79,10 +106,17 @@ async fn readyz(State(state): State<AppState>) -> Result<Json<ReadyResponse>, Ap
 }
 
 async fn status(State(state): State<AppState>) -> Result<Json<StatusResponse>, AppError> {
-    let snapshot = state.redis_runtime().status_snapshot().await.map_err(|error| {
-        error!(error = %error, "failed to read relay status snapshot");
-        AppError::service_unavailable(format!("failed to load relay status: {error}"))
-    })?;
+    let snapshot = state
+        .redis_runtime()
+        .status_snapshot()
+        .await
+        .map_err(|error| {
+            error!(error = %error, "failed to read relay status snapshot");
+            AppError::service_unavailable(
+                "redis_unavailable",
+                format!("failed to load relay status: {error}"),
+            )
+        })?;
 
     Ok(Json(StatusResponse {
         service: "synap-relay",
@@ -102,14 +136,24 @@ async fn post_mailbox(
 ) -> Result<impl IntoResponse, AppError> {
     let mailbox_public_key = normalize_mailbox_public_key_hex(&mailbox_public_key)?;
     if body.is_empty() {
-        return Err(AppError::bad_request("request body must not be empty"));
+        return Err(AppError::bad_request(
+            "empty_body",
+            "request body must not be empty",
+        ));
     }
     if !body.starts_with(&SEALED_ENVELOPE_MAGIC) {
-        return Err(AppError::bad_request("request body is not a sealed envelope"));
+        return Err(AppError::bad_request(
+            "invalid_envelope",
+            "request body is not a sealed envelope",
+        ));
     }
 
-    let inspected = inspect_verified(&body)
-        .map_err(|error| AppError::bad_request(format!("invalid sealed envelope: {error}")))?;
+    let inspected = inspect_verified(&body).map_err(|error| {
+        AppError::bad_request(
+            "invalid_envelope",
+            format!("invalid sealed envelope: {error}"),
+        )
+    })?;
     let sender_public_key_hex = hex::encode(inspected.sender_signing_public_key);
 
     state
@@ -124,7 +168,10 @@ async fn post_mailbox(
         .await
         .map_err(|error| {
             error!(error = %error, mailbox = %mailbox_public_key, "failed to store relay envelope");
-            AppError::service_unavailable(format!("failed to store envelope: {error}"))
+            AppError::service_unavailable(
+                "redis_unavailable",
+                format!("failed to store envelope: {error}"),
+            )
         })?;
 
     Ok(StatusCode::ACCEPTED)
@@ -144,10 +191,13 @@ async fn get_mailbox(
         .await
         .map_err(|error| {
             error!(error = %error, mailbox = %mailbox_public_key, "failed to lease relay envelope");
-            AppError::service_unavailable(format!("failed to load envelope: {error}"))
+            AppError::service_unavailable(
+                "redis_unavailable",
+                format!("failed to load envelope: {error}"),
+            )
         })? {
         Some(leased) => Ok(leased_response(leased)?),
-        None => Err(AppError::not_found("mailbox is empty")),
+        None => Err(AppError::not_found("mailbox_empty", "mailbox is empty")),
     }
 }
 
@@ -161,7 +211,10 @@ async fn post_ack(
     verify_mailbox_request_auth(&mailbox_public_key, &headers, "POST")?;
     let sender_public_key_hex = normalize_mailbox_public_key_hex(&payload.sender_ed25519)?;
     if payload.lease_id.is_empty() {
-        return Err(AppError::bad_request("lease_id must not be empty"));
+        return Err(AppError::bad_request(
+            "invalid_ack",
+            "lease_id must not be empty",
+        ));
     }
 
     let acknowledged = state
@@ -170,27 +223,40 @@ async fn post_ack(
         .await
         .map_err(|error| {
             error!(error = %error, mailbox = %mailbox_public_key, sender = %sender_public_key_hex, "failed to ack relay envelope");
-            AppError::service_unavailable(format!("failed to ack envelope: {error}"))
+            AppError::service_unavailable(
+                "redis_unavailable",
+                format!("failed to ack envelope: {error}"),
+            )
         })?;
 
     if acknowledged {
         Ok(StatusCode::NO_CONTENT)
     } else {
-        Err(AppError::not_found("lease not found"))
+        Err(AppError::not_found("lease_not_found", "lease not found"))
     }
 }
 
 fn leased_response(leased: LeasedEnvelope) -> Result<impl IntoResponse, AppError> {
-    let sender = HeaderValue::from_str(&leased.sender_public_key_hex)
-        .map_err(|_| AppError::internal("invalid sender header value"))?;
-    let lease_id = HeaderValue::from_str(&leased.lease_id)
-        .map_err(|_| AppError::internal("invalid lease id header value"))?;
-    let leased_until = HeaderValue::from_str(&leased.leased_until_ms.to_string())
-        .map_err(|_| AppError::internal("invalid leased-until header value"))?;
+    let sender = HeaderValue::from_str(&leased.sender_public_key_hex).map_err(|_| {
+        AppError::internal("invalid_stored_envelope", "invalid sender header value")
+    })?;
+    let lease_id = HeaderValue::from_str(&leased.lease_id).map_err(|_| {
+        AppError::internal("invalid_stored_envelope", "invalid lease id header value")
+    })?;
+    let leased_until =
+        HeaderValue::from_str(&leased.leased_until_ms.to_string()).map_err(|_| {
+            AppError::internal(
+                "invalid_stored_envelope",
+                "invalid leased-until header value",
+            )
+        })?;
 
     Ok((
         [
-            (axum::http::header::CONTENT_TYPE, HeaderValue::from_static("application/octet-stream")),
+            (
+                axum::http::header::CONTENT_TYPE,
+                HeaderValue::from_static("application/octet-stream"),
+            ),
             (HeaderName::from_static(MESSAGE_SENDER_HEADER), sender),
             (HeaderName::from_static(LEASE_ID_HEADER), lease_id),
             (HeaderName::from_static(LEASED_UNTIL_HEADER), leased_until),
@@ -200,10 +266,15 @@ fn leased_response(leased: LeasedEnvelope) -> Result<impl IntoResponse, AppError
 }
 
 fn normalize_mailbox_public_key_hex(value: &str) -> Result<String, AppError> {
-    let decoded = Vec::<u8>::from_hex(value)
-        .map_err(|_| AppError::bad_request("mailbox public key must be lowercase or uppercase hex"))?;
+    let decoded = Vec::<u8>::from_hex(value).map_err(|_| {
+        AppError::bad_request(
+            "invalid_mailbox_key",
+            "mailbox public key must be lowercase or uppercase hex",
+        )
+    })?;
     if decoded.len() != 32 {
         return Err(AppError::bad_request(
+            "invalid_mailbox_key",
             "mailbox public key must decode to 32 bytes",
         ));
     }
@@ -211,26 +282,38 @@ fn normalize_mailbox_public_key_hex(value: &str) -> Result<String, AppError> {
 }
 
 fn header_string(headers: &HeaderMap, name: &'static str) -> Result<String, AppError> {
-    let value = headers
-        .get(name)
-        .ok_or_else(|| AppError::unauthorized(format!("missing required header: {name}")))?;
-    let value = value
-        .to_str()
-        .map_err(|_| AppError::unauthorized(format!("header {name} must be valid ASCII")))?;
+    let value = headers.get(name).ok_or_else(|| {
+        AppError::unauthorized(
+            missing_header_code(name),
+            format!("missing required header: {name}"),
+        )
+    })?;
+    let value = value.to_str().map_err(|_| {
+        AppError::unauthorized(
+            invalid_header_code(name),
+            format!("header {name} must be valid ASCII"),
+        )
+    })?;
     if value.is_empty() {
-        return Err(AppError::unauthorized(format!("header {name} must not be empty")));
+        return Err(AppError::unauthorized(
+            invalid_header_code(name),
+            format!("header {name} must not be empty"),
+        ));
     }
     Ok(value.to_owned())
 }
 
 fn parse_signature_header(headers: &HeaderMap) -> Result<[u8; 64], AppError> {
     let signature_hex = header_string(headers, AUTH_SIGNATURE_HEADER)?;
-    let bytes = Vec::<u8>::from_hex(&signature_hex)
-        .map_err(|_| AppError::unauthorized("signature header must be hex"))?;
-    bytes
-        .as_slice()
-        .try_into()
-        .map_err(|_| AppError::unauthorized("signature must decode to 64 bytes"))
+    let bytes = Vec::<u8>::from_hex(&signature_hex).map_err(|_| {
+        AppError::unauthorized("invalid_mailbox_signature", "signature header must be hex")
+    })?;
+    bytes.as_slice().try_into().map_err(|_| {
+        AppError::unauthorized(
+            "invalid_mailbox_signature",
+            "signature must decode to 64 bytes",
+        )
+    })
 }
 
 fn verify_mailbox_request_auth(
@@ -249,20 +332,47 @@ fn verify_mailbox_request_signature(
     signature: &[u8; 64],
     method: &str,
 ) -> Result<(), AppError> {
-    let public_key_bytes_vec = Vec::<u8>::from_hex(mailbox_public_key_hex)
-        .map_err(|_| AppError::bad_request("mailbox public key must be hex"))?;
-    let public_key_bytes: [u8; 32] = public_key_bytes_vec
-        .as_slice()
-        .try_into()
-        .map_err(|_| AppError::bad_request("mailbox public key must decode to 32 bytes"))?;
-    let public_key = VerifyingKey::from_bytes(&public_key_bytes)
-        .map_err(|_| AppError::bad_request("mailbox public key is not a valid Ed25519 key"))?;
+    let public_key_bytes_vec = Vec::<u8>::from_hex(mailbox_public_key_hex).map_err(|_| {
+        AppError::bad_request("invalid_mailbox_key", "mailbox public key must be hex")
+    })?;
+    let public_key_bytes: [u8; 32] = public_key_bytes_vec.as_slice().try_into().map_err(|_| {
+        AppError::bad_request(
+            "invalid_mailbox_key",
+            "mailbox public key must decode to 32 bytes",
+        )
+    })?;
+    let public_key = VerifyingKey::from_bytes(&public_key_bytes).map_err(|_| {
+        AppError::bad_request(
+            "invalid_mailbox_key",
+            "mailbox public key is not a valid Ed25519 key",
+        )
+    })?;
     let signature = Signature::from_bytes(signature);
     let payload = auth_payload(mailbox_public_key_hex, timestamp, method);
     public_key
         .verify(payload.as_bytes(), &signature)
-        .map_err(|_| AppError::unauthorized("invalid mailbox signature"))?;
+        .map_err(|_| {
+            AppError::unauthorized("invalid_mailbox_signature", "invalid mailbox signature")
+        })?;
     Ok(())
+}
+
+fn missing_header_code(name: &str) -> &'static str {
+    match name {
+        API_KEY_HEADER => "missing_api_key",
+        AUTH_TIMESTAMP_HEADER => "missing_auth_timestamp",
+        AUTH_SIGNATURE_HEADER => "missing_mailbox_signature",
+        _ => "missing_header",
+    }
+}
+
+fn invalid_header_code(name: &str) -> &'static str {
+    match name {
+        API_KEY_HEADER => "invalid_api_key",
+        AUTH_TIMESTAMP_HEADER => "invalid_auth_timestamp",
+        AUTH_SIGNATURE_HEADER => "invalid_mailbox_signature",
+        _ => "invalid_header",
+    }
 }
 
 fn auth_payload(mailbox_public_key_hex: &str, timestamp: &str, method: &str) -> String {
@@ -365,11 +475,11 @@ mod tests {
     use tower::ServiceExt;
 
     use super::{
-        ACK_ROUTE, AUTH_SIGNATURE_HEADER, AUTH_TIMESTAMP_HEADER, LEASE_ID_HEADER,
+        ACK_ROUTE, API_KEY_HEADER, AUTH_SIGNATURE_HEADER, AUTH_TIMESTAMP_HEADER, LEASE_ID_HEADER,
         MESSAGE_SENDER_HEADER, auth_payload, build_router,
     };
     use crate::{
-        app::{AppState, AppStateParts},
+        app::{AppState, AppStateParts, RelayAuth},
         embedded_redis::EmbeddedRedisHandle,
         redis::RedisRuntime,
     };
@@ -393,14 +503,23 @@ mod tests {
 
         let response = router
             .clone()
-            .oneshot(signed_mailbox_request("GET", &recipient_key, &mailbox, "1711111111", None)?)
+            .oneshot(signed_mailbox_request(
+                "GET",
+                &recipient_key,
+                &mailbox,
+                "1711111111",
+                None,
+            )?)
             .await?;
         assert_eq!(response.status(), StatusCode::OK);
         let headers = response.headers().clone();
         let sender_header = headers.get(MESSAGE_SENDER_HEADER).unwrap().to_str()?;
         let lease_id = headers.get(LEASE_ID_HEADER).unwrap().to_str()?.to_owned();
         let body = axum::body::to_bytes(response.into_body(), usize::MAX).await?;
-        assert_eq!(sender_header, hex::encode(sender_key.verifying_key().to_bytes()));
+        assert_eq!(
+            sender_header,
+            hex::encode(sender_key.verifying_key().to_bytes())
+        );
         assert_eq!(body.as_ref(), envelope.as_slice());
 
         let ack_body = serde_json::to_vec(&serde_json::json!({
@@ -414,13 +533,22 @@ mod tests {
                 &recipient_key,
                 &mailbox,
                 "1711111112",
-                Some((ACK_ROUTE.replace("{mailbox_public_key}", &mailbox), ack_body)),
+                Some((
+                    ACK_ROUTE.replace("{mailbox_public_key}", &mailbox),
+                    ack_body,
+                )),
             )?)
             .await?;
         assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
         let response = router
-            .oneshot(signed_mailbox_request("GET", &recipient_key, &mailbox, "1711111113", None)?)
+            .oneshot(signed_mailbox_request(
+                "GET",
+                &recipient_key,
+                &mailbox,
+                "1711111113",
+                None,
+            )?)
             .await?;
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
@@ -441,6 +569,10 @@ mod tests {
             .await?;
 
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await?;
+        let json: Value = serde_json::from_slice(&body)?;
+        assert_eq!(json["code"], "invalid_envelope");
+
         Ok(())
     }
 
@@ -452,7 +584,13 @@ mod tests {
         let mailbox = hex::encode(recipient_key.verifying_key().to_bytes());
 
         let response = router
-            .oneshot(signed_mailbox_request("GET", &other_key, &mailbox, "1711111111", None)?)
+            .oneshot(signed_mailbox_request(
+                "GET",
+                &other_key,
+                &mailbox,
+                "1711111111",
+                None,
+            )?)
             .await?;
 
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -469,10 +607,7 @@ mod tests {
 
         let response = router
             .clone()
-            .oneshot(
-                Request::post(format!("/v1/mailboxes/{mailbox}"))
-                    .body(Body::from(envelope))?,
-            )
+            .oneshot(Request::post(format!("/v1/mailboxes/{mailbox}")).body(Body::from(envelope))?)
             .await?;
         assert_eq!(response.status(), StatusCode::ACCEPTED);
 
@@ -489,6 +624,82 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn get_empty_mailbox_returns_structured_error_code() -> anyhow::Result<()> {
+        let (router, _handle) = test_router().await?;
+        let recipient_key = test_signing_key([12; 32]);
+        let mailbox = hex::encode(recipient_key.verifying_key().to_bytes());
+
+        let response = router
+            .oneshot(signed_mailbox_request(
+                "GET",
+                &recipient_key,
+                &mailbox,
+                "1711111111",
+                None,
+            )?)
+            .await?;
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await?;
+        let json: Value = serde_json::from_slice(&body)?;
+        assert_eq!(json["code"], "mailbox_empty");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn ack_missing_lease_returns_structured_error_code() -> anyhow::Result<()> {
+        let (router, _handle) = test_router().await?;
+        let recipient_key = test_signing_key([15; 32]);
+        let sender_key = test_signing_key([16; 32]);
+        let mailbox = hex::encode(recipient_key.verifying_key().to_bytes());
+        let ack_body = serde_json::to_vec(&serde_json::json!({
+            "sender_ed25519": hex::encode(sender_key.verifying_key().to_bytes()),
+            "lease_id": "missing-lease",
+        }))?;
+
+        let response = router
+            .oneshot(signed_mailbox_request(
+                "POST",
+                &recipient_key,
+                &mailbox,
+                "1711111112",
+                Some((
+                    ACK_ROUTE.replace("{mailbox_public_key}", &mailbox),
+                    ack_body,
+                )),
+            )?)
+            .await?;
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await?;
+        let json: Value = serde_json::from_slice(&body)?;
+        assert_eq!(json["code"], "lease_not_found");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn api_key_rejection_returns_structured_error_code() -> anyhow::Result<()> {
+        let (router, _handle) = test_router_with_api_key("relay-secret").await?;
+
+        let response = router
+            .oneshot(
+                Request::get("/healthz")
+                    .header(API_KEY_HEADER, "wrong-secret")
+                    .body(Body::empty())?,
+            )
+            .await?;
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await?;
+        let json: Value = serde_json::from_slice(&body)?;
+        assert_eq!(json["code"], "invalid_api_key");
+
+        Ok(())
+    }
+
     async fn test_router() -> anyhow::Result<(axum::Router, EmbeddedRedisHandle)> {
         let handle = EmbeddedRedisHandle::spawn("127.0.0.1:0".parse()?).await?;
         let redis_runtime = RedisRuntime::new(format!("redis://{}/", handle.listen_addr()))?;
@@ -496,6 +707,21 @@ mod tests {
             server_name: "test-relay".to_owned(),
             redis_runtime,
             embedded_redis: None,
+            auth: RelayAuth::Disabled,
+        });
+        Ok((build_router(state), handle))
+    }
+
+    async fn test_router_with_api_key(
+        api_key: &str,
+    ) -> anyhow::Result<(axum::Router, EmbeddedRedisHandle)> {
+        let handle = EmbeddedRedisHandle::spawn("127.0.0.1:0".parse()?).await?;
+        let redis_runtime = RedisRuntime::new(format!("redis://{}/", handle.listen_addr()))?;
+        let state = AppState::from_parts(AppStateParts {
+            server_name: "test-relay".to_owned(),
+            redis_runtime,
+            embedded_redis: None,
+            auth: RelayAuth::ApiKey(api_key.to_owned()),
         });
         Ok((build_router(state), handle))
     }
@@ -559,6 +785,38 @@ mod tests {
         let mut encoded = Vec::from(*b"SKE!");
         encoded.extend_from_slice(&postcard::to_allocvec(&wire).unwrap());
         encoded
+    }
+
+    #[tokio::test]
+    async fn all_routes_require_api_key_when_enabled() -> anyhow::Result<()> {
+        let (router, _handle) = test_router_with_api_key("relay-secret").await?;
+
+        let response = router
+            .clone()
+            .oneshot(Request::get("/healthz").body(Body::empty())?)
+            .await?;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+        let response = router
+            .clone()
+            .oneshot(
+                Request::get("/healthz")
+                    .header(API_KEY_HEADER, "wrong-secret")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+        let response = router
+            .oneshot(
+                Request::get("/healthz")
+                    .header(API_KEY_HEADER, "relay-secret")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+
+        Ok(())
     }
 
     #[derive(serde::Serialize)]

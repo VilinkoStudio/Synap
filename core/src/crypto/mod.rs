@@ -20,8 +20,10 @@ pub use sealed_envelope::{
     SealedEnvelopeError, VerifiedSealedEnvelopeHeader, SEALED_ENVELOPE_MAGIC,
 };
 pub use signing::{
-    ensure_local_signing_identity, local_signing_key_id, local_signing_public_key,
-    local_signing_secret_id, sign_with_local_identity, verify_signed_bytes,
+    ed25519_public_key_to_x25519, ed25519_signing_key_to_x25519, ensure_local_signing_identity,
+    local_signing_exchange_private_key, local_signing_exchange_public_key, local_signing_key_id,
+    local_signing_public_key, local_signing_secret_id, sign_with_local_identity,
+    verify_signed_bytes,
 };
 pub use trust::{
     delete_trusted_public_key, get_known_public_key, get_known_public_key_by_bytes,

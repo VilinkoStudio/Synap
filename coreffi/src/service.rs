@@ -8,9 +8,9 @@ use std::{
 use crate::error::FfiError;
 use crate::types::{
     BuildInfo, FilteredNoteStatus, LocalIdentityDTO, NoteDTO, NoteNeighborsDTO, NoteSegmentDTO,
-    NoteSegmentDirectionDTO, NoteVersionDTO, PeerDTO, SearchResultDTO, ShareStatsDTO,
-    StarmapPointDTO, SyncSessionDTO, SyncSessionRecordDTO, TimelineDirection, TimelineNotesPageDTO,
-    TimelineSessionsPageDTO,
+    NoteSegmentDirectionDTO, NoteVersionDTO, PeerDTO, RelayFetchStatsDTO, RelayPushStatsDTO,
+    SearchResultDTO, ShareStatsDTO, StarmapPointDTO, SyncSessionDTO, SyncSessionRecordDTO,
+    TimelineDirection, TimelineNotesPageDTO, TimelineSessionsPageDTO,
 };
 use synap_core::dto::{
     NoteDTO as CoreNoteDTO, NoteNeighborsDTO as CoreNoteNeighborsDTO,
@@ -122,6 +122,14 @@ impl SynapService {
         records: Vec<synap_core::dto::SyncSessionRecordDTO>,
     ) -> Vec<SyncSessionRecordDTO> {
         records.into_iter().map(Into::into).collect()
+    }
+
+    fn map_relay_fetch_stats(stats: synap_core::dto::RelayFetchStatsDTO) -> RelayFetchStatsDTO {
+        stats.into()
+    }
+
+    fn map_relay_push_stats(stats: synap_core::dto::RelayPushStatsDTO) -> RelayPushStatsDTO {
+        stats.into()
     }
 
     fn map_local_identity(identity: synap_core::dto::LocalIdentityDTO) -> LocalIdentityDTO {
@@ -470,6 +478,28 @@ impl SynapService {
         self.inner
             .get_recent_sync_sessions(limit.map(|value| value as usize))
             .map(Self::map_sync_session_records)
+            .map_err(Into::into)
+    }
+
+    pub fn relay_fetch_updates(
+        &self,
+        base_url: String,
+        api_key: Option<String>,
+    ) -> Result<RelayFetchStatsDTO, FfiError> {
+        self.inner
+            .relay_fetch_updates(&base_url, api_key.as_deref())
+            .map(Self::map_relay_fetch_stats)
+            .map_err(Into::into)
+    }
+
+    pub fn relay_push_updates(
+        &self,
+        base_url: String,
+        api_key: Option<String>,
+    ) -> Result<RelayPushStatsDTO, FfiError> {
+        self.inner
+            .relay_push_updates(&base_url, api_key.as_deref())
+            .map(Self::map_relay_push_stats)
             .map_err(Into::into)
     }
 

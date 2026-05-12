@@ -32,9 +32,10 @@ pub use dto::{
     LocalIdentityDTO, NoteContentDiffStatsDTO, NoteDTO, NoteNeighborContextDTO, NoteNeighborsDTO,
     NoteSegmentBranchChoiceDTO, NoteSegmentDTO, NoteSegmentDirectionDTO, NoteSegmentStepDTO,
     NoteTagDiffDTO, NoteTextChangeDTO, NoteTextChangeKindDTO, NoteVersionDTO, NoteVersionDiffDTO,
-    PeerDTO, PeerTrustStatusDTO, PublicKeyInfoDTO, SearchResultDTO, SearchSourceDTO, ShareStatsDTO,
-    StarmapPointDTO, SyncSessionDTO, SyncStatsDTO, SyncStatusDTO, TimelineNotesPageDTO,
-    TimelineSessionDTO, TimelineSessionsPageDTO,
+    PeerDTO, PeerSyncStatsDTO, PeerTrustStatusDTO, PublicKeyInfoDTO, RelayFetchStatsDTO,
+    RelayPushStatsDTO, SearchResultDTO, SearchSourceDTO, ShareStatsDTO, StarmapPointDTO,
+    SyncSessionDTO, SyncSessionRecordDTO, SyncSessionRoleDTO, SyncStatsDTO, SyncStatusDTO,
+    SyncTransportKindDTO, TimelineNotesPageDTO, TimelineSessionDTO, TimelineSessionsPageDTO,
 };
 #[cfg(not(target_arch = "wasm32"))]
 pub use error::{NoteError, ServiceError};

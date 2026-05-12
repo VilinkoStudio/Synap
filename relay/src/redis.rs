@@ -300,8 +300,10 @@ fn status_from_state(state: &RelayState, now_ms: u64) -> RelayStatusSnapshot {
             }
 
             let age = now_ms.saturating_sub(slot.updated_at_ms);
-            oldest_slot_age_ms = Some(oldest_slot_age_ms.map_or(age, |current: u64| current.max(age)));
-            newest_slot_age_ms = Some(newest_slot_age_ms.map_or(age, |current: u64| current.min(age)));
+            oldest_slot_age_ms =
+                Some(oldest_slot_age_ms.map_or(age, |current: u64| current.max(age)));
+            newest_slot_age_ms =
+                Some(newest_slot_age_ms.map_or(age, |current: u64| current.min(age)));
         }
     }
 
@@ -325,7 +327,8 @@ fn status_from_state(state: &RelayState, now_ms: u64) -> RelayStatusSnapshot {
 fn purge_expired_slots(state: &mut RelayState, now_ms: u64) {
     for slots in state.mailboxes.values_mut() {
         let before = slots.len();
-        slots.retain(|_, slot| now_ms.saturating_sub(slot.updated_at_ms) < DEFAULT_RETENTION_TTL_MS);
+        slots
+            .retain(|_, slot| now_ms.saturating_sub(slot.updated_at_ms) < DEFAULT_RETENTION_TTL_MS);
         state.counters.total_expired_count += (before - slots.len()) as u64;
     }
     cleanup_empty_mailboxes(state);
@@ -335,7 +338,11 @@ fn cleanup_empty_mailboxes(state: &mut RelayState) {
     state.mailboxes.retain(|_, slots| !slots.is_empty());
 }
 
-fn new_lease_id(now_ms: u64, recipient_public_key_hex: &str, sender_public_key_hex: &str) -> String {
+fn new_lease_id(
+    now_ms: u64,
+    recipient_public_key_hex: &str,
+    sender_public_key_hex: &str,
+) -> String {
     let recipient_prefix_len = recipient_public_key_hex.len().min(8);
     let sender_prefix_len = sender_public_key_hex.len().min(8);
     format!(
@@ -359,9 +366,8 @@ async fn load_state(client: &mut client::Client) -> anyhow::Result<RelayState> {
         .map_err(|error| anyhow!("redis GET failed for key {RELAY_STATE_KEY}: {error}"))?;
 
     match value {
-        Some(payload) => {
-            serde_json::from_slice::<RelayState>(&payload[..]).context("failed to decode relay state")
-        }
+        Some(payload) => serde_json::from_slice::<RelayState>(&payload[..])
+            .context("failed to decode relay state"),
         None => Ok(RelayState::default()),
     }
 }
@@ -375,7 +381,9 @@ async fn store_state(client: &mut client::Client, state: &RelayState) -> anyhow:
     Ok(())
 }
 
-fn connect_blocking_client(url: &str) -> anyhow::Result<redis_rs::connection::Connection<TcpStream>> {
+fn connect_blocking_client(
+    url: &str,
+) -> anyhow::Result<redis_rs::connection::Connection<TcpStream>> {
     let (host, port) = parse_redis_host_port(url)?;
     redis_rs::connection::Connection::<TcpStream>::new_tcp(&host, port)
         .map_err(|error| anyhow!("failed to create redis client: {error:?}"))
@@ -442,7 +450,9 @@ fn parse_redis_host_port(url: &str) -> anyhow::Result<(String, u16)> {
 mod tests {
     use anyhow::Context;
 
-    use super::{LeasedEnvelope, RedisRuntime, RelayStatusSnapshot, StoredEnvelope, parse_redis_host_port};
+    use super::{
+        LeasedEnvelope, RedisRuntime, RelayStatusSnapshot, StoredEnvelope, parse_redis_host_port,
+    };
     use crate::embedded_redis::EmbeddedRedisHandle;
 
     #[tokio::test]
@@ -519,12 +529,12 @@ mod tests {
             .await?
             .context("expected leased envelope")?;
 
-        assert!(!runtime
-            .ack_slot(recipient, sender, "wrong-lease")
-            .await?);
-        assert!(runtime
-            .ack_slot(recipient, sender, &leased.lease_id)
-            .await?);
+        assert!(!runtime.ack_slot(recipient, sender, "wrong-lease").await?);
+        assert!(
+            runtime
+                .ack_slot(recipient, sender, &leased.lease_id)
+                .await?
+        );
         assert!(runtime.lease_next_slot(recipient).await?.is_none());
 
         drop(handle);
@@ -563,9 +573,11 @@ mod tests {
         assert_eq!(before_ack.total_buffered_slots, 2);
         assert_eq!(before_ack.leased_slots, 1);
 
-        assert!(runtime
-            .ack_slot("r1", &leased.sender_public_key_hex, &leased.lease_id)
-            .await?);
+        assert!(
+            runtime
+                .ack_slot("r1", &leased.sender_public_key_hex, &leased.lease_id)
+                .await?
+        );
         let after_ack = runtime.status_snapshot().await?;
         assert_eq!(after_ack.total_buffered_slots, 1);
         assert_eq!(after_ack.total_delivered_count, 1);

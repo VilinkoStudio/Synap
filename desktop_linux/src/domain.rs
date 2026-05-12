@@ -400,6 +400,8 @@ pub fn sync_role_label(role: &SyncSessionRoleDTO) -> &'static str {
     match role {
         SyncSessionRoleDTO::Initiator => "发起方",
         SyncSessionRoleDTO::Listener => "监听方",
+        SyncSessionRoleDTO::RelayFetch => "Relay 拉取",
+        SyncSessionRoleDTO::RelayPush => "Relay 推送",
     }
 }
 

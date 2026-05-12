@@ -1,6 +1,7 @@
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand_core::OsRng;
 use uuid::Uuid;
+use x25519_dalek::StaticSecret;
 
 use crate::models::crypto::{
     CryptoReader, CryptoWriter, KeyMetadataRecord, KeyPurpose, KeyStatus, KeyVisibility,
@@ -84,6 +85,24 @@ pub fn local_signing_public_key(
     Ok(Some(bytes))
 }
 
+pub fn local_signing_exchange_public_key(
+    reader: &CryptoReader<'_>,
+) -> Result<Option<[u8; 32]>, redb::Error> {
+    let Some(public_key) = local_signing_public_key(reader)? else {
+        return Ok(None);
+    };
+    ed25519_public_key_to_x25519(public_key).map(Some)
+}
+
+pub fn local_signing_exchange_private_key(
+    reader: &CryptoReader<'_>,
+) -> Result<Option<StaticSecret>, redb::Error> {
+    let Some(signing_key) = local_signing_private_key(reader)? else {
+        return Ok(None);
+    };
+    Ok(Some(ed25519_signing_key_to_x25519(&signing_key)))
+}
+
 /// 使用本地 Ed25519 私钥对任意字节序列签名。
 pub fn sign_with_local_identity(
     reader: &CryptoReader<'_>,
@@ -105,6 +124,16 @@ pub fn verify_signed_bytes(public_key: [u8; 32], message: &[u8], signature: [u8;
     };
     let signature = Signature::from_bytes(&signature);
     verifying_key.verify(message, &signature).is_ok()
+}
+
+pub fn ed25519_public_key_to_x25519(public_key: [u8; 32]) -> Result<[u8; 32], redb::Error> {
+    let verifying_key = VerifyingKey::from_bytes(&public_key)
+        .map_err(|_| invalid_signing_record("invalid ed25519 public key"))?;
+    Ok(verifying_key.to_montgomery().to_bytes())
+}
+
+pub fn ed25519_signing_key_to_x25519(signing_key: &SigningKey) -> StaticSecret {
+    StaticSecret::from(signing_key.to_scalar_bytes())
 }
 
 fn local_signing_private_key(reader: &CryptoReader<'_>) -> Result<Option<SigningKey>, redb::Error> {

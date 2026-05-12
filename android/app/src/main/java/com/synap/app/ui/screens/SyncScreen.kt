@@ -3,12 +3,14 @@ package com.synap.app.ui.screens
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,9 +27,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Wifi
@@ -40,8 +43,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -49,9 +50,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -63,7 +62,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -91,6 +89,11 @@ fun SyncScreen(
     onDeleteConnection: (String) -> Unit,
     onPairConnection: (String) -> Unit,
     onPairDiscoveredPeer: (String, Int) -> Unit,
+    onRelayBaseUrlChange: (String) -> Unit,
+    onRelayApiKeyChange: (String) -> Unit,
+    onSaveRelayConfig: () -> Unit,
+    onRelayFetch: () -> Unit,
+    onRelayPush: () -> Unit,
     onTrustPeer: (ByteArray, String?) -> Unit,
     onUpdatePeerNote: (String, String?) -> Unit,
     onDeletePeer: (String) -> Unit,
@@ -99,22 +102,13 @@ fun SyncScreen(
     onNavigateBack: () -> Unit,
 ) {
     var backProgress by remember { mutableFloatStateOf(0f) }
-    var activePeer by remember { mutableStateOf<PeerRecord?>(null) }
     var selectedSyncSession by remember { mutableStateOf<SyncSessionRecord?>(null) }
-    var peerNoteDraft by remember { mutableStateOf("") }
     var showAddConnectionDialog by remember { mutableStateOf(false) }
     var connectionHost by remember { mutableStateOf("") }
     var connectionPort by remember { mutableStateOf("") }
 
     // ========== 新增：控制监听状态弹窗的开关 ==========
     var showListeningInfoDialog by remember { mutableStateOf(false) }
-
-    LaunchedEffect(uiState.pendingTrustPeer?.id) {
-        uiState.pendingTrustPeer?.let { peer ->
-            activePeer = peer
-            peerNoteDraft = peer.note.orEmpty()
-        }
-    }
 
     PredictiveBackHandler { progressFlow ->
         try {
@@ -205,13 +199,27 @@ fun SyncScreen(
                 onPairDiscoveredPeer = onPairDiscoveredPeer,
             )
 
+            RelaySection(
+                baseUrl = uiState.relayBaseUrl,
+                apiKey = uiState.relayApiKey,
+                statusMessage = uiState.relayStatusMessage,
+                isSyncing = uiState.isRelaySyncing,
+                onBaseUrlChange = onRelayBaseUrlChange,
+                onApiKeyChange = onRelayApiKeyChange,
+                onSave = onSaveRelayConfig,
+                onFetch = onRelayFetch,
+                onPush = onRelayPush,
+            )
+
             PeerSection(
                 peers = uiState.peers,
                 isManagingPeer = uiState.isManagingPeer,
-                onManagePeer = { peer ->
-                    activePeer = peer
-                    peerNoteDraft = peer.note.orEmpty()
-                },
+                pendingTrustPeerId = uiState.pendingTrustPeer?.id,
+                onTrustPeer = onTrustPeer,
+                onUpdatePeerNote = onUpdatePeerNote,
+                onDeletePeer = onDeletePeer,
+                onSetPeerStatus = onSetPeerStatus,
+                onDismissPendingTrustPrompt = onDismissPendingTrustPrompt,
             )
 
             SyncStatsSection(
@@ -300,186 +308,6 @@ fun SyncScreen(
         )
     }
 
-    activePeer?.let { peer ->
-        val peerAvatarBitmap = remember(peer.avatarPng) {
-            BitmapFactory.decodeByteArray(peer.avatarPng, 0, peer.avatarPng.size)
-        }
-        AlertDialog(
-            onDismissRequest = {
-                if (uiState.pendingTrustPeer?.id == peer.id) {
-                    onDismissPendingTrustPrompt()
-                }
-                activePeer = null
-                peerNoteDraft = ""
-            },
-            icon = {
-                PublicKeyAvatar(
-                    bitmap = peerAvatarBitmap,
-                    contentDescription = "设备头像",
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(12.dp)),
-                )
-            },
-            title = {
-                Text(if (peer.status == PeerTrustStatus.Pending) "处理设备信任" else "管理设备")
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text(
-                        if (peer.status == PeerTrustStatus.Pending) {
-                            "这是刚刚连接到的设备。你可以直接确认信任、拒绝，或者先修改备注。"
-                        } else {
-                            "你可以修改备注，或调整这个设备的信任状态。"
-                        },
-                    )
-                    Text("当前状态：${peer.status.displayLabel()}")
-
-                    // ========== 核心修改 2：包装的设备信息 ==========
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Text("设备信息", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                PublicKeyAvatar(
-                                    bitmap = peerAvatarBitmap,
-                                    contentDescription = "设备头像",
-                                    modifier = Modifier
-                                        .size(56.dp)
-                                        .clip(RoundedCornerShape(16.dp)),
-                                )
-                                Column(
-                                    modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    Text(
-                                        text = peer.note ?: "未命名设备",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                    )
-                                    Text(
-                                        text = peer.algorithm,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                SyncInfoLine("设备摘要", fingerprintHex(peer.fingerprint))
-                            }
-                        }
-                    }
-
-                    // ========== 核心修改 3：备注输入框与保存按钮排成一行 ==========
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = peerNoteDraft,
-                            onValueChange = { peerNoteDraft = it },
-                            label = { Text("备注") },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true
-                        )
-                        FilledTonalButton(
-                            onClick = { onUpdatePeerNote(peer.id, peerNoteDraft) },
-                            enabled = !uiState.isManagingPeer,
-                        ) {
-                            Text("保存")
-                        }
-                    }
-
-                    if (peer.status == PeerTrustStatus.Pending) {
-                        Button(
-                            onClick = {
-                                onTrustPeer(peer.publicKey, peerNoteDraft)
-                                onDismissPendingTrustPrompt()
-                                activePeer = null
-                                peerNoteDraft = ""
-                            },
-                            enabled = !uiState.isManagingPeer,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text("设为可信")
-                        }
-                        FilledTonalButton(
-                            onClick = {
-                                onSetPeerStatus(peer.id, PeerTrustStatus.Revoked)
-                                onDismissPendingTrustPrompt()
-                                activePeer = null
-                                peerNoteDraft = ""
-                            },
-                            enabled = !uiState.isManagingPeer,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text("拒绝这个设备")
-                        }
-                    } else {
-                        val targetStatus = if (peer.status == PeerTrustStatus.Trusted) {
-                            PeerTrustStatus.Revoked
-                        } else {
-                            PeerTrustStatus.Trusted
-                        }
-                        val actionLabel = if (peer.status == PeerTrustStatus.Trusted) {
-                            "撤销信任"
-                        } else {
-                            "设为可信"
-                        }
-                        FilledTonalButton(
-                            onClick = { onSetPeerStatus(peer.id, targetStatus) },
-                            enabled = !uiState.isManagingPeer,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(actionLabel)
-                        }
-                    }
-
-                    // ========== 核心修改 4：居中且带有警示色的删除按钮 ==========
-                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        TextButton(
-                            onClick = {
-                                onDeletePeer(peer.id)
-                                if (uiState.pendingTrustPeer?.id == peer.id) {
-                                    onDismissPendingTrustPrompt()
-                                }
-                                activePeer = null
-                                peerNoteDraft = ""
-                            },
-                            enabled = !uiState.isManagingPeer,
-                        ) {
-                            Text("删除这个设备", color = MaterialTheme.colorScheme.error)
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (uiState.pendingTrustPeer?.id == peer.id) {
-                            onDismissPendingTrustPrompt()
-                        }
-                        activePeer = null
-                        peerNoteDraft = ""
-                    },
-                ) {
-                    Text("关闭")
-                }
-            },
-        )
-    }
-
     selectedSyncSession?.let { session ->
         AlertDialog(
             onDismissRequest = { selectedSyncSession = null },
@@ -499,8 +327,8 @@ fun SyncScreen(
                     SyncInfoLine("发送字节", session.bytesSent.toString())
                     SyncInfoLine("接收字节", session.bytesReceived.toString())
                     SyncInfoLine("耗时", "${session.durationMs} ms")
-                    session.peerFingerprint?.takeIf { it.isNotEmpty() }?.let { fingerprint ->
-                        SyncDetailBlock("对端指纹", fingerprintHex(fingerprint))
+                    session.peerFingerprint.takeIf { it.isNotEmpty() }?.let { _ ->
+                        SyncDetailBlock("对端指纹", session.displayPeerFingerprintBase64)
                     }
                     session.errorMessage?.takeIf(String::isNotBlank)?.let { errorMessage ->
                         SyncDetailBlock("错误信息", errorMessage)
@@ -518,51 +346,61 @@ fun SyncScreen(
 
 @Composable
 private fun IdentitySection(identity: LocalIdentity?) {
-    SectionTitle(title = "此设备秘钥信息", subtitle = "根据当前设备的数据生成唯一身份和签名密钥")
+    SectionTitle(title = "本机签名密钥", subtitle = "Ed25519 签名密钥，用于设备身份认证")
 
     if (identity == null) {
         EmptySectionCard("正在读取此设备信息")
         return
     }
 
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-        ),
+    val signingAvatar = remember(identity.signing.avatarPng) {
+        BitmapFactory.decodeByteArray(identity.signing.avatarPng, 0, identity.signing.avatarPng.size)
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp)),
+        color = MaterialTheme.colorScheme.surfaceVariant,
     ) {
-        BoxWithConstraints {
-            val useWideLayout = maxWidth >= 760.dp
-
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.Key,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "本机密钥材料",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            text = "身份密钥与签名密钥统一展示在同一张卡片中",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-
-                IdentityKeysPanel(
-                    identity = identity,
-                    modifier = if (useWideLayout) Modifier.fillMaxWidth() else Modifier,
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PublicKeyAvatar(
+                bitmap = signingAvatar,
+                contentDescription = "签名密钥头像",
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(14.dp)),
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "签名密钥",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = identity.signing.displayPublicKeyBase64,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            Text(
+                text = "Ed25519",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .background(
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        shape = RoundedCornerShape(8.dp),
+                    )
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            )
         }
     }
 }
@@ -659,6 +497,82 @@ private fun ConnectionSection(
 }
 
 @Composable
+private fun RelaySection(
+    baseUrl: String,
+    apiKey: String,
+    statusMessage: String?,
+    isSyncing: Boolean,
+    onBaseUrlChange: (String) -> Unit,
+    onApiKeyChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onFetch: () -> Unit,
+    onPush: () -> Unit,
+) {
+    SectionTitle(title = "Relay Server", subtitle = "跨网络同步使用的零信任中继，只保存地址和 API Key")
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp)),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            OutlinedTextField(
+                value = baseUrl,
+                onValueChange = onBaseUrlChange,
+                label = { Text("Relay 地址") },
+                placeholder = { Text("http://relay.example.com:8080") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            OutlinedTextField(
+                value = apiKey,
+                onValueChange = onApiKeyChange,
+                label = { Text("API Key") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            statusMessage?.takeIf(String::isNotBlank)?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FilledTonalButton(
+                    onClick = onSave,
+                    enabled = !isSyncing,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("保存")
+                }
+                FilledTonalButton(
+                    onClick = onFetch,
+                    enabled = !isSyncing && baseUrl.isNotBlank(),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("拉取")
+                }
+                Button(
+                    onClick = onPush,
+                    enabled = !isSyncing && baseUrl.isNotBlank(),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("推送")
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun DiscoveredConnectionRow(
     peer: DiscoveredSyncPeer,
     isPairing: Boolean,
@@ -708,7 +622,12 @@ private fun DiscoveredConnectionRow(
 private fun PeerSection(
     peers: List<PeerRecord>,
     isManagingPeer: Boolean,
-    onManagePeer: (PeerRecord) -> Unit,
+    pendingTrustPeerId: String?,
+    onTrustPeer: (ByteArray, String?) -> Unit,
+    onUpdatePeerNote: (String, String?) -> Unit,
+    onDeletePeer: (String) -> Unit,
+    onSetPeerStatus: (String, PeerTrustStatus) -> Unit,
+    onDismissPendingTrustPrompt: () -> Unit,
 ) {
     SectionTitle(title = "设备列表", subtitle = "包含已信任、待确认和已撤销的对端公钥")
 
@@ -734,11 +653,195 @@ private fun PeerSection(
                 PeerRow(
                     peer = peer,
                     isManagingPeer = isManagingPeer,
-                    onManagePeer = onManagePeer,
+                    isPendingTrust = peer.id == pendingTrustPeerId,
+                    onTrustPeer = { onTrustPeer(peer.publicKey, it) },
+                    onUpdatePeerNote = { note -> onUpdatePeerNote(peer.id, note) },
+                    onDeletePeer = { onDeletePeer(peer.id) },
+                    onSetPeerStatus = { status -> onSetPeerStatus(peer.id, status) },
+                    onDismissPendingTrustPrompt = onDismissPendingTrustPrompt,
                 )
             }
         }
     }
+}
+
+@Composable
+private fun PeerRow(
+    peer: PeerRecord,
+    isManagingPeer: Boolean,
+    isPendingTrust: Boolean,
+    onTrustPeer: (String?) -> Unit,
+    onUpdatePeerNote: (String?) -> Unit,
+    onDeletePeer: () -> Unit,
+    onSetPeerStatus: (PeerTrustStatus) -> Unit,
+    onDismissPendingTrustPrompt: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(peer.status == PeerTrustStatus.Pending) }
+    var noteDraft by remember { mutableStateOf(peer.note.orEmpty()) }
+
+    val avatarBitmap = remember(peer.avatarPng) {
+        BitmapFactory.decodeByteArray(peer.avatarPng, 0, peer.avatarPng.size)
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PublicKeyAvatar(
+                bitmap = avatarBitmap,
+                contentDescription = "设备头像",
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(14.dp)),
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = peer.note ?: "未命名设备",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = peer.displayPublicKeyBase64,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            StatusChip(status = peer.status)
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(
+                imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                contentDescription = if (expanded) "收起" else "展开",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(),
+            exit = shrinkVertically(),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedTextField(
+                        value = noteDraft,
+                        onValueChange = { noteDraft = it },
+                        label = { Text("备注") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                    )
+                    FilledTonalButton(
+                        onClick = { onUpdatePeerNote(noteDraft.ifBlank { null }) },
+                        enabled = !isManagingPeer,
+                    ) {
+                        Text("保存")
+                    }
+                }
+
+                if (peer.status == PeerTrustStatus.Pending) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Button(
+                            onClick = {
+                                onTrustPeer(noteDraft.ifBlank { null })
+                                onDismissPendingTrustPrompt()
+                            },
+                            enabled = !isManagingPeer,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text("信任")
+                        }
+                        FilledTonalButton(
+                            onClick = {
+                                onSetPeerStatus(PeerTrustStatus.Revoked)
+                                onDismissPendingTrustPrompt()
+                            },
+                            enabled = !isManagingPeer,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text("拒绝")
+                        }
+                    }
+                } else {
+                    val targetStatus = if (peer.status == PeerTrustStatus.Trusted) {
+                        PeerTrustStatus.Revoked
+                    } else {
+                        PeerTrustStatus.Trusted
+                    }
+                    val actionLabel = if (peer.status == PeerTrustStatus.Trusted) "撤销信任" else "设为可信"
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        FilledTonalButton(
+                            onClick = { onSetPeerStatus(targetStatus) },
+                            enabled = !isManagingPeer,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(actionLabel)
+                        }
+                        TextButton(
+                            onClick = onDeletePeer,
+                            enabled = !isManagingPeer,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text("删除", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusChip(status: PeerTrustStatus) {
+    val (label, containerColor, contentColor) = when (status) {
+        PeerTrustStatus.Pending -> Triple(
+            "待确认",
+            MaterialTheme.colorScheme.primaryContainer,
+            MaterialTheme.colorScheme.onPrimaryContainer,
+        )
+        PeerTrustStatus.Trusted -> Triple(
+            "已信任",
+            MaterialTheme.colorScheme.tertiaryContainer,
+            MaterialTheme.colorScheme.onTertiaryContainer,
+        )
+        PeerTrustStatus.Retired -> Triple(
+            "已停用",
+            MaterialTheme.colorScheme.secondaryContainer,
+            MaterialTheme.colorScheme.onSecondaryContainer,
+        )
+        PeerTrustStatus.Revoked -> Triple(
+            "已撤销",
+            MaterialTheme.colorScheme.errorContainer,
+            MaterialTheme.colorScheme.onErrorContainer,
+        )
+    }
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelSmall,
+        color = contentColor,
+        modifier = Modifier
+            .background(containerColor, RoundedCornerShape(6.dp))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    )
 }
 
 @Composable
@@ -852,105 +955,6 @@ private fun SectionTitle(title: String, subtitle: String) {
 }
 
 @Composable
-private fun IdentityKeysPanel(
-    identity: LocalIdentity,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-    ) {
-        Column(
-            modifier = Modifier.padding(vertical = 8.dp),
-        ) {
-            IdentityKeyRow(
-                title = "身份密钥",
-                algorithm = identity.identity.algorithm,
-                avatarPng = identity.identity.avatarPng,
-                displayKey = identity.identity.displayPublicKeyBase64,
-                showLocalBadge = true,
-            )
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
-            IdentityKeyRow(
-                title = "签名密钥",
-                algorithm = identity.signing.algorithm,
-                avatarPng = identity.signing.avatarPng,
-                displayKey = identity.signing.displayPublicKeyBase64,
-                showLocalBadge = false,
-            )
-        }
-    }
-}
-
-@Composable
-private fun IdentityKeyRow(
-    title: String,
-    algorithm: String,
-    avatarPng: ByteArray,
-    displayKey: String,
-    showLocalBadge: Boolean,
-) {
-    val avatarBitmap = remember(avatarPng) {
-        BitmapFactory.decodeByteArray(avatarPng, 0, avatarPng.size)
-    }
-
-    ListItem(
-        colors = ListItemDefaults.colors(
-            containerColor = Color.Transparent,
-        ),
-        tonalElevation = 0.dp,
-        leadingContent = {
-            PublicKeyAvatar(
-                bitmap = avatarBitmap,
-                contentDescription = "$title 头像",
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(14.dp)),
-            )
-        },
-        headlineContent = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-            )
-        },
-        supportingContent = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = "算法 $algorithm",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Text(
-                    text = displayKey,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
-        trailingContent = {
-            if (showLocalBadge) {
-                Surface(
-                    shape = RoundedCornerShape(999.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                ) {
-                    Text(
-                        text = "本机",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    )
-                }
-            }
-        },
-    )
-}
-
-@Composable
 private fun PublicKeyAvatar(
     bitmap: Bitmap?,
     contentDescription: String,
@@ -1035,72 +1039,6 @@ private fun ConnectionRow(
 }
 
 @Composable
-private fun PeerRow(
-    peer: PeerRecord,
-    isManagingPeer: Boolean,
-    onManagePeer: (PeerRecord) -> Unit,
-) {
-    val avatarBitmap = remember(peer.avatarPng) {
-        BitmapFactory.decodeByteArray(peer.avatarPng, 0, peer.avatarPng.size)
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 14.dp)
-            .clickable {
-                onManagePeer(peer)
-            },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        PublicKeyAvatar(
-            bitmap = avatarBitmap,
-            contentDescription = "设备头像",
-            modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(14.dp)),
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = peer.note ?: "未命名设备",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = peer.algorithm,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = peer.status.displayLabel(),
-                style = MaterialTheme.typography.labelLarge,
-                color = peer.status.color(),
-            )
-        }
-
-        FilledTonalButton(
-            onClick = { onManagePeer(peer) },
-            enabled = !isManagingPeer,
-        ) {
-            Icon(
-                imageVector = if (peer.status == PeerTrustStatus.Pending) {
-                    Icons.Filled.Check
-                } else {
-                    Icons.Filled.Key
-                },
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(if (peer.status == PeerTrustStatus.Pending) "处理" else "管理")
-        }
-    }
-}
-
-@Composable
 private fun EmptySectionCard(message: String) {
     Card(
         colors = CardDefaults.cardColors(
@@ -1137,27 +1075,12 @@ private fun SyncInfoLine(label: String, value: String) {
 }
 
 @Composable
-private fun PeerTrustStatus.color() = when (this) {
-    PeerTrustStatus.Pending -> MaterialTheme.colorScheme.primary
-    PeerTrustStatus.Trusted -> MaterialTheme.colorScheme.tertiary
-    PeerTrustStatus.Retired -> MaterialTheme.colorScheme.secondary
-    PeerTrustStatus.Revoked -> MaterialTheme.colorScheme.error
-}
-
-@Composable
 private fun SyncConnectionStatus.color() = when (this) {
     SyncConnectionStatus.Idle -> MaterialTheme.colorScheme.secondary
     SyncConnectionStatus.Connecting -> MaterialTheme.colorScheme.primary
     SyncConnectionStatus.AwaitingTrust -> MaterialTheme.colorScheme.tertiary
     SyncConnectionStatus.Connected -> MaterialTheme.colorScheme.tertiary
     SyncConnectionStatus.Failed -> MaterialTheme.colorScheme.error
-}
-
-private fun PeerTrustStatus.displayLabel(): String = when (this) {
-    PeerTrustStatus.Pending -> "待确认"
-    PeerTrustStatus.Trusted -> "已信任"
-    PeerTrustStatus.Retired -> "已停用"
-    PeerTrustStatus.Revoked -> "已撤销"
 }
 
 private fun SyncStatus.displayLabel(): String = when (this) {
@@ -1169,10 +1092,9 @@ private fun SyncStatus.displayLabel(): String = when (this) {
 private fun SyncSessionRole.displayLabel(): String = when (this) {
     SyncSessionRole.Initiator -> "主动发起"
     SyncSessionRole.Listener -> "被动接收"
+    SyncSessionRole.RelayFetch -> "Relay 拉取"
+    SyncSessionRole.RelayPush -> "Relay 推送"
 }
-
-private fun fingerprintHex(bytes: ByteArray): String =
-    bytes.joinToString(":") { byte -> "%02X".format(byte.toInt() and 0xFF) }
 
 private fun formatTimestamp(timestampMs: Long): String =
     DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")

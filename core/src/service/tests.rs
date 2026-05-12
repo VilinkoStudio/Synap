@@ -1,5 +1,7 @@
 use super::*;
+use std::{net::TcpListener, sync::mpsc, thread, time::Duration};
 use tempfile::tempdir;
+use uuid::Uuid;
 
 fn seed_db(path: &Path, tags: &[&str]) {
     let db = Database::create(path).unwrap();
@@ -57,6 +59,33 @@ fn test_open_existing_db_auto_creates_crypto_schema_and_identity() {
         reopened_identity.signing.public_key,
         local_identity.signing.public_key
     );
+}
+
+#[test]
+fn test_relay_peer_inventory_cache_roundtrip() {
+    let service = SynapService::open_memory().unwrap();
+    let peer_public_key = [3u8; 32];
+    let inventory = RelayInventory {
+        version: RelayInventory::VERSION,
+        records: vec![crate::sync::RelayRecordDescriptor {
+            root_note_id: Uuid::from_u128(31),
+            sync_id: crate::sync::SyncRecordId(Uuid::from_u128(32)),
+        }],
+    };
+
+    let stored = service
+        .cache_relay_peer_inventory(&peer_public_key, inventory.clone(), 12345)
+        .unwrap();
+
+    let fetched = service.get_relay_peer(&peer_public_key).unwrap().unwrap();
+    assert_eq!(fetched, stored);
+    assert_eq!(fetched.cached_inventory, inventory);
+
+    let all = service.list_relay_peers().unwrap();
+    assert_eq!(all, vec![stored]);
+
+    service.delete_relay_peer(&peer_public_key).unwrap();
+    assert!(service.get_relay_peer(&peer_public_key).unwrap().is_none());
 }
 
 #[test]
@@ -952,4 +981,212 @@ fn test_export_share_rejects_invalid_note_ids() {
         err,
         ServiceError::InvalidId | ServiceError::UuidErr(_)
     ));
+}
+
+#[test]
+fn test_relay_fetch_updates_returns_stats_dto() {
+    let sender = SynapService::open_memory().unwrap();
+    let recipient = SynapService::open_memory().unwrap();
+    let sender_identity = sender.get_local_identity().unwrap();
+    let sender_ed25519: [u8; 32] = sender_identity
+        .signing
+        .public_key
+        .as_slice()
+        .try_into()
+        .unwrap();
+    recipient
+        .trust_peer(&sender_ed25519, Some("trusted-sender".into()))
+        .unwrap();
+
+    sender
+        .create_note("relay fetched note".to_owned(), vec!["relay".to_owned()])
+        .unwrap();
+    let sender_inventory = sender.build_relay_inventory().unwrap();
+    let share = sender
+        .export_relay_share_for_inventory(&crate::sync::RelayInventory {
+            version: crate::sync::RelayInventory::VERSION,
+            records: Vec::new(),
+        })
+        .unwrap();
+    let envelope_bytes = relay_sync_test_envelope(
+        &sender,
+        recipient.local_relay_mailbox_public_key().unwrap(),
+        crate::sync::RelaySyncEnvelope {
+            inventory: sender_inventory,
+            share,
+        },
+    );
+
+    let server = multi_request_server(vec![
+        FakeResponse::mailbox_ok(hex::encode(sender_ed25519), "lease-1", envelope_bytes),
+        FakeResponse::ack_no_content(),
+        FakeResponse::mailbox_empty(),
+    ]);
+
+    let stats = recipient
+        .relay_fetch_updates(&server.base_url(), None)
+        .unwrap();
+
+    assert_eq!(stats.fetched_messages, 1);
+    assert_eq!(stats.imported_messages, 1);
+    assert_eq!(stats.dropped_untrusted_messages, 0);
+    assert_eq!(stats.acked_messages, 1);
+}
+
+#[test]
+fn test_relay_push_updates_returns_stats_dto() {
+    let service = SynapService::open_memory().unwrap();
+    let peer_without_cache = SynapService::open_memory().unwrap();
+    let peer_with_cache = SynapService::open_memory().unwrap();
+
+    let peer_without_cache_key = peer_without_cache.local_relay_mailbox_public_key().unwrap();
+    let peer_with_cache_key = peer_with_cache.local_relay_mailbox_public_key().unwrap();
+    service
+        .trust_peer(&peer_without_cache_key, Some("peer-without-cache".into()))
+        .unwrap();
+    service
+        .trust_peer(&peer_with_cache_key, Some("peer-with-cache".into()))
+        .unwrap();
+
+    let cached_inventory = peer_with_cache.build_relay_inventory().unwrap();
+    service
+        .cache_relay_peer_inventory(&peer_with_cache_key, cached_inventory, 111)
+        .unwrap();
+
+    service
+        .create_note("push relay note".to_owned(), vec!["relay".to_owned()])
+        .unwrap();
+
+    let server = multi_request_server(vec![FakeResponse::accepted(), FakeResponse::accepted()]);
+    let stats = service
+        .relay_push_updates(&server.base_url(), None)
+        .unwrap();
+
+    assert_eq!(stats.trusted_peers, 2);
+    assert_eq!(stats.posted_messages, 2);
+    assert_eq!(stats.full_sync_messages, 1);
+    assert_eq!(stats.incremental_sync_messages, 1);
+}
+
+struct FakeServer {
+    addr: String,
+    done_rx: mpsc::Receiver<()>,
+}
+
+impl FakeServer {
+    fn base_url(&self) -> String {
+        format!("http://{}", self.addr)
+    }
+}
+
+impl Drop for FakeServer {
+    fn drop(&mut self) {
+        let _ = self.done_rx.recv_timeout(Duration::from_secs(1));
+    }
+}
+
+fn multi_request_server(responses: Vec<FakeResponse>) -> FakeServer {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap().to_string();
+    let (done_tx, done_rx) = mpsc::channel();
+
+    thread::spawn(move || {
+        for response in responses {
+            let (stream, _) = listener.accept().unwrap();
+            read_http_request(&stream);
+            write_http_response(stream, &response.bytes);
+        }
+        let _ = done_tx.send(());
+    });
+
+    FakeServer { addr, done_rx }
+}
+
+struct FakeResponse {
+    bytes: Vec<u8>,
+}
+
+impl FakeResponse {
+    fn accepted() -> Self {
+        Self {
+            bytes: b"HTTP/1.1 202 Accepted\r\ncontent-length: 0\r\n\r\n".to_vec(),
+        }
+    }
+
+    fn ack_no_content() -> Self {
+        Self {
+            bytes: b"HTTP/1.1 204 No Content\r\ncontent-length: 0\r\n\r\n".to_vec(),
+        }
+    }
+
+    fn mailbox_empty() -> Self {
+        let body = r#"{"code":"mailbox_empty","error":"mailbox is empty"}"#;
+        Self {
+            bytes: format!(
+                "HTTP/1.1 404 Not Found\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\r\n{body}",
+                body.len()
+            )
+            .into_bytes(),
+        }
+    }
+
+    fn mailbox_ok(sender_ed25519_hex: String, lease_id: &str, body: Vec<u8>) -> Self {
+        let mut response = format!(
+            "HTTP/1.1 200 OK\r\ncontent-type: application/octet-stream\r\nx-synap-sender-ed25519: {}\r\nx-synap-lease-id: {}\r\nx-synap-leased-until: 1711111111\r\ncontent-length: {}\r\n\r\n",
+            sender_ed25519_hex,
+            lease_id,
+            body.len()
+        )
+        .into_bytes();
+        response.extend_from_slice(&body);
+        Self { bytes: response }
+    }
+}
+
+fn write_http_response(mut stream: std::net::TcpStream, bytes: &[u8]) {
+    use std::io::Write;
+    let _ = stream.write_all(bytes);
+    let _ = stream.flush();
+}
+
+fn read_http_request(mut stream: &std::net::TcpStream) -> String {
+    read_http_request_with_body(&mut stream).0
+}
+
+fn read_http_request_with_body(mut stream: &std::net::TcpStream) -> (String, Vec<u8>) {
+    use std::io::Read;
+
+    let mut header_bytes = Vec::new();
+    let mut buf = [0u8; 1];
+    while stream.read(&mut buf).ok() == Some(1) {
+        header_bytes.push(buf[0]);
+        if header_bytes.ends_with(b"\r\n\r\n") {
+            break;
+        }
+    }
+
+    let headers = String::from_utf8_lossy(&header_bytes);
+    let content_length = headers
+        .lines()
+        .find_map(|line| {
+            line.strip_prefix("content-length: ")
+                .or_else(|| line.strip_prefix("Content-Length: "))
+        })
+        .and_then(|value| value.trim().parse::<usize>().ok())
+        .unwrap_or(0);
+
+    let mut body = vec![0u8; content_length];
+    let _ = stream.read_exact(&mut body);
+    (headers.into_owned(), body)
+}
+
+fn relay_sync_test_envelope(
+    sender: &SynapService,
+    recipient_mailbox_public_key: [u8; 32],
+    payload: crate::sync::RelaySyncEnvelope,
+) -> Vec<u8> {
+    let bytes = postcard::to_allocvec(&payload).unwrap();
+    sender
+        .seal_relay_payload_for(recipient_mailbox_public_key, &bytes)
+        .unwrap()
 }

@@ -7,12 +7,14 @@ use crate::db::{
     types::BlockId,
 };
 
-const SYNC_STATS_STORE: KvStore<BlockId, SyncStatsRecord> = KvStore::new("SyncSessionStats");
+const SYNC_STATS_STORE: KvStore<BlockId, SyncStatsRecord> = KvStore::new("SyncSessionStatsV2");
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SyncSessionRole {
     Initiator,
     Listener,
+    RelayFetch,
+    RelayPush,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -23,14 +25,19 @@ pub enum SyncSessionStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum SyncTransportKind {
+    Direct,
+    RelayFetch { relay_url: String },
+    RelayPush { relay_url: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SyncStatsRecord {
     pub id: Uuid,
     pub role: SyncSessionRole,
     pub status: SyncSessionStatus,
-    pub peer_key_id: Option<Uuid>,
-    pub peer_public_key: Option<Vec<u8>>,
-    pub peer_fingerprint: Option<Vec<u8>>,
-    pub peer_label: Option<String>,
+    pub peer_public_key: [u8; 32],
+    pub transport: SyncTransportKind,
     pub started_at_ms: u64,
     pub finished_at_ms: u64,
     pub records_sent: u64,
@@ -69,6 +76,67 @@ impl<'a> SyncStatsReader<'a> {
         let iter = self.records.iter()?;
         Ok(iter.map(|item| item.map(|(_, record)| record)))
     }
+
+    pub fn recent(&self, limit: usize) -> Result<Vec<SyncStatsRecord>, redb::Error> {
+        let mut records = self
+            .all()
+            .map_err(redb::Error::from)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(redb::Error::from)?;
+        sort_recent_records(&mut records);
+        records.truncate(limit);
+        Ok(records)
+    }
+
+    pub fn recent_for_peer(
+        &self,
+        peer_public_key: [u8; 32],
+        limit: usize,
+    ) -> Result<Vec<SyncStatsRecord>, redb::Error> {
+        let mut records = self
+            .all()
+            .map_err(redb::Error::from)?
+            .filter_map(|item| match item {
+                Ok(record) if record.peer_public_key == peer_public_key => Some(Ok(record)),
+                Ok(_) => None,
+                Err(err) => Some(Err(redb::Error::from(err))),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        sort_recent_records(&mut records);
+        records.truncate(limit);
+        Ok(records)
+    }
+
+    pub fn grouped_by_peer(
+        &self,
+        peers_limit: usize,
+        sessions_per_peer: usize,
+    ) -> Result<Vec<PeerSyncStatsRecord>, redb::Error> {
+        let mut records = self.recent(usize::MAX)?;
+        let mut groups = Vec::<PeerSyncStatsRecord>::new();
+
+        for record in records.drain(..) {
+            if let Some(group) = groups
+                .iter_mut()
+                .find(|group| group.peer_public_key == record.peer_public_key)
+            {
+                if group.recent_sessions.len() < sessions_per_peer {
+                    group.recent_sessions.push(record);
+                }
+                continue;
+            }
+
+            if groups.len() >= peers_limit {
+                continue;
+            }
+            groups.push(PeerSyncStatsRecord {
+                peer_public_key: record.peer_public_key,
+                recent_sessions: vec![record],
+            });
+        }
+
+        Ok(groups)
+    }
 }
 
 pub struct SyncStatsWriter<'a> {
@@ -98,6 +166,22 @@ impl<'a> SyncStatsWriter<'a> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PeerSyncStatsRecord {
+    pub peer_public_key: [u8; 32],
+    pub recent_sessions: Vec<SyncStatsRecord>,
+}
+
+fn sort_recent_records(records: &mut [SyncStatsRecord]) {
+    records.sort_by(|left, right| {
+        right
+            .finished_at_ms
+            .cmp(&left.finished_at_ms)
+            .then_with(|| right.started_at_ms.cmp(&left.started_at_ms))
+            .then_with(|| right.id.cmp(&left.id))
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -121,10 +205,8 @@ mod tests {
             id: Uuid::from_u128(1),
             role: SyncSessionRole::Initiator,
             status: SyncSessionStatus::Completed,
-            peer_key_id: Some(Uuid::from_u128(2)),
-            peer_public_key: Some(vec![5; 32]),
-            peer_fingerprint: Some(vec![1, 2, 3, 4]),
-            peer_label: Some("peer-b".into()),
+            peer_public_key: [5; 32],
+            transport: SyncTransportKind::Direct,
             started_at_ms: 100,
             finished_at_ms: 240,
             records_sent: 3,
@@ -168,10 +250,8 @@ mod tests {
                 id: record_id,
                 role: SyncSessionRole::Listener,
                 status: SyncSessionStatus::PendingTrust,
-                peer_key_id: None,
-                peer_public_key: Some(vec![7; 32]),
-                peer_fingerprint: Some(vec![9, 9, 9]),
-                peer_label: Some("pending-peer".into()),
+                peer_public_key: [7; 32],
+                transport: SyncTransportKind::Direct,
                 started_at_ms: 1,
                 finished_at_ms: 2,
                 records_sent: 0,
@@ -192,5 +272,53 @@ mod tests {
         let read_tx = db.begin_read().unwrap();
         let reader = SyncStatsReader::new(&read_tx).unwrap();
         assert!(reader.get(&record_id).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_sync_stats_groups_recent_sessions_by_peer() {
+        let db = temp_db();
+
+        let write_tx = db.begin_write().unwrap();
+        SyncStatsWriter::init_schema(&write_tx).unwrap();
+        let writer = SyncStatsWriter::new(&write_tx);
+
+        for (idx, peer, finished_at_ms) in [
+            (1, [1; 32], 100),
+            (2, [2; 32], 300),
+            (3, [1; 32], 200),
+            (4, [1; 32], 50),
+        ] {
+            writer
+                .put(&SyncStatsRecord {
+                    id: Uuid::from_u128(idx),
+                    role: SyncSessionRole::Initiator,
+                    status: SyncSessionStatus::Completed,
+                    peer_public_key: peer,
+                    transport: SyncTransportKind::Direct,
+                    started_at_ms: finished_at_ms - 10,
+                    finished_at_ms,
+                    records_sent: 0,
+                    records_received: 0,
+                    records_applied: 0,
+                    records_skipped: 0,
+                    bytes_sent: 0,
+                    bytes_received: 0,
+                    duration_ms: 10,
+                    error_message: None,
+                })
+                .unwrap();
+        }
+        write_tx.commit().unwrap();
+
+        let read_tx = db.begin_read().unwrap();
+        let reader = SyncStatsReader::new(&read_tx).unwrap();
+        let groups = reader.grouped_by_peer(10, 2).unwrap();
+
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0].peer_public_key, [2; 32]);
+        assert_eq!(groups[1].peer_public_key, [1; 32]);
+        assert_eq!(groups[1].recent_sessions.len(), 2);
+        assert_eq!(groups[1].recent_sessions[0].finished_at_ms, 200);
+        assert_eq!(groups[1].recent_sessions[1].finished_at_ms, 100);
     }
 }

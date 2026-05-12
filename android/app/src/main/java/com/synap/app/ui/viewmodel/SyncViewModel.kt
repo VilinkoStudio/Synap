@@ -24,6 +24,10 @@ data class SyncUiState(
     val isLoading: Boolean = true,
     val isManagingPeer: Boolean = false,
     val isPairing: Boolean = false,
+    val isRelaySyncing: Boolean = false,
+    val relayBaseUrl: String = "",
+    val relayApiKey: String = "",
+    val relayStatusMessage: String? = null,
     val listenerState: SyncListenerState = SyncListenerState(),
     val localIdentity: LocalIdentity? = null,
     val discoveredPeers: List<DiscoveredSyncPeer> = emptyList(),
@@ -70,6 +74,7 @@ class SyncViewModel @Inject constructor(
             val identityResult = runCatching { repository.getLocalIdentity() }
             val peersResult = runCatching { repository.getPeers() }
             val syncSessionsResult = runCatching { repository.getRecentSyncSessions(10u) }
+            val relayConfig = repository.getRelayConfig()
 
             val errorMessages = buildList {
                 listenerError?.message?.takeIf(String::isNotBlank)?.let { add("监听失败: $it") }
@@ -87,12 +92,118 @@ class SyncViewModel @Inject constructor(
             _uiState.update { current ->
                 current.copy(
                     isLoading = false,
+                    relayBaseUrl = relayConfig.baseUrl,
+                    relayApiKey = relayConfig.apiKey,
                     localIdentity = identityResult.getOrNull() ?: current.localIdentity,
                     peers = peersResult.getOrNull() ?: current.peers,
                     recentSyncSessions = syncSessionsResult.getOrNull() ?: current.recentSyncSessions,
                     errorMessage = errorMessages.takeIf { it.isNotEmpty() }?.joinToString("\n"),
                 )
             }
+        }
+    }
+
+    fun updateRelayBaseUrl(value: String) {
+        _uiState.update { it.copy(relayBaseUrl = value, relayStatusMessage = null) }
+    }
+
+    fun updateRelayApiKey(value: String) {
+        _uiState.update { it.copy(relayApiKey = value, relayStatusMessage = null) }
+    }
+
+    fun saveRelayConfig() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRelaySyncing = true, errorMessage = null, relayStatusMessage = null) }
+            runCatching {
+                repository.saveRelayConfig(
+                    baseUrl = uiState.value.relayBaseUrl,
+                    apiKey = uiState.value.relayApiKey,
+                )
+            }.fold(
+                onSuccess = { config ->
+                    _uiState.update {
+                        it.copy(
+                            isRelaySyncing = false,
+                            relayBaseUrl = config.baseUrl,
+                            relayApiKey = config.apiKey,
+                            relayStatusMessage = "Relay 配置已保存",
+                            errorMessage = null,
+                        )
+                    }
+                },
+                onFailure = { throwable ->
+                    _uiState.update {
+                        it.copy(
+                            isRelaySyncing = false,
+                            errorMessage = throwable.message ?: "保存 Relay 配置失败",
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    fun fetchRelayUpdates() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRelaySyncing = true, errorMessage = null, relayStatusMessage = null) }
+            runCatching {
+                repository.saveRelayConfig(uiState.value.relayBaseUrl, uiState.value.relayApiKey)
+                val stats = repository.fetchRelayUpdates()
+                val peers = repository.getPeers()
+                val syncSessions = repository.getRecentSyncSessions(10u)
+                Triple(stats, peers, syncSessions)
+            }.fold(
+                onSuccess = { (stats, peers, syncSessions) ->
+                    _uiState.update {
+                        it.copy(
+                            isRelaySyncing = false,
+                            peers = peers,
+                            recentSyncSessions = syncSessions,
+                            relayStatusMessage = "拉取完成：获取 ${stats.fetchedMessages} 封，导入 ${stats.importedMessages} 封",
+                            errorMessage = null,
+                        )
+                    }
+                },
+                onFailure = { throwable ->
+                    _uiState.update {
+                        it.copy(
+                            isRelaySyncing = false,
+                            errorMessage = throwable.message ?: "Relay 拉取失败",
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    fun pushRelayUpdates() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRelaySyncing = true, errorMessage = null, relayStatusMessage = null) }
+            runCatching {
+                repository.saveRelayConfig(uiState.value.relayBaseUrl, uiState.value.relayApiKey)
+                val stats = repository.pushRelayUpdates()
+                val syncSessions = repository.getRecentSyncSessions(10u)
+                stats to syncSessions
+            }.fold(
+                onSuccess = { (stats, syncSessions) ->
+                    _uiState.update {
+                        it.copy(
+                            isRelaySyncing = false,
+                            recentSyncSessions = syncSessions,
+                            relayStatusMessage = "推送完成：投递 ${stats.postedMessages}/${stats.trustedPeers} 个设备",
+                            errorMessage = null,
+                        )
+                    }
+                },
+                onFailure = { throwable ->
+                    _uiState.update {
+                        it.copy(
+                            isRelaySyncing = false,
+                            errorMessage = throwable.message ?: "Relay 推送失败",
+                        )
+                    }
+                },
+            )
         }
     }
 

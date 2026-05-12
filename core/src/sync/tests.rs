@@ -309,15 +309,26 @@ fn test_sync_facade_runs_through_crypto_channel() {
     assert_eq!(records_a[0].status, SyncSessionStatus::Completed);
     assert_eq!(records_b[0].status, SyncSessionStatus::Completed);
     assert_eq!(
-        records_a[0].peer_public_key.as_deref(),
-        Some(local_b.signing.public_key.as_slice())
+        records_a[0].peer_public_key,
+        local_b.signing.public_key.as_slice()
     );
     assert_eq!(
-        records_b[0].peer_public_key.as_deref(),
-        Some(local_a.signing.public_key.as_slice())
+        records_b[0].peer_public_key,
+        local_a.signing.public_key.as_slice()
     );
-    assert_eq!(records_a[0].peer_label.as_deref(), Some("peer-b"));
-    assert_eq!(records_b[0].peer_label.as_deref(), Some("peer-a"));
+    assert_eq!(
+        records_a[0].transport,
+        crate::models::sync_stats::SyncTransportKind::Direct
+    );
+    assert_eq!(
+        records_b[0].transport,
+        crate::models::sync_stats::SyncTransportKind::Direct
+    );
+
+    let grouped_a = service_a.get_peer_sync_stats(Some(10), Some(5)).unwrap();
+    assert_eq!(grouped_a.len(), 1);
+    assert_eq!(grouped_a[0].peer_label.as_deref(), Some("peer-b"));
+    assert_eq!(grouped_a[0].recent_sessions.len(), 1);
 }
 
 #[test]

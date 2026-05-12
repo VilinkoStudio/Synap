@@ -161,6 +161,20 @@ dictionary ShareStatsDTO {
     u64 duration_ms;
 };
 
+dictionary RelayFetchStatsDTO {
+    u64 fetched_messages;
+    u64 imported_messages;
+    u64 dropped_untrusted_messages;
+    u64 acked_messages;
+};
+
+dictionary RelayPushStatsDTO {
+    u64 trusted_peers;
+    u64 posted_messages;
+    u64 full_sync_messages;
+    u64 incremental_sync_messages;
+};
+
 enum SyncStatusDTO {
     "Completed",
     "PendingTrust",
@@ -170,6 +184,14 @@ enum SyncStatusDTO {
 enum SyncSessionRoleDTO {
     "Initiator",
     "Listener",
+    "RelayFetch",
+    "RelayPush",
+};
+
+enum SyncTransportKindDTO {
+    "Direct",
+    "RelayFetch",
+    "RelayPush",
 };
 
 dictionary SyncStatsDTO {
@@ -204,6 +226,7 @@ dictionary PeerDTO {
     bytes fingerprint;
     bytes avatar_png;
     string kaomoji_fingerprint;
+    string display_public_key_base64;
     string? note;
     PeerTrustStatusDTO status;
 };
@@ -218,9 +241,12 @@ dictionary SyncSessionRecordDTO {
     string id;
     SyncSessionRoleDTO role;
     SyncStatusDTO status;
+    SyncTransportKindDTO transport;
+    string? relay_url;
     string? peer_label;
-    bytes? peer_public_key;
-    bytes? peer_fingerprint;
+    bytes peer_public_key;
+    bytes peer_fingerprint;
+    string display_peer_fingerprint_base64;
     u64 started_at_ms;
     u64 finished_at_ms;
     u64 records_sent;
@@ -314,6 +340,8 @@ interface SynapService {
     [Throws=FfiError] PeerDTO set_peer_status(string peer_id, PeerTrustStatusDTO status);
     [Throws=FfiError] void delete_peer(string peer_id);
     [Throws=FfiError] sequence<SyncSessionRecordDTO> get_recent_sync_sessions(u32? limit);
+    [Throws=FfiError] RelayFetchStatsDTO relay_fetch_updates(string base_url, string? api_key);
+    [Throws=FfiError] RelayPushStatsDTO relay_push_updates(string base_url, string? api_key);
     [Throws=FfiError] SyncSessionDTO initiate_sync(SyncTransport transport);
     [Throws=FfiError] SyncSessionDTO listen_sync(SyncTransport transport);
 };

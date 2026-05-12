@@ -12,12 +12,20 @@ struct AppStateInner {
     server_name: String,
     redis_runtime: RedisRuntime,
     embedded_redis: Option<EmbeddedRedisHandle>,
+    auth: RelayAuth,
 }
 
 pub struct AppStateParts {
     pub server_name: String,
     pub redis_runtime: RedisRuntime,
     pub embedded_redis: Option<EmbeddedRedisHandle>,
+    pub auth: RelayAuth,
+}
+
+#[derive(Clone)]
+pub enum RelayAuth {
+    Disabled,
+    ApiKey(String),
 }
 
 impl AppState {
@@ -27,6 +35,7 @@ impl AppState {
                 server_name: parts.server_name,
                 redis_runtime: parts.redis_runtime,
                 embedded_redis: parts.embedded_redis,
+                auth: parts.auth,
             }),
         }
     }
@@ -41,5 +50,9 @@ impl AppState {
 
     pub fn embedded_redis(&self) -> Option<&EmbeddedRedisHandle> {
         self.inner.embedded_redis.as_ref()
+    }
+
+    pub fn auth(&self) -> &RelayAuth {
+        &self.inner.auth
     }
 }

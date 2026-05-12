@@ -5,6 +5,8 @@ import com.synap.app.data.model.DiscoveredSyncPeer
 import com.synap.app.data.model.LocalIdentity
 import com.synap.app.data.model.PeerRecord
 import com.synap.app.data.model.PeerTrustStatus
+import com.synap.app.data.model.RelayFetchStats
+import com.synap.app.data.model.RelayPushStats
 import com.synap.app.data.model.ShareImportStats
 import com.synap.app.data.model.SyncConnectionRecord
 import com.synap.app.data.model.SyncConnectionStatus
@@ -16,6 +18,8 @@ import com.synap.app.data.service.SyncConnectConfig
 import com.synap.app.data.service.SyncConnectionStore
 import com.synap.app.data.service.SyncDiscoveryRuntime
 import com.synap.app.data.service.SyncListenConfig
+import com.synap.app.data.service.RelayConfig
+import com.synap.app.data.service.RelayConfigStore
 import com.synap.app.data.service.SynapServiceApi
 import com.synap.app.data.service.SyncNetworkRuntime
 import com.synap.app.di.IoDispatcher
@@ -61,6 +65,14 @@ interface SyncRepository {
     suspend fun deletePeer(peerId: String)
 
     suspend fun getRecentSyncSessions(limit: UInt? = null): List<SyncSessionRecord>
+
+    fun getRelayConfig(): RelayConfig
+
+    suspend fun saveRelayConfig(baseUrl: String, apiKey: String): RelayConfig
+
+    suspend fun fetchRelayUpdates(): RelayFetchStats
+
+    suspend fun pushRelayUpdates(): RelayPushStats
 }
 
 @Singleton
@@ -70,6 +82,7 @@ class SyncRepositoryImpl @Inject constructor(
     private val runtime: SyncNetworkRuntime,
     private val discoveryRuntime: SyncDiscoveryRuntime,
     private val connectionStore: SyncConnectionStore,
+    private val relayConfigStore: RelayConfigStore,
     private val mutationStore: SynapMutationStore,
 ) : SyncRepository {
     private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
@@ -194,6 +207,47 @@ class SyncRepositoryImpl @Inject constructor(
     override suspend fun getRecentSyncSessions(limit: UInt?): List<SyncSessionRecord> =
         service.getRecentSyncSessions(limit).unwrap()
 
+    override fun getRelayConfig(): RelayConfig = relayConfigStore.get()
+
+    override suspend fun saveRelayConfig(baseUrl: String, apiKey: String): RelayConfig {
+        val normalizedUrl = baseUrl.trim().trimEnd('/')
+        require(normalizedUrl.isNotEmpty()) { "Relay 地址不能为空" }
+        require(
+            normalizedUrl.startsWith("http://") || normalizedUrl.startsWith("https://"),
+        ) { "Relay 地址需要以 http:// 或 https:// 开头" }
+
+        val config = RelayConfig(
+            baseUrl = normalizedUrl,
+            apiKey = apiKey.trim(),
+        )
+        relayConfigStore.save(config)
+        return config
+    }
+
+    override suspend fun fetchRelayUpdates(): RelayFetchStats {
+        val config = relayConfigStore.get().requireConfigured()
+        return service.relayFetchUpdates(config.baseUrl, config.apiKey.asNullableApiKey()).unwrap()
+            .also { stats ->
+                if (stats.importedMessages > 0u) {
+                    mutationStore.emit(
+                        SynapMutation.Imported(
+                            ShareImportStats(
+                                records = stats.fetchedMessages.toLong(),
+                                recordsApplied = stats.importedMessages.toLong(),
+                                bytes = 0,
+                                durationMs = 0,
+                            ),
+                        ),
+                    )
+                }
+            }
+    }
+
+    override suspend fun pushRelayUpdates(): RelayPushStats {
+        val config = relayConfigStore.get().requireConfigured()
+        return service.relayPushUpdates(config.baseUrl, config.apiKey.asNullableApiKey()).unwrap()
+    }
+
     private fun updateConnection(record: SyncConnectionRecord) {
         connectionStore.update(record)
         _connections.value = connectionStore.list()
@@ -231,4 +285,11 @@ class SyncRepositoryImpl @Inject constructor(
     }
 
     private fun <T> Result<T>.unwrap(): T = getOrElse { throw it }
+
+    private fun RelayConfig.requireConfigured(): RelayConfig {
+        require(baseUrl.isNotBlank()) { "请先设置 Relay 地址" }
+        return this
+    }
+
+    private fun String.asNullableApiKey(): String? = trim().takeIf(String::isNotEmpty)
 }

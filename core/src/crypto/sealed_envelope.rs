@@ -8,8 +8,9 @@ use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret};
 
 use crate::{
     crypto::{
-        get_known_public_key_by_bytes, local_identity_private_key, local_signing_public_key,
-        public_key_fingerprint, sign_with_local_identity, verify_signed_bytes,
+        get_known_public_key_by_bytes, local_signing_exchange_private_key,
+        local_signing_public_key, public_key_fingerprint, sign_with_local_identity,
+        verify_signed_bytes,
     },
     envelope::{decode_bytes, encode_bytes, EnvelopeConfig, EnvelopeEncryptionConfig},
     models::crypto::CryptoReader,
@@ -186,7 +187,7 @@ pub fn open_for_local_recipient(
     reader: &CryptoReader<'_>,
     bytes: &[u8],
 ) -> Result<OpenedSealedEnvelope, SealedEnvelopeError> {
-    let recipient_private_key = local_identity_private_key(reader)?
+    let recipient_private_key = local_signing_exchange_private_key(reader)?
         .ok_or(SealedEnvelopeError::MissingLocalRecipientIdentity)?;
     open_with_recipient_private_key(reader, bytes, &recipient_private_key)
 }
@@ -343,8 +344,8 @@ mod tests {
     use super::*;
     use crate::{
         crypto::{
-            ensure_local_identity, ensure_local_signing_identity, import_trusted_public_key,
-            local_identity_public_key, local_signing_public_key,
+            ed25519_public_key_to_x25519, ensure_local_signing_identity, import_trusted_public_key,
+            local_signing_exchange_private_key, local_signing_public_key,
         },
         models::crypto::CryptoWriter,
     };
@@ -375,7 +376,7 @@ mod tests {
         let wtx = db.begin_write().unwrap();
         CryptoWriter::init_schema(&wtx).unwrap();
         let writer = CryptoWriter::new(&wtx);
-        ensure_local_identity(&writer).unwrap();
+        ensure_local_signing_identity(&writer).unwrap();
         if let Some(sender_public_key) = trusted_sender {
             import_trusted_public_key(&writer, sender_public_key, Some("sender".into())).unwrap();
         }
@@ -383,7 +384,9 @@ mod tests {
 
         let rtx = db.begin_read().unwrap();
         let reader = CryptoReader::new(&rtx).unwrap();
-        let public_key = local_identity_public_key(&reader).unwrap().unwrap();
+        let public_key =
+            ed25519_public_key_to_x25519(local_signing_public_key(&reader).unwrap().unwrap())
+                .unwrap();
         drop(rtx);
 
         (db, public_key)
@@ -484,7 +487,9 @@ mod tests {
         let result = {
             let rtx = wrong_recipient_db.begin_read().unwrap();
             let reader = CryptoReader::new(&rtx).unwrap();
-            let wrong_private_key = local_identity_private_key(&reader).unwrap().unwrap();
+            let wrong_private_key = local_signing_exchange_private_key(&reader)
+                .unwrap()
+                .unwrap();
             open_with_recipient_private_key(&reader, &envelope, &wrong_private_key)
         };
 

@@ -2,6 +2,7 @@
 
 pub(crate) mod crypto;
 pub(crate) mod note;
+pub(crate) mod relay_peer;
 pub(crate) mod sync_stats;
 pub(crate) mod tag;
 mod util;

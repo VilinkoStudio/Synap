@@ -11,10 +11,11 @@ mod share_tests;
 #[cfg(test)]
 mod tests;
 
-pub use protocol::{SyncChannel, SyncConfig, SyncError, SyncStats, PROTOCOL_VERSION};
+pub use protocol::{SyncChannel, SyncConfig, SyncError, SyncRecordId, SyncStats, PROTOCOL_VERSION};
 pub use relay::{RelayDiffPlan, RelayInventory, RelayRecordDescriptor, RelaySyncService};
 pub use relay_service::{
-    RelayHttpError, RelayHttpService, RelayLeasedEnvelope, RelayOpenedEnvelopeLease,
+    RelayFetchStats, RelayHttpError, RelayHttpService, RelayLeasedEnvelope,
+    RelayOpenedEnvelopeLease, RelayPushStats, RelaySyncEnvelope,
 };
 pub use service::{SyncPeerIdentity, SyncService};
 pub use share::{ShareStats, SHARE_VERSION};
