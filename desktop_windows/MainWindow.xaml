@@ -24,7 +24,6 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <Button Grid.Column="0" x:Name="BackButton" Click="BackButton_Click"
@@ -41,15 +40,6 @@
                 VerticalAlignment="Center"
                 Margin="4,0,0,0"
                 Style="{ThemeResource BodyStrongTextBlockStyle}" />
-
-            <AutoSuggestBox Grid.Column="2" x:Name="TitleSearchBox"
-                            QueryIcon="Find"
-                            AutomationProperties.Name="Search"
-                            HorizontalAlignment="Center"
-                            Width="300"
-                            VerticalAlignment="Center" />
-
-            <Border Grid.Column="3" Width="48" />
         </Grid>
         
         <NavigationView x:Name="nvSample" Grid.Row="1"
@@ -72,7 +62,16 @@
                 </DataTemplate>
             </NavigationView.HeaderTemplate>
 
+            <NavigationView.AutoSuggestBox>
+                <AutoSuggestBox QueryIcon="Find" AutomationProperties.Name="Search" />
+            </NavigationView.AutoSuggestBox>
+
             <NavigationView.MenuItems>
+                <NavigationViewItem Content="新增笔记" Tag="NewNote" x:Name="NewNoteItem">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="Add" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
                 <NavigationViewItem Content="笔记列表" Tag="ListPage" x:Name="SamplePage1Item">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="List" />

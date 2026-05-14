@@ -142,6 +142,7 @@ fun HomeScreen(
     val clipboardManager = LocalClipboardManager.current
     val prefs = remember { context.getSharedPreferences("synap_prefs", Context.MODE_PRIVATE) }
     val isNavCollapsed = remember { prefs.getBoolean("is_nav_collapsed", false) }
+    val showTagBar = remember { prefs.getBoolean("show_tag_bar", true) }
 
     val navVisibilityScope = animatedVisibilityScope
 
@@ -962,7 +963,7 @@ fun HomeScreen(
 
                     // 5. 瀑布流换行展示的标签区域
                     AnimatedVisibility(
-                        visible = !isShowingSessionFeed && !uiState.isSearchMode && !isSelectionMode
+                        visible = !isShowingSessionFeed && !uiState.isSearchMode && !isSelectionMode && showTagBar
                     ) {
                         Column {
                             Text("标签", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
@@ -1125,7 +1126,7 @@ fun HomeScreen(
                 ) {
                     Column(modifier = Modifier.fillMaxSize()) {
                         AnimatedVisibility(
-                            visible = !isShowingSessionFeed && !uiState.isSearchMode && !isSelectionMode,
+                            visible = !isShowingSessionFeed && !uiState.isSearchMode && !isSelectionMode && showTagBar,
                             enter = expandVertically() + fadeIn(),
                             exit = shrinkVertically() + fadeOut()
                         ) {
