@@ -379,6 +379,8 @@ fun NewNoteScreen(
                                 selectedTabIndex = selectedTab,
                                 divider = {},
                                 edgePadding = 0.dp,
+                                containerColor = Color.Transparent,
+                                contentColor = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.weight(1f)
                             ) {
                                 listOf("样式", "标签", "颜色").forEachIndexed { index, label ->
@@ -419,21 +421,45 @@ fun NewNoteScreen(
                         }
                     }
                     // Draft box icon
-                    if (draftCount > 0) {
-                        BadgedBox(
-                            badge = { Badge { Text("$draftCount") } }
+                    if (isTabletDevice) {
+                        TextButton(
+                            onClick = { hideKeyboardAndNavigate { onNavigateToDrafts() } },
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         ) {
+                            Icon(Icons.Filled.Inventory2, "草稿箱", modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            if (draftCount > 0) Text("$draftCount", style = MaterialTheme.typography.labelMedium) else Text("草稿箱", style = MaterialTheme.typography.labelMedium)
+                        }
+                        TextButton(
+                            onClick = { hideKeyboardAndNavigate { onSave() } },
+                            enabled = !uiState.isSaving && !uiState.isLoading,
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            if (uiState.isSaving) CircularProgressIndicator(modifier = Modifier.size(20.dp)) else Icon(Icons.Filled.Check, "保存", modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("保存", style = MaterialTheme.typography.labelMedium)
+                        }
+                    } else {
+                        if (draftCount > 0) {
+                            BadgedBox(
+                                badge = { Badge { Text("$draftCount") } }
+                            ) {
+                                IconButton(onClick = { hideKeyboardAndNavigate { onNavigateToDrafts() } }) {
+                                    Icon(Icons.Filled.Inventory2, "草稿箱")
+                                }
+                            }
+                        } else {
                             IconButton(onClick = { hideKeyboardAndNavigate { onNavigateToDrafts() } }) {
                                 Icon(Icons.Filled.Inventory2, "草稿箱")
                             }
                         }
-                    } else {
-                        IconButton(onClick = { hideKeyboardAndNavigate { onNavigateToDrafts() } }) {
-                            Icon(Icons.Filled.Inventory2, "草稿箱")
+                        IconButton(onClick = { hideKeyboardAndNavigate { onSave() } }, enabled = !uiState.isSaving && !uiState.isLoading) {
+                            if (uiState.isSaving) CircularProgressIndicator(modifier = Modifier.size(24.dp)) else Icon(Icons.Filled.Check, "保存")
                         }
-                    }
-                    IconButton(onClick = { hideKeyboardAndNavigate { onSave() } }, enabled = !uiState.isSaving && !uiState.isLoading) {
-                        if (uiState.isSaving) CircularProgressIndicator(modifier = Modifier.size(24.dp)) else Icon(Icons.Filled.Check, "保存")
                     }
                 },
             )
@@ -1044,6 +1070,16 @@ fun NewNoteScreen(
                                     )
                                 }
                                 InputChip(selected = false, onClick = { showAddPresetDialog = true }, label = { Text("增加预设颜色") }, trailingIcon = { Icon(Icons.Filled.Add, null, Modifier.size(16.dp)) })
+                                if (uiState.noteColorHue != null) {
+                                    TextButton(
+                                        onClick = { onNoteColorHueChange(null) },
+                                        colors = ButtonDefaults.textButtonColors(
+                                            contentColor = MaterialTheme.colorScheme.error
+                                        )
+                                    ) {
+                                        Text("清除颜色")
+                                    }
+                                }
                             }
                             HorizontalDivider()
                         }
