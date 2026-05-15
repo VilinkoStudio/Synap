@@ -235,6 +235,7 @@ fun SynapNavGraph(
                         onNavigateToLanguageSelection = { navController.navigate("language_selection") },
                         onNavigateToAppIcon = { navController.navigate("app_icon") },
                         onNavigateToHomeLayout = { navController.navigate("setting_home_layout") },
+                        onNavigateToLab = { navController.navigate("lab") },
                         onNavigateToAIService = { navController.navigate("setting_ai_api") },
                         onNavigateToAIScenarios = { navController.navigate("setting_ai_scenarios") },
                         onNavigateToSync = { navController.navigate("sync") },
@@ -305,6 +306,14 @@ fun SynapNavGraph(
 
                 composable("setting_ai_scenarios") {
                     SettingAIScenariosScreen(
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable("lab") {
+                    LabSettingsScreen(
+                        onNavigateToAIService = { navController.navigate("setting_ai_api") },
+                        onNavigateToAIScenarios = { navController.navigate("setting_ai_scenarios") },
                         onNavigateBack = { navController.popBackStack() }
                     )
                 }
