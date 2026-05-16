@@ -62,8 +62,8 @@ class MainActivity : AppCompatActivity() {
         if (intent.action == Intent.ACTION_PROCESS_TEXT) {
             extractedText = intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
         }
-        // 2. 处理系统分享菜单 (放宽了类型判断，兼容更多 App 传来的文本)
-        else if (intent.action == Intent.ACTION_SEND && intent.type?.startsWith("text/") == true) {
+        // 2. 处理系统分享菜单 (接受所有类型，只提取文本)
+        else if (intent.action == Intent.ACTION_SEND) {
             extractedText = intent.getStringExtra(Intent.EXTRA_TEXT)
         }
 

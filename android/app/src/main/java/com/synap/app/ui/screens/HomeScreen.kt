@@ -9,11 +9,14 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -24,6 +27,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -35,12 +39,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -56,6 +61,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -143,6 +149,7 @@ fun HomeScreen(
     val prefs = remember { context.getSharedPreferences("synap_prefs", Context.MODE_PRIVATE) }
     val isNavCollapsed = remember { prefs.getBoolean("is_nav_collapsed", false) }
     val showTagBar = remember { prefs.getBoolean("show_tag_bar", true) }
+    val widgetAlignment = remember { prefs.getString("widget_alignment", "default") ?: "default" }
 
     val navVisibilityScope = animatedVisibilityScope
 
@@ -729,82 +736,104 @@ fun HomeScreen(
     }
 
     @Composable
-    fun SharedMultiSelectToolbar(bottomInset: Dp) {
-        AnimatedVisibility(
-            visible = isSelectionMode,
-            enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
-            exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
-            modifier = Modifier
-                .padding(bottom = 24.dp + bottomInset)
-                .offset(y = fabDodgeOffset)
-        ) {
-            HorizontalFloatingToolbar(
-                expanded = true,
-                colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
-                    toolbarContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    toolbarContentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                )
-            ) {
-                val iconTint = MaterialTheme.colorScheme.onSecondaryContainer
+    fun SharedToolbarButtons(iconTint: Color) {
+        if (selectedNoteIds.size == 1) {
+            IconButton(
+                onClick = {
+                    val noteId = selectedNoteIds.first()
+                    val note = displayNotes.find { it.id == noteId }
+                        ?: displaySessionGroups.flatMap { it.notes }.find { it.id == noteId }
 
-                if (selectedNoteIds.size == 1) {
-                    IconButton(
-                        onClick = {
-                            val noteId = selectedNoteIds.first()
-                            val note = displayNotes.find { it.id == noteId }
-                                ?: displaySessionGroups.flatMap { it.notes }.find { it.id == noteId }
-
-                            if (note != null) {
-                                val hasMarkdown = Regex("(\\*\\*\\*|\\*\\*|\\*|~~|<u>|==|^#{1,6} |^> |^-\\s+\\[[ x]\\]\\s|^-\\s|^\\d+\\.\\s)", RegexOption.MULTILINE).containsMatchIn(note.content)
-                                if (hasMarkdown) {
-                                    noteToCopy = note
-                                } else {
-                                    clipboardManager.setText(AnnotatedString(note.content))
-                                    Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
-                                    isSelectionMode = false
-                                    selectedNoteIds = emptySet()
-                                }
-                            }
+                    if (note != null) {
+                        val hasMarkdown = Regex("(\\*\\*\\*|\\*\\*|\\*|~~|<u>|==|^#{1,6} |^> |^-\\s+\\[[ x]\\]\\s|^-\\s|^\\d+\\.\\s)", RegexOption.MULTILINE).containsMatchIn(note.content)
+                        if (hasMarkdown) {
+                            noteToCopy = note
+                        } else {
+                            clipboardManager.setText(AnnotatedString(note.content))
+                            Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                            isSelectionMode = false
+                            selectedNoteIds = emptySet()
                         }
-                    ) {
-                        Icon(
-                            Icons.Filled.ContentCopy,
-                            contentDescription = "复制",
-                            modifier = Modifier.size(24.dp),
-                            tint = iconTint
-                        )
                     }
                 }
-
-                IconButton(
-                    onClick = { showShareBottomSheet = true },
-                    enabled = selectedNoteIds.isNotEmpty()
-                ) {
-                    Icon(
-                        Icons.Filled.Share,
-                        contentDescription = "Share",
-                        modifier = Modifier.size(24.dp),
-                        tint = if (selectedNoteIds.isNotEmpty()) iconTint else iconTint.copy(alpha = 0.38f)
-                    )
-                }
-
-                IconButton(
-                    onClick = { showMultiDeleteDialog = true },
-                    enabled = selectedNoteIds.isNotEmpty()
-                ) {
-                    Icon(
-                        Icons.Filled.Delete,
-                        contentDescription = stringResource(R.string.delete),
-                        modifier = Modifier.size(24.dp),
-                        tint = if (selectedNoteIds.isNotEmpty()) iconTint else iconTint.copy(alpha = 0.38f)
-                    )
-                }
+            ) {
+                Icon(
+                    Icons.Filled.ContentCopy,
+                    contentDescription = "复制",
+                    modifier = Modifier.size(24.dp),
+                    tint = iconTint
+                )
             }
+        }
+
+        IconButton(
+            onClick = { showShareBottomSheet = true },
+            enabled = selectedNoteIds.isNotEmpty()
+        ) {
+            Icon(
+                Icons.Filled.Share,
+                contentDescription = "Share",
+                modifier = Modifier.size(24.dp),
+                tint = if (selectedNoteIds.isNotEmpty()) iconTint else iconTint.copy(alpha = 0.38f)
+            )
+        }
+
+        IconButton(
+            onClick = { showMultiDeleteDialog = true },
+            enabled = selectedNoteIds.isNotEmpty()
+        ) {
+                    Icon(
+                        imageVector = Icons.Filled.Delete,
+                        contentDescription = stringResource(R.string.delete),
+                modifier = Modifier.size(24.dp),
+                tint = if (selectedNoteIds.isNotEmpty()) iconTint else iconTint.copy(alpha = 0.38f)
+            )
         }
     }
 
     @Composable
+    fun SharedMultiSelectToolbar(bottomInset: Dp) {
+        val isTabletLayout = context.resources.configuration.screenWidthDp >= 600
+        AnimatedVisibility(
+            visible = isSelectionMode,
+            enter = fadeIn() + (if (isTabletLayout) slideInHorizontally(initialOffsetX = { if (widgetAlignment == "right") it else -it }) else slideInVertically(initialOffsetY = { it })),
+            exit = fadeOut() + (if (isTabletLayout) slideOutHorizontally(targetOffsetX = { if (widgetAlignment == "right") it else -it }) else slideOutVertically(targetOffsetY = { it })),
+            modifier = if (isTabletLayout) Modifier else Modifier.padding(bottom = 24.dp + bottomInset).offset(y = fabDodgeOffset)
+        ) {
+            if (isTabletLayout) {
+                Surface(
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    tonalElevation = 3.dp,
+                    shadowElevation = 8.dp,
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        val iconTint = MaterialTheme.colorScheme.onSecondaryContainer
+                        SharedToolbarButtons(iconTint = iconTint)
+                    }
+                }
+            } else {
+                HorizontalFloatingToolbar(
+                    expanded = true,
+                    colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
+                        toolbarContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        toolbarContentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                ) {
+                    val iconTint = MaterialTheme.colorScheme.onSecondaryContainer
+                    SharedToolbarButtons(iconTint = iconTint)
+                }
+            }
+        }
+    }
+    
+    @Composable
     fun SharedFabContent() {
+        val fabAlignment = if (widgetAlignment == "left") Alignment.Start else Alignment.End
         AnimatedVisibility(
             visible = !isSelectionMode,
             enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
@@ -812,7 +841,7 @@ fun HomeScreen(
             modifier = Modifier.offset(y = fabDodgeOffset)
         ) {
             Column(
-                horizontalAlignment = Alignment.End,
+                horizontalAlignment = if (widgetAlignment == "left") Alignment.Start else Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 AnimatedVisibility(
@@ -871,19 +900,26 @@ fun HomeScreen(
 
         if (isTablet) {
             // ==================== 平板：左右双栏布局 ====================
-            Row(modifier = Modifier.fillMaxSize()) {
+            val animatedSidebarWidth by animateDpAsState(
+                targetValue = if (isSelectionMode) 0.dp else 300.dp,
+                animationSpec = tween(300),
+                label = "sidebarWidth"
+            )
 
-                // --- 左侧边栏 ---
-                Column(
-                    modifier = Modifier
-                        .width(300.dp)
-                        .fillMaxHeight()
-                        // ========== 新增：适配状态栏高度 ==========
-                        .statusBarsPadding()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp)
-                        .padding(top = 16.dp)
-                ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                Row(modifier = Modifier.fillMaxSize()) {
+
+                    // --- 左侧边栏 ---
+                    if (animatedSidebarWidth > 0.dp) {
+                        Column(
+                            modifier = Modifier
+                                .width(animatedSidebarWidth)
+                                .fillMaxHeight()
+                                .statusBarsPadding()
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 16.dp)
+                                .padding(top = 16.dp)
+                        ) {
                     // 1. 顶部栏 (Synap 标题)
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
@@ -972,6 +1008,7 @@ fun HomeScreen(
                         }
                     }
                 }
+            }
 
                 // --- 右侧笔记内容区 ---
                 Scaffold(
@@ -995,17 +1032,33 @@ fun HomeScreen(
                     },
                     floatingActionButton = { SharedFabContent() }
                 ) { padding ->
-                    Box(modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
+                    val sidePadding = if (isSelectionMode) {
+                        if (widgetAlignment == "right") PaddingValues(end = 80.dp) else PaddingValues(start = 80.dp)
+                    } else PaddingValues(0.dp)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = padding.calculateTopPadding())
+                            .padding(sidePadding)
+                    ) {
                         SharedFeedArea(bottomInset = padding.calculateBottomPadding())
 
                         Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                             SharedUndoSnackbar(bottomInset = padding.calculateBottomPadding())
                         }
-                        Box(modifier = Modifier.align(Alignment.BottomCenter)) {
-                            SharedMultiSelectToolbar(bottomInset = padding.calculateBottomPadding())
+
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .padding(end = if (widgetAlignment == "right") 0.dp else 80.dp)
+                                .padding(start = if (widgetAlignment == "right") 80.dp else 0.dp),
+                            contentAlignment = if (widgetAlignment == "right") Alignment.CenterEnd else Alignment.CenterStart
+                        ) {
+                            SharedMultiSelectToolbar(bottomInset = 0.dp)
                         }
                     }
                 }
+            }
             }
         } else {
             // ==================== 手机：原生 Scaffold 垂直布局 ====================

@@ -2,6 +2,7 @@ package com.synap.app.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,9 +12,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -22,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.synap.app.R
+import kotlinx.coroutines.CancellationException
 
 // 1. 定义数据结构（增加可选的 platformNameRes 用于多语言支持）
 data class SocialLink(val platformName: String, val platformNameRes: Int? = null, val url: String)
@@ -58,7 +66,28 @@ val creativeTeamList = listOf(
 fun TeamScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
 
+    var backProgress by remember { mutableFloatStateOf(0f) }
+
+    PredictiveBackHandler { progressFlow ->
+        try {
+            progressFlow.collect { backEvent ->
+                backProgress = backEvent.progress
+            }
+            onNavigateBack()
+        } catch (e: CancellationException) {
+            backProgress = 0f
+        }
+    }
+
     Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                translationX = backProgress * 64.dp.toPx()
+                transformOrigin = TransformOrigin(1f, 0.5f)
+                shape = RoundedCornerShape(32.dp * backProgress)
+                clip = true
+            },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.creative_team)) },
