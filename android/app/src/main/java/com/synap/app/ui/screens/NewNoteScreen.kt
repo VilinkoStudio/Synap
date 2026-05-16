@@ -195,6 +195,7 @@ fun NewNoteScreen(
     onNavigateToHome: () -> Unit,
     onContentChange: (String) -> Unit,
     onAddTag: (String) -> Unit,
+    onUpdateTag: (Int, String) -> Unit,
     onRemoveTag: (Int) -> Unit,
     onNoteColorHueChange: (Float?) -> Unit,
     onSave: () -> Unit,
@@ -211,6 +212,7 @@ fun NewNoteScreen(
 ) {
     var tagInputText by remember { mutableStateOf("") }
     var isTagInputVisible by remember { mutableStateOf(false) }
+    var editingTagIndex by remember { mutableStateOf<Int?>(null) }
     val tagFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -553,25 +555,38 @@ fun NewNoteScreen(
                                             hasGainedFocus = true
                                         } else if (hasGainedFocus && tagInputText.isBlank()) {
                                             isTagInputVisible = false
+                                            editingTagIndex = null
                                         }
                                     },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                                 keyboardActions = KeyboardActions(onDone = {
                                     if (tagInputText.isNotBlank()) {
-                                        onAddTag(tagInputText.trim())
+                                        val text = tagInputText.trim()
+                                        val idx = editingTagIndex
+                                        if (idx != null) { onUpdateTag(idx, text); editingTagIndex = null }
+                                        else onAddTag(text)
                                         tagInputText = ""
-                                        isTagInputVisible = false
-                                    } else {
-                                        isTagInputVisible = false
                                     }
+                                    isTagInputVisible = false
                                 })
                             )
+
+                            IconButton(onClick = {
+                                isTagInputVisible = false
+                                tagInputText = ""
+                                editingTagIndex = null
+                            }) {
+                                Icon(Icons.Filled.Close, contentDescription = "取消", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
 
                             IconButton(
                                 onClick = {
                                     if (tagInputText.isNotBlank()) {
-                                        onAddTag(tagInputText.trim())
+                                        val text = tagInputText.trim()
+                                        val idx = editingTagIndex
+                                        if (idx != null) { onUpdateTag(idx, text); editingTagIndex = null }
+                                        else onAddTag(text)
                                         tagInputText = ""
                                     }
                                     isTagInputVisible = false
@@ -586,7 +601,11 @@ fun NewNoteScreen(
                                 val parsedColor = parseColorLocal(tag)
                                 InputChip(
                                     selected = true,
-                                    onClick = {},
+                                    onClick = {
+                                        editingTagIndex = i
+                                        tagInputText = tag
+                                        isTagInputVisible = true
+                                    },
                                     label = { Text(tag) },
                                     leadingIcon = parsedColor?.let { color ->
                                         { Box(modifier = Modifier.size(8.dp).background(color, CircleShape)) }
@@ -985,17 +1004,34 @@ fun NewNoteScreen(
                                             modifier = Modifier.weight(1f).height(56.dp).focusRequester(tagFocusRequester)
                                                 .onFocusChanged { focusState ->
                                                     if (focusState.isFocused) { hasGainedFocus = true }
-                                                    else if (hasGainedFocus && tagInputText.isBlank()) { isTagInputVisible = false }
+                                                    else if (hasGainedFocus && tagInputText.isBlank()) { isTagInputVisible = false; editingTagIndex = null }
                                                 },
                                             singleLine = true,
                                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                                             keyboardActions = KeyboardActions(onDone = {
-                                                if (tagInputText.isNotBlank()) { onAddTag(tagInputText.trim()); tagInputText = "" }
+                                                if (tagInputText.isNotBlank()) {
+                                                    val text = tagInputText.trim()
+                                                    val idx = editingTagIndex
+                                                    if (idx != null) { onUpdateTag(idx, text); editingTagIndex = null }
+                                                    else onAddTag(text)
+                                                    tagInputText = ""
+                                                }
                                                 isTagInputVisible = false
                                             })
                                         )
                                         IconButton(onClick = {
-                                            if (tagInputText.isNotBlank()) { onAddTag(tagInputText.trim()); tagInputText = "" }
+                                            isTagInputVisible = false
+                                            tagInputText = ""
+                                            editingTagIndex = null
+                                        }) { Icon(Icons.Filled.Close, contentDescription = "取消", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                        IconButton(onClick = {
+                                            if (tagInputText.isNotBlank()) {
+                                                val text = tagInputText.trim()
+                                                val idx = editingTagIndex
+                                                if (idx != null) { onUpdateTag(idx, text); editingTagIndex = null }
+                                                else onAddTag(text)
+                                                tagInputText = ""
+                                            }
                                             isTagInputVisible = false
                                         }) { Icon(Icons.Filled.Check, contentDescription = "确认添加", tint = MaterialTheme.colorScheme.primary) }
                                     }
@@ -1007,7 +1043,11 @@ fun NewNoteScreen(
                                         uiState.tags.forEachIndexed { i, tag ->
                                             InputChip(
                                                 selected = true,
-                                                onClick = {},
+                                                onClick = {
+                                                    editingTagIndex = i
+                                                    tagInputText = tag
+                                                    isTagInputVisible = true
+                                                },
                                                 label = { Text(tag) },
                                                 trailingIcon = { Icon(Icons.Filled.Close, null, Modifier.size(InputChipDefaults.AvatarSize).clickable { onRemoveTag(i) }) }
                                             )

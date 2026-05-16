@@ -394,6 +394,7 @@ fun SynapNavGraph(
                         },
                         onContentChange = viewModel::updateContent,
                         onAddTag = viewModel::addTag,
+                        onUpdateTag = viewModel::updateTag,
                         onRemoveTag = viewModel::removeTag,
                         onNoteColorHueChange = viewModel::setNoteColorHue,
                         onSave = viewModel::save,
