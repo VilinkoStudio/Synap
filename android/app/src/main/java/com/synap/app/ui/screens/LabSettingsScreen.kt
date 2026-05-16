@@ -72,7 +72,7 @@ fun LabSettingsScreen(
             },
         topBar = {
             TopAppBar(
-                title = { Text("实验室") },
+                title = { Text(stringResource(R.string.setting_lab)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back))

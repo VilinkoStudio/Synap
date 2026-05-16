@@ -26,6 +26,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.ui.res.stringResource
+import com.synap.app.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -83,7 +85,7 @@ fun SettingLogoScreen(onNavigateBack: () -> Unit) {
             packageManager.setComponentEnabledSetting(defaultComponent, PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
             packageManager.setComponentEnabledSetting(oldComponent, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
         }
-        Toast.makeText(context, "图标已切换，返回桌面后系统会自动刷新", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.icon_switched_toast), Toast.LENGTH_SHORT).show()
     }
 
     Scaffold(
@@ -98,10 +100,10 @@ fun SettingLogoScreen(onNavigateBack: () -> Unit) {
             },
         topBar = {
             TopAppBar(
-                title = { Text("应用图标") },
+                title = { Text(stringResource(R.string.setting_app_icon)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -114,7 +116,7 @@ fun SettingLogoScreen(onNavigateBack: () -> Unit) {
                 .padding(16.dp)
         ) {
             Text(
-                text = "桌面图标样式",
+                text = stringResource(R.string.desktop_icon_style),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
@@ -126,7 +128,7 @@ fun SettingLogoScreen(onNavigateBack: () -> Unit) {
                     .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                val options = listOf("Synap彩色图标", "莫奈取色图标")
+                val options = listOf(stringResource(R.string.icon_synap_colored), stringResource(R.string.icon_monet))
 
                 options.forEachIndexed { index, title ->
                     Row(
@@ -163,7 +165,7 @@ fun SettingLogoScreen(onNavigateBack: () -> Unit) {
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "注意：由于系统限制，切换图标后可能会出现闪退到桌面的情况。",
+                text = stringResource(R.string.icon_switch_warning),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 8.dp)

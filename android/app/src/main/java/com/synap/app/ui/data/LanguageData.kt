@@ -8,4 +8,13 @@ fun sampleLanguages(): List<AppLocale> = listOf(
     AppLocale("English", "en"),
     AppLocale("日本語", "ja"),
     AppLocale("한국어", "ko"),
+    AppLocale("Español", "es"),
+    AppLocale("हिन्दी", "hi"),
+    AppLocale("العربية", "ar"),
+    AppLocale("Português", "pt"),
+    AppLocale("বাংলা", "bn"),
+    AppLocale("Русский", "ru"),
+    AppLocale("Français", "fr"),
+    AppLocale("Deutsch", "de"),
+    AppLocale("Italiano", "it"),
 )
