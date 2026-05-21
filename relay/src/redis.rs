@@ -1,6 +1,5 @@
 use std::{
     collections::BTreeMap,
-    net::SocketAddr,
     net::TcpStream,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -21,7 +20,7 @@ const DEFAULT_LEASE_TTL_MS: u64 = 60 * 1000;
 #[derive(Clone)]
 pub struct RedisRuntime {
     url: String,
-    addr: SocketAddr,
+    target: String,
 }
 
 #[derive(Debug, Clone)]
@@ -103,8 +102,8 @@ impl Default for RelayState {
 
 impl RedisRuntime {
     pub fn new(url: String) -> anyhow::Result<Self> {
-        let addr = parse_redis_socket_addr(&url)?;
-        Ok(Self { url, addr })
+        let target = parse_redis_host_port(&url).map(|(host, port)| format!("{host}:{port}"))?;
+        Ok(Self { url, target })
     }
 
     pub fn url(&self) -> &str {
@@ -122,7 +121,7 @@ impl RedisRuntime {
             task::spawn_blocking(move || redis_ping(&url)),
         )
         .await
-        .with_context(|| format!("timed out while probing redis at {}", self.addr))?
+        .with_context(|| format!("timed out while probing redis at {}", self.target))?
         .context("redis probe task failed")??;
 
         Ok(RedisHealthStatus {
@@ -269,10 +268,10 @@ impl RedisRuntime {
     }
 
     async fn mailbox_client(&self) -> anyhow::Result<client::Client> {
-        timeout(TokioDuration::from_secs(3), client::connect(self.addr))
+        timeout(TokioDuration::from_secs(3), client::connect(self.target.as_str()))
             .await
-            .with_context(|| format!("timed out while connecting to redis at {}", self.addr))?
-            .map_err(|error| anyhow!("failed to connect to redis at {}: {error}", self.addr))
+            .with_context(|| format!("timed out while connecting to redis at {}", self.target))?
+            .map_err(|error| anyhow!("failed to connect to redis at {}: {error}", self.target))
     }
 }
 
@@ -387,27 +386,6 @@ fn connect_blocking_client(
     let (host, port) = parse_redis_host_port(url)?;
     redis_rs::connection::Connection::<TcpStream>::new_tcp(&host, port)
         .map_err(|error| anyhow!("failed to create redis client: {error:?}"))
-}
-
-fn parse_redis_socket_addr(url: &str) -> anyhow::Result<SocketAddr> {
-    let without_scheme = url
-        .strip_prefix("redis://")
-        .ok_or_else(|| anyhow!("redis URL must start with redis://"))?;
-
-    let authority = without_scheme
-        .split('/')
-        .next()
-        .filter(|segment| !segment.is_empty())
-        .ok_or_else(|| anyhow!("redis URL must contain host:port"))?;
-
-    let host_port = authority
-        .rsplit('@')
-        .next()
-        .ok_or_else(|| anyhow!("redis URL authority is invalid"))?;
-
-    host_port
-        .parse::<SocketAddr>()
-        .with_context(|| format!("redis URL currently requires a socket address, got {host_port}"))
 }
 
 fn redis_ping(url: &str) -> anyhow::Result<String> {
