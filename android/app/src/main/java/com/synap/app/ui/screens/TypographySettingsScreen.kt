@@ -198,7 +198,7 @@ private fun TypographySettingsPanel(
             ) {
                 val displaySpacing = ((noteLineSpacing * 10f).roundToInt() / 10f).toString()
                 Text(
-                    text = "笔记行距 (当前为: $displaySpacing)",
+                    text = stringResource(R.string.current_line_spacing, displaySpacing),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f).padding(end = 8.dp)
@@ -352,6 +352,7 @@ fun TypographySettingsScreen(
                             .padding(end = 16.dp)
                     ) {
                         Spacer(modifier = Modifier.height(16.dp))
+                        Text(stringResource(R.string.note_body_text_style), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
                         TypographySettingsPanel(
                             currentFontFamily = currentFontFamily,
                             onFontFamilyChange = onFontFamilyChange,
@@ -391,6 +392,8 @@ fun TypographySettingsScreen(
                         .padding(horizontal = 16.dp),
                 ) {
                     Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(stringResource(R.string.note_body_text_style), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
 
                     TypographySettingsPanel(
                         currentFontFamily = currentFontFamily,

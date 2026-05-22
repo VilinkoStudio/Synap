@@ -6,6 +6,9 @@ import android.provider.CalendarContract
 import android.widget.Toast
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
@@ -250,7 +253,7 @@ fun buildMarkdownAnnotatedString(
 }
 
 @Suppress("OPT_IN_USAGE", "OPT_IN_USAGE_FUTURE_ERROR")
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun NoteDetailScreen(
     uiState: DetailUiState,
@@ -264,6 +267,8 @@ fun NoteDetailScreen(
     onLoadMoreReplies: () -> Unit,
     onRefresh: () -> Unit,
     onExportShare: suspend (List<String>) -> ByteArray,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
 ) {
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
@@ -390,6 +395,16 @@ fun NoteDetailScreen(
                 transformOrigin = TransformOrigin(1f, 0.5f) // 缩放原点在右侧中心
                 shape = RoundedCornerShape(32.dp * backProgress) // 随进度增加圆角
                 clip = true
+            }
+            .let { modifier ->
+                if (sharedTransitionScope != null && animatedVisibilityScope != null && uiState.note?.id != null) {
+                    with(sharedTransitionScope) {
+                        modifier.sharedBounds(
+                            sharedContentState = rememberSharedContentState(key = "note_card_${uiState.note!!.id}"),
+                            animatedVisibilityScope = animatedVisibilityScope,
+                        )
+                    }
+                } else modifier
             },
         topBar = {
             TopAppBar(
@@ -613,59 +628,127 @@ fun NoteDetailScreen(
                         buildMarkdownAnnotatedString(note.content, primaryColor, highlightColor, baseFontSize, isCompact = false)
                     }
 
-                    // ========== 允许自由选取文本 ==========
-                    SelectionContainer {
-                        Text(
-                            text = annotatedContent,
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                fontFamily = LocalNoteFontFamily.current,
-                                fontWeight = LocalNoteFontWeight.current,
-                                fontSize = LocalNoteTextSize.current,
-                                lineHeight = LocalNoteTextSize.current * LocalNoteLineSpacing.current
-                            ),
-                            modifier = Modifier.fillMaxWidth(),
+                    if (isLargeScreen) {
+                        // 大屏：左右分布，左侧正文，右侧卡片
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            // 左侧：正文
+                            Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                                // ========== 允许自由选取文本 ==========
+                                SelectionContainer {
+                                    Text(
+                                        text = annotatedContent,
+                                        style = MaterialTheme.typography.bodyLarge.copy(
+                                            fontFamily = LocalNoteFontFamily.current,
+                                            fontWeight = LocalNoteFontWeight.current,
+                                            fontSize = LocalNoteTextSize.current,
+                                            lineHeight = LocalNoteTextSize.current * LocalNoteLineSpacing.current
+                                        ),
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+
+                                if (uiState.errorMessage != null) {
+                                    Text(
+                                        text = uiState.errorMessage,
+                                        color = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.padding(top = 16.dp),
+                                    )
+                                }
+                            }
+
+                            // 右侧：卡片（固定宽度）
+                            Column(modifier = Modifier.width(250.dp)) {
+                                RelationSection(
+                                    title = stringResource(R.string.notedetail_origins),
+                                    notes = uiState.origins,
+                                    noteColor = noteColor,
+                                    onOpenRelatedNote = onOpenRelatedNote,
+                                )
+                                VersionSection(
+                                    title = stringResource(R.string.notedetail_previousVersions),
+                                    versions = uiState.previousVersions,
+                                    noteColor = noteColor,
+                                    onOpenRelatedNote = onOpenRelatedNote,
+                                )
+                                VersionSection(
+                                    title = stringResource(R.string.notedetail_nextVersions),
+                                    versions = uiState.nextVersions,
+                                    noteColor = noteColor,
+                                    onOpenRelatedNote = onOpenRelatedNote,
+                                )
+                                RelationSection(
+                                    title = stringResource(R.string.notedetail_replies),
+                                    notes = uiState.replies,
+                                    noteColor = noteColor,
+                                    onOpenRelatedNote = onOpenRelatedNote,
+                                )
+
+                                if (uiState.repliesHasMore) {
+                                    OutlinedButton(
+                                        onClick = onLoadMoreReplies,
+                                        modifier = Modifier.padding(top = 12.dp),
+                                    ) {
+                                        Text(if (uiState.repliesLoading) "加载中..." else "加载更多回复")
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // 小屏：单列布局
+                        // ========== 允许自由选取文本 ==========
+                        SelectionContainer {
+                            Text(
+                                text = annotatedContent,
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontFamily = LocalNoteFontFamily.current,
+                                    fontWeight = LocalNoteFontWeight.current,
+                                    fontSize = LocalNoteTextSize.current,
+                                    lineHeight = LocalNoteTextSize.current * LocalNoteLineSpacing.current
+                                ),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+
+                        if (uiState.errorMessage != null) {
+                            Text(
+                                text = uiState.errorMessage,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(top = 16.dp),
+                            )
+                        }
+
+                        RelationSection(
+                            title = stringResource(R.string.notedetail_origins),
+                            notes = uiState.origins,
+                            noteColor = noteColor,
+                            onOpenRelatedNote = onOpenRelatedNote,
                         )
-                    }
-
-                    if (uiState.errorMessage != null) {
-                        Text(
-                            text = uiState.errorMessage,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(top = 16.dp),
+                        VersionSection(
+                            title = stringResource(R.string.notedetail_previousVersions),
+                            versions = uiState.previousVersions,
+                            noteColor = noteColor,
+                            onOpenRelatedNote = onOpenRelatedNote,
                         )
-                    }
+                        VersionSection(
+                            title = stringResource(R.string.notedetail_nextVersions),
+                            versions = uiState.nextVersions,
+                            noteColor = noteColor,
+                            onOpenRelatedNote = onOpenRelatedNote,
+                        )
+                        RelationSection(
+                            title = stringResource(R.string.notedetail_replies),
+                            notes = uiState.replies,
+                            noteColor = noteColor,
+                            onOpenRelatedNote = onOpenRelatedNote,
+                        )
 
-                    RelationSection(
-                        title = stringResource(R.string.notedetail_origins),
-                        notes = uiState.origins,
-                        noteColor = noteColor,
-                        onOpenRelatedNote = onOpenRelatedNote,
-                    )
-                    VersionSection(
-                        title = stringResource(R.string.notedetail_previousVersions),
-                        versions = uiState.previousVersions,
-                        noteColor = noteColor,
-                        onOpenRelatedNote = onOpenRelatedNote,
-                    )
-                    VersionSection(
-                        title = stringResource(R.string.notedetail_nextVersions),
-                        versions = uiState.nextVersions,
-                        noteColor = noteColor,
-                        onOpenRelatedNote = onOpenRelatedNote,
-                    )
-                    RelationSection(
-                        title = stringResource(R.string.notedetail_replies),
-                        notes = uiState.replies,
-                        noteColor = noteColor,
-                        onOpenRelatedNote = onOpenRelatedNote,
-                    )
-
-                    if (uiState.repliesHasMore) {
-                        OutlinedButton(
-                            onClick = onLoadMoreReplies,
-                            modifier = Modifier.padding(top = 12.dp),
-                        ) {
-                            Text(if (uiState.repliesLoading) "加载中..." else "加载更多回复")
+                        if (uiState.repliesHasMore) {
+                            OutlinedButton(
+                                onClick = onLoadMoreReplies,
+                                modifier = Modifier.padding(top = 12.dp),
+                            ) {
+                                Text(if (uiState.repliesLoading) "加载中..." else "加载更多回复")
+                            }
                         }
                     }
                     Spacer(modifier = Modifier.height(32.dp))
@@ -811,7 +894,7 @@ private fun RelationSection(
         text = title,
         style = MaterialTheme.typography.titleMedium,
         color = primaryColor,
-        modifier = Modifier.padding(top = 24.dp, bottom = 12.dp),
+        modifier = Modifier.padding(top = 16.dp, bottom = 12.dp),
     )
 
     val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
@@ -876,7 +959,7 @@ private fun VersionSection(
         text = title,
         style = MaterialTheme.typography.titleMedium,
         color = primaryColor,
-        modifier = Modifier.padding(top = 24.dp, bottom = 12.dp),
+        modifier = Modifier.padding(top = 16.dp, bottom = 12.dp),
     )
 
     val highlightColor = MaterialTheme.colorScheme.tertiaryContainer

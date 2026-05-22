@@ -45,7 +45,6 @@ namespace desktop_windows
             
             ((FrameworkElement)Content).ActualThemeChanged += MainWindow_ActualThemeChanged;
 
-            this.SizeChanged += OnWindowSizeChanged;
             nvSample.Loaded += NavigationView_Loaded;
         }
 
@@ -57,11 +56,6 @@ namespace desktop_windows
         private void AppTitleBar_Loaded(object sender, RoutedEventArgs e)
         {
             UpdateTitleBarColors();
-            double windowWidth = ((FrameworkElement)Content).ActualWidth;
-            if (windowWidth < 650)
-            {
-                MoveSearchToNavPane();
-            }
         }
 
         private void AppTitleBar_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -92,43 +86,6 @@ namespace desktop_windows
             }
         }
 
-        private void OnWindowSizeChanged(object sender, WindowSizeChangedEventArgs args)
-        {
-            if (args.Size.Width < 650)
-            {
-                MoveSearchToNavPane();
-            }
-            else
-            {
-                MoveSearchToTitleBar();
-            }
-        }
-
-        private void MoveSearchToNavPane()
-        {
-            if (TitleSearchBox.Parent is Grid grid)
-            {
-                grid.Children.Remove(TitleSearchBox);
-            }
-            if (nvSample.AutoSuggestBox != TitleSearchBox)
-            {
-                nvSample.AutoSuggestBox = TitleSearchBox;
-            }
-        }
-
-        private void MoveSearchToTitleBar()
-        {
-            if (nvSample.AutoSuggestBox == TitleSearchBox)
-            {
-                nvSample.AutoSuggestBox = null;
-            }
-            if (!AppTitleBar.Children.Contains(TitleSearchBox))
-            {
-                Grid.SetColumn(TitleSearchBox, 2);
-                AppTitleBar.Children.Add(TitleSearchBox);
-            }
-        }
-
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
             if (contentFrame.CanGoBack)
@@ -148,6 +105,10 @@ namespace desktop_windows
             {
                 switch (selectedItem.Tag.ToString())
                 {
+                    case "NewNote":
+                        contentFrame.Navigate(typeof(ListPage));
+                        nvSample.Header = "新增笔记";
+                        break;
                     case "ListPage":
                         contentFrame.Navigate(typeof(ListPage));
                         nvSample.Header = "笔记列表";

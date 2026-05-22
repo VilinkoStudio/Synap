@@ -90,7 +90,7 @@ fun SettingColorScreen(
             },
         topBar = {
             TopAppBar(
-                title = { Text("主题和颜色") },
+                title = { Text(stringResource(R.string.setting_color)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -162,7 +162,7 @@ fun SettingColorScreen(
 
             // ==================== 2. 主题色 ====================
             Text(
-                text = "主题色",
+                text = stringResource(R.string.theme_color),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),

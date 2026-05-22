@@ -1,5 +1,8 @@
 package com.synap.app.ui.components
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,11 +36,12 @@ import androidx.compose.ui.unit.Dp
 import com.synap.app.ui.model.Note
 import com.synap.app.ui.model.TimelineSessionGroup
 import com.synap.app.ui.util.formatSessionDayLabel
-import com.synap.app.ui.util.formatSessionTimeRangeCompact
 import com.synap.app.ui.util.formatSessionTimeRange
-import kotlinx.coroutines.flow.distinctUntilChanged
+import com.synap.app.ui.util.formatSessionTimeRangeCompact
 import kotlin.math.abs
+import kotlinx.coroutines.flow.distinctUntilChanged
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun HomeSessionFeed(
     sessions: List<TimelineSessionGroup>,
@@ -53,6 +57,8 @@ fun HomeSessionFeed(
     onToggleDeleted: (Note) -> Unit,
     onReplyToNote: (String, String) -> Unit,
     bottomInset: Dp,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
 ) {
     val sessionHeaderIndexes = remember(sessions) { buildSessionHeaderIndexes(sessions) }
     val markers = remember(sessions) {
@@ -89,7 +95,7 @@ fun HomeSessionFeed(
     LaunchedEffect(state, sessions, sessionHeaderIndexes, axisLayout) {
         snapshotFlow { sessionAxisWeightForState(state, sessions, sessionHeaderIndexes, axisLayout) }
             .distinctUntilChanged()
-            .collect { weight ->
+            .collect { weight: Float ->
                 val safeWeight = weight.coerceIn(0f, axisLayout.totalWeight)
                 currentAxisWeight = safeWeight
                 if (!isSliderScrubbing && sessions.isNotEmpty()) {
@@ -187,6 +193,8 @@ fun HomeSessionFeed(
                         onToggleDeleted = { onToggleDeleted(note) },
                         onReply = { onReplyToNote(note.id, note.content) },
                         animationDelayMillis = ((sessionIndex + noteIndex).coerceAtMost(8)) * 35,
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedVisibilityScope = animatedVisibilityScope,
                     )
                 }
             }

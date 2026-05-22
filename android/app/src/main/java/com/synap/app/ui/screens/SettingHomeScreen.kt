@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material.icons.filled.ViewStream
 import androidx.compose.material3.AlertDialog
@@ -70,6 +71,7 @@ fun SettingHomeScreen(
     var widgetAlignment by remember { mutableStateOf(prefs.getString("widget_alignment", "default") ?: "default") }
     var showAlignmentMenu by remember { mutableStateOf(false) }
     var isNavCollapsed by remember { mutableStateOf(prefs.getBoolean("is_nav_collapsed", false)) }
+    var showTagBar by remember { mutableStateOf(prefs.getBoolean("show_tag_bar", true)) }
     var scanMethod by remember { mutableStateOf(prefs.getString("scan_method", "default") ?: "default") }
     var customScanPackage by remember { mutableStateOf(prefs.getString("scan_custom_package", "") ?: "") }
     var showCustomScanDialog by remember { mutableStateOf(false) }
@@ -209,6 +211,47 @@ fun SettingHomeScreen(
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(24.dp),
+                        )
+                    }
+                }
+
+                if (isWaterfall) {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Tag,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 16.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.setting_show_tag_bar),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = stringResource(R.string.setting_show_tag_bar_desc),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(
+                            checked = showTagBar,
+                            onCheckedChange = {
+                                showTagBar = it
+                                prefs.edit().putBoolean("show_tag_bar", it).apply()
+                            }
                         )
                     }
                 }

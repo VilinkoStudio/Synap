@@ -183,19 +183,21 @@ fun SynapNavGraph(
                         viewModel.events.collect { if (it is DetailEvent.NavigateBackAfterDelete) navController.popBackStack() }
                     }
 
-                    NoteDetailScreen(
-                        uiState = uiState,
-                        onNavigateBack = { navController.popBackStack() },
-                        onNavigateHome = { navController.popBackStack("home", inclusive = false) },
-                        onDelete = viewModel::deleteCurrentNote,
-                        onReply = { uiState.note?.let { note -> navController.navigate(editorRoute(parentId = note.id, parentSummary = note.content)) } },
-                        onEdit = { uiState.note?.let { note -> navController.navigate(editorRoute(editNoteId = note.id)) } },
-                        onOpenRelatedNote = { noteId -> navController.navigate(detailRoute(noteId)) },
-                        onOpenThreadReader = { noteId -> navController.navigate(threadReaderRoute(noteId)) },
-                        onLoadMoreReplies = viewModel::loadMoreReplies,
-                        onRefresh = viewModel::refreshAll,
-                        onExportShare = viewModel::exportShare,
-                    )
+    NoteDetailScreen(
+        uiState = uiState,
+        onNavigateBack = { navController.popBackStack() },
+        onNavigateHome = { navController.popBackStack("home", inclusive = false) },
+        onDelete = viewModel::deleteCurrentNote,
+        onReply = { uiState.note?.let { note -> navController.navigate(editorRoute(parentId = note.id, parentSummary = note.content)) } },
+        onEdit = { uiState.note?.let { note -> navController.navigate(editorRoute(editNoteId = note.id)) } },
+        onOpenRelatedNote = { noteId -> navController.navigate(detailRoute(noteId)) },
+        onOpenThreadReader = { noteId -> navController.navigate(threadReaderRoute(noteId)) },
+        onLoadMoreReplies = viewModel::loadMoreReplies,
+        onRefresh = viewModel::refreshAll,
+        onExportShare = viewModel::exportShare,
+        sharedTransitionScope = this@SharedTransitionLayout,
+        animatedVisibilityScope = this@composable,
+    )
                 }
 
                 composable(
@@ -235,6 +237,7 @@ fun SynapNavGraph(
                         onNavigateToLanguageSelection = { navController.navigate("language_selection") },
                         onNavigateToAppIcon = { navController.navigate("app_icon") },
                         onNavigateToHomeLayout = { navController.navigate("setting_home_layout") },
+                        onNavigateToLab = { navController.navigate("lab") },
                         onNavigateToAIService = { navController.navigate("setting_ai_api") },
                         onNavigateToAIScenarios = { navController.navigate("setting_ai_scenarios") },
                         onNavigateToSync = { navController.navigate("sync") },
@@ -305,6 +308,14 @@ fun SynapNavGraph(
 
                 composable("setting_ai_scenarios") {
                     SettingAIScenariosScreen(
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable("lab") {
+                    LabSettingsScreen(
+                        onNavigateToAIService = { navController.navigate("setting_ai_api") },
+                        onNavigateToAIScenarios = { navController.navigate("setting_ai_scenarios") },
                         onNavigateBack = { navController.popBackStack() }
                     )
                 }
@@ -385,6 +396,7 @@ fun SynapNavGraph(
                         },
                         onContentChange = viewModel::updateContent,
                         onAddTag = viewModel::addTag,
+                        onUpdateTag = viewModel::updateTag,
                         onRemoveTag = viewModel::removeTag,
                         onNoteColorHueChange = viewModel::setNoteColorHue,
                         onSave = viewModel::save,

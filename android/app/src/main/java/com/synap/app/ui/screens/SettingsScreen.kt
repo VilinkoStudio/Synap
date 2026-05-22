@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Sync
@@ -72,8 +73,6 @@ private fun AppearanceSection(
     onNavigateToLanguageSelection: () -> Unit,
     onNavigateToAppIcon: () -> Unit,
     onNavigateToHomeLayout: () -> Unit,
-    draftCapacity: Int,
-    onDraftCapacityChange: (Int) -> Unit,
 ) {
     Text(
         text = stringResource(R.string.appearance),
@@ -103,7 +102,7 @@ private fun AppearanceSection(
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "主题和颜色",
+                    text = stringResource(R.string.setting_color),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
@@ -169,7 +168,7 @@ private fun AppearanceSection(
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "应用图标",
+                    text = stringResource(R.string.setting_app_icon),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
@@ -251,12 +250,65 @@ private fun AppearanceSection(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
             modifier = Modifier.padding(horizontal = 16.dp),
         )
+    }
+}
 
-        // 6. 草稿箱容量
-        var expanded by remember { mutableStateOf(false) }
-        val capacities = listOf(0, 5, 10, 20, 50, 100)
-        val capacityLabels = listOf("关闭", "5", "10", "20", "50", "100")
+@Composable
+private fun FeatureSection(
+    draftCapacity: Int,
+    onDraftCapacityChange: (Int) -> Unit,
+    onNavigateToLab: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val capacities = listOf(0, 5, 10, 20, 50, 100)
+    val capacityLabels = listOf(stringResource(R.string.draft_capacity_off), "5", "10", "20", "50", "100")
 
+    Text(
+        text = stringResource(R.string.setting_feature),
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
+    )
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        // 实验室
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onNavigateToLab() }
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Science,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(end = 16.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.setting_lab),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            Icon(
+                Icons.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+
+        // 草稿箱容量
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -272,25 +324,24 @@ private fun AppearanceSection(
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "草稿箱容量",
+                    text = stringResource(R.string.draft_capacity),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = if (draftCapacity == 0) "已关闭" else "最多保存 $draftCapacity 条",
+                    text = if (draftCapacity == 0) stringResource(R.string.draft_capacity_summary_off) else stringResource(R.string.draft_capacity_summary_on, draftCapacity),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Icon(
-                imageVector = Icons.Filled.KeyboardArrowRight,
+                Icons.Filled.KeyboardArrowRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
-        // 下拉菜单 - 靠右对齐
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
             DropdownMenu(
                 expanded = expanded,
@@ -440,7 +491,7 @@ private fun BackupSyncSection(
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "同步",
+                    text = stringResource(R.string.setting_sync),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
@@ -448,7 +499,7 @@ private fun BackupSyncSection(
                 Text(
                     text = buildString {
                         if (syncPort != null) {
-                            append("监听端口 ")
+                            append(stringResource(R.string.listening_port))
                             append(syncPort)
                             if (syncAddresses.isNotEmpty()) {
                                 append(" · ")
@@ -684,7 +735,7 @@ private fun AboutSection(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("软件官网", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.setting_official_website), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
             Icon(Icons.Filled.Link, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
@@ -752,6 +803,7 @@ fun SettingsScreen(
     onNavigateToLanguageSelection: () -> Unit,
     onNavigateToAppIcon: () -> Unit,
     onNavigateToHomeLayout: () -> Unit,
+    onNavigateToLab: () -> Unit,
     onNavigateToAIService: () -> Unit,
     onNavigateToAIScenarios: () -> Unit,
     onNavigateToSync: () -> Unit,
@@ -811,15 +863,14 @@ fun SettingsScreen(
                     onNavigateToLanguageSelection = onNavigateToLanguageSelection,
                     onNavigateToAppIcon = onNavigateToAppIcon,
                     onNavigateToHomeLayout = onNavigateToHomeLayout,
-                    draftCapacity = draftCapacity,
-                    onDraftCapacityChange = onDraftCapacityChange,
                 )
             }
 
-            val aiContent: @Composable () -> Unit = {
-                AISection(
-                    onNavigateToAIService = onNavigateToAIService,
-                    onNavigateToAIScenarios = onNavigateToAIScenarios,
+            val functionContent: @Composable () -> Unit = {
+                FeatureSection(
+                    draftCapacity = draftCapacity,
+                    onDraftCapacityChange = onDraftCapacityChange,
+                    onNavigateToLab = onNavigateToLab,
                 )
             }
 
@@ -856,7 +907,7 @@ fun SettingsScreen(
                             appearanceContent()
                         }
                         Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
-                            aiContent()
+                            functionContent()
                             Spacer(modifier = Modifier.height(24.dp))
                             backupSyncContent()
                         }
@@ -878,7 +929,7 @@ fun SettingsScreen(
                             backupSyncContent()
                         }
                         Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
-                            aiContent()
+                            functionContent()
                             Spacer(modifier = Modifier.height(24.dp))
                             aboutContent()
                         }
@@ -893,7 +944,7 @@ fun SettingsScreen(
                     ) {
                         appearanceContent()
                         Spacer(modifier = Modifier.height(24.dp))
-                        aiContent()
+                        functionContent()
                         Spacer(modifier = Modifier.height(24.dp))
                         backupSyncContent()
                         Spacer(modifier = Modifier.height(24.dp))

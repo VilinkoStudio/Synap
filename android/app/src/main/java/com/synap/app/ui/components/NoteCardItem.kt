@@ -1,6 +1,9 @@
 package com.synap.app.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -187,7 +190,7 @@ fun buildMarkdownAnnotatedString(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun NoteCardItem(
     note: Note,
@@ -200,6 +203,8 @@ fun NoteCardItem(
     onToggleDeleted: () -> Unit,
     onReply: () -> Unit,
     animationDelayMillis: Int = 0,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
 ) {
     val scope = rememberCoroutineScope()
 
@@ -306,7 +311,17 @@ fun NoteCardItem(
                     enabled = !note.isDeleted || isSelectionMode,
                     onClick = onClick,
                     onLongClick = onLongClick
-                ),
+                )
+                .let { cardModifier ->
+                    if (sharedTransitionScope != null && animatedVisibilityScope != null && !note.isDeleted) {
+                        with(sharedTransitionScope) {
+                            cardModifier.sharedBounds(
+                                sharedContentState = rememberSharedContentState(key = "note_card_${note.id}"),
+                                animatedVisibilityScope = animatedVisibilityScope,
+                            )
+                        }
+                    } else cardModifier
+                },
             colors = CardDefaults.cardColors(
                 containerColor = when {
                     note.isDeleted -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)

@@ -1,5 +1,8 @@
 package com.synap.app.ui.components
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,6 +16,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.synap.app.ui.model.Note
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun HomeNoteFeed(
     notes: List<Note>,
@@ -24,7 +28,9 @@ fun HomeNoteFeed(
     onOpenNote: (String) -> Unit,
     onToggleDeleted: (Note) -> Unit,
     onReplyToNote: (String, String) -> Unit,
-    bottomInset: Dp = 0.dp // 统一传 Dp
+    bottomInset: Dp = 0.dp,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
 ) {
     LazyVerticalStaggeredGrid(
         columns = StaggeredGridCells.Adaptive(minSize = 240.dp),
@@ -53,6 +59,8 @@ fun HomeNoteFeed(
                 onToggleDeleted = { onToggleDeleted(note) },
                 onReply = { onReplyToNote(note.id, note.content) },
                 animationDelayMillis = (index.coerceAtMost(6)) * 45,
+                sharedTransitionScope = sharedTransitionScope,
+                animatedVisibilityScope = animatedVisibilityScope,
             )
         }
     }

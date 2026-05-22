@@ -69,9 +69,11 @@ import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -80,6 +82,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -192,6 +195,7 @@ fun NewNoteScreen(
     onNavigateToHome: () -> Unit,
     onContentChange: (String) -> Unit,
     onAddTag: (String) -> Unit,
+    onUpdateTag: (Int, String) -> Unit,
     onRemoveTag: (Int) -> Unit,
     onNoteColorHueChange: (Float?) -> Unit,
     onSave: () -> Unit,
@@ -208,6 +212,7 @@ fun NewNoteScreen(
 ) {
     var tagInputText by remember { mutableStateOf("") }
     var isTagInputVisible by remember { mutableStateOf(false) }
+    var editingTagIndex by remember { mutableStateOf<Int?>(null) }
     val tagFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -319,6 +324,8 @@ fun NewNoteScreen(
     var showBackDialog by remember { mutableStateOf(false) }
 
     var backProgress by remember { mutableFloatStateOf(0f) }
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val isTabletDevice = LocalConfiguration.current.screenWidthDp >= 700
 
     fun handleBackNavigation() {
         if (hasUnsavedChanges) {
@@ -359,15 +366,47 @@ fun NewNoteScreen(
             },
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(when (uiState.mode) {
-                    is EditorMode.Create -> R.string.edit_title_creat
-                    is EditorMode.Reply -> R.string.edit_title_reply
-                    is EditorMode.Edit -> R.string.edit_title_edit
-                })) },
+                title = {
+                    if (isTabletDevice) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(stringResource(when (uiState.mode) {
+                                is EditorMode.Create -> R.string.edit_title_creat
+                                is EditorMode.Reply -> R.string.edit_title_reply
+                                is EditorMode.Edit -> R.string.edit_title_edit
+                            }), modifier = Modifier.padding(end = 16.dp))
+                            ScrollableTabRow(
+                                selectedTabIndex = selectedTab,
+                                divider = {},
+                                edgePadding = 0.dp,
+                                containerColor = Color.Transparent,
+                                contentColor = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                listOf("样式", "标签", "颜色").forEachIndexed { index, label ->
+                                    Tab(
+                                        selected = selectedTab == index,
+                                        onClick = { selectedTab = index },
+                                        text = { Text(label, maxLines = 1) },
+                                        selectedContentColor = MaterialTheme.colorScheme.primary,
+                                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        Text(stringResource(when (uiState.mode) {
+                            is EditorMode.Create -> R.string.edit_title_creat
+                            is EditorMode.Reply -> R.string.edit_title_reply
+                            is EditorMode.Edit -> R.string.edit_title_edit
+                        }))
+                    }
+                },
                 navigationIcon = { IconButton(onClick = { hideKeyboardAndNavigate { handleBackNavigation() } }) { Icon(Icons.Filled.ArrowBack, "返回") } },
                 actions = {
-                    val isTabletTopBar = LocalConfiguration.current.screenWidthDp >= 700
-                    if (!isTabletTopBar) {
+                    if (!isTabletDevice) {
                         val currentColor = uiState.noteColorHue?.let { NoteColorUtil.hueToColor(it) }
                         TextButton(
                             onClick = { showColorDialog = true },
@@ -384,56 +423,82 @@ fun NewNoteScreen(
                         }
                     }
                     // Draft box icon
-                    if (draftCount > 0) {
-                        BadgedBox(
-                            badge = { Badge { Text("$draftCount") } }
+                    if (isTabletDevice) {
+                        TextButton(
+                            onClick = { hideKeyboardAndNavigate { onNavigateToDrafts() } },
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         ) {
+                            Icon(Icons.Filled.Inventory2, "草稿箱", modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            if (draftCount > 0) Text("$draftCount", style = MaterialTheme.typography.labelMedium) else Text("草稿箱", style = MaterialTheme.typography.labelMedium)
+                        }
+                        TextButton(
+                            onClick = { hideKeyboardAndNavigate { onSave() } },
+                            enabled = !uiState.isSaving && !uiState.isLoading,
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            if (uiState.isSaving) CircularProgressIndicator(modifier = Modifier.size(20.dp)) else Icon(Icons.Filled.Check, "保存", modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("保存", style = MaterialTheme.typography.labelMedium)
+                        }
+                    } else {
+                        if (draftCount > 0) {
+                            BadgedBox(
+                                badge = { Badge { Text("$draftCount") } }
+                            ) {
+                                IconButton(onClick = { hideKeyboardAndNavigate { onNavigateToDrafts() } }) {
+                                    Icon(Icons.Filled.Inventory2, "草稿箱")
+                                }
+                            }
+                        } else {
                             IconButton(onClick = { hideKeyboardAndNavigate { onNavigateToDrafts() } }) {
                                 Icon(Icons.Filled.Inventory2, "草稿箱")
                             }
                         }
-                    } else {
-                        IconButton(onClick = { hideKeyboardAndNavigate { onNavigateToDrafts() } }) {
-                            Icon(Icons.Filled.Inventory2, "草稿箱")
+                        IconButton(onClick = { hideKeyboardAndNavigate { onSave() } }, enabled = !uiState.isSaving && !uiState.isLoading) {
+                            if (uiState.isSaving) CircularProgressIndicator(modifier = Modifier.size(24.dp)) else Icon(Icons.Filled.Check, "保存")
                         }
-                    }
-                    IconButton(onClick = { hideKeyboardAndNavigate { onSave() } }, enabled = !uiState.isSaving && !uiState.isLoading) {
-                        if (uiState.isSaving) CircularProgressIndicator(modifier = Modifier.size(24.dp)) else Icon(Icons.Filled.Check, "保存")
                     }
                 },
             )
         },
         bottomBar = {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .imePadding(),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 3.dp,
-                shadowElevation = 8.dp
-            ) {
-                Row(
+            if (!isTabletDevice) {
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 8.dp, vertical = 8.dp)
-                        .horizontalScroll(rememberScrollState()),
-                    verticalAlignment = Alignment.CenterVertically
+                        .imePadding(),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 3.dp,
+                    shadowElevation = 8.dp
                 ) {
-                    val iconColor = MaterialTheme.colorScheme.onSurface
-                    val textStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = iconColor)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(horizontal = 8.dp, vertical = 8.dp)
+                            .horizontalScroll(rememberScrollState()),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val iconColor = MaterialTheme.colorScheme.onSurface
+                        val textStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = iconColor)
 
-                    IconButton(onClick = { applyLinePrefix("- [ ] ") }) { Icon(Icons.Filled.CheckBox, null, tint = iconColor) }
-                    IconButton(onClick = { applyLinePrefix("- ") }) { Icon(Icons.Filled.FormatListBulleted, null, tint = iconColor) }
-                    IconButton(onClick = { applyLinePrefix("1. ") }) { Text("1.", style = textStyle) }
-                    IconButton(onClick = { applyLinePrefix("# ") }) { Text("H1", style = textStyle) }
-                    IconButton(onClick = { applyLinePrefix("## ") }) { Text("H2", style = textStyle) }
-                    IconButton(onClick = { applyLinePrefix("> ") }) { Icon(Icons.Filled.FormatQuote, null, tint = iconColor) }
-                    IconButton(onClick = { applyStyle("**", "**") }) { Icon(Icons.Filled.FormatBold, null, tint = iconColor) }
-                    IconButton(onClick = { applyStyle("*", "*") }) { Icon(Icons.Filled.FormatItalic, null, tint = iconColor) }
-                    IconButton(onClick = { applyStyle("<u>", "</u>") }) { Icon(Icons.Filled.FormatUnderlined, null, tint = iconColor) }
-                    IconButton(onClick = { applyStyle("~~", "~~") }) { Icon(Icons.Filled.FormatStrikethrough, null, tint = iconColor) }
-                    IconButton(onClick = { applyStyle("==", "==") }) { Icon(Icons.Filled.FormatColorText, null, tint = iconColor) }
+                        IconButton(onClick = { applyLinePrefix("- [ ] ") }) { Icon(Icons.Filled.CheckBox, null, tint = iconColor) }
+                        IconButton(onClick = { applyLinePrefix("- ") }) { Icon(Icons.Filled.FormatListBulleted, null, tint = iconColor) }
+                        IconButton(onClick = { applyLinePrefix("1. ") }) { Text("1.", style = textStyle) }
+                        IconButton(onClick = { applyLinePrefix("# ") }) { Text("H1", style = textStyle) }
+                        IconButton(onClick = { applyLinePrefix("## ") }) { Text("H2", style = textStyle) }
+                        IconButton(onClick = { applyLinePrefix("> ") }) { Icon(Icons.Filled.FormatQuote, null, tint = iconColor) }
+                        IconButton(onClick = { applyStyle("**", "**") }) { Icon(Icons.Filled.FormatBold, null, tint = iconColor) }
+                        IconButton(onClick = { applyStyle("*", "*") }) { Icon(Icons.Filled.FormatItalic, null, tint = iconColor) }
+                        IconButton(onClick = { applyStyle("<u>", "</u>") }) { Icon(Icons.Filled.FormatUnderlined, null, tint = iconColor) }
+                        IconButton(onClick = { applyStyle("~~", "~~") }) { Icon(Icons.Filled.FormatStrikethrough, null, tint = iconColor) }
+                        IconButton(onClick = { applyStyle("==", "==") }) { Icon(Icons.Filled.FormatColorText, null, tint = iconColor) }
+                    }
                 }
             }
         }
@@ -490,25 +555,38 @@ fun NewNoteScreen(
                                             hasGainedFocus = true
                                         } else if (hasGainedFocus && tagInputText.isBlank()) {
                                             isTagInputVisible = false
+                                            editingTagIndex = null
                                         }
                                     },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                                 keyboardActions = KeyboardActions(onDone = {
                                     if (tagInputText.isNotBlank()) {
-                                        onAddTag(tagInputText.trim())
+                                        val text = tagInputText.trim()
+                                        val idx = editingTagIndex
+                                        if (idx != null) { onUpdateTag(idx, text); editingTagIndex = null }
+                                        else onAddTag(text)
                                         tagInputText = ""
-                                        isTagInputVisible = false
-                                    } else {
-                                        isTagInputVisible = false
                                     }
+                                    isTagInputVisible = false
                                 })
                             )
+
+                            IconButton(onClick = {
+                                isTagInputVisible = false
+                                tagInputText = ""
+                                editingTagIndex = null
+                            }) {
+                                Icon(Icons.Filled.Close, contentDescription = "取消", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
 
                             IconButton(
                                 onClick = {
                                     if (tagInputText.isNotBlank()) {
-                                        onAddTag(tagInputText.trim())
+                                        val text = tagInputText.trim()
+                                        val idx = editingTagIndex
+                                        if (idx != null) { onUpdateTag(idx, text); editingTagIndex = null }
+                                        else onAddTag(text)
                                         tagInputText = ""
                                     }
                                     isTagInputVisible = false
@@ -523,7 +601,11 @@ fun NewNoteScreen(
                                 val parsedColor = parseColorLocal(tag)
                                 InputChip(
                                     selected = true,
-                                    onClick = {},
+                                    onClick = {
+                                        editingTagIndex = i
+                                        tagInputText = tag
+                                        isTagInputVisible = true
+                                    },
                                     label = { Text(tag) },
                                     leadingIcon = parsedColor?.let { color ->
                                         { Box(modifier = Modifier.size(8.dp).background(color, CircleShape)) }
@@ -873,12 +955,178 @@ fun NewNoteScreen(
             }
 
             if (isTablet) {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    Box(modifier = Modifier.width(300.dp).fillMaxHeight().verticalScroll(rememberScrollState())) {
-                        TagSectionContent()
+                Column(modifier = Modifier.fillMaxSize()) {
+
+                    // 菜单栏内容
+                    when (selectedTab) {
+                        0 -> {
+                            // 样式：工具栏按钮
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                                    .horizontalScroll(rememberScrollState()),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                val iconColor = MaterialTheme.colorScheme.onSurface
+                                val textStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = iconColor)
+
+                                IconButton(onClick = { applyLinePrefix("- [ ] ") }) { Icon(Icons.Filled.CheckBox, null, tint = iconColor) }
+                                IconButton(onClick = { applyLinePrefix("- ") }) { Icon(Icons.Filled.FormatListBulleted, null, tint = iconColor) }
+                                IconButton(onClick = { applyLinePrefix("1. ") }) { Text("1.", style = textStyle) }
+                                IconButton(onClick = { applyLinePrefix("# ") }) { Text("H1", style = textStyle) }
+                                IconButton(onClick = { applyLinePrefix("## ") }) { Text("H2", style = textStyle) }
+                                IconButton(onClick = { applyLinePrefix("> ") }) { Icon(Icons.Filled.FormatQuote, null, tint = iconColor) }
+                                IconButton(onClick = { applyStyle("**", "**") }) { Icon(Icons.Filled.FormatBold, null, tint = iconColor) }
+                                IconButton(onClick = { applyStyle("*", "*") }) { Icon(Icons.Filled.FormatItalic, null, tint = iconColor) }
+                                IconButton(onClick = { applyStyle("<u>", "</u>") }) { Icon(Icons.Filled.FormatUnderlined, null, tint = iconColor) }
+                                IconButton(onClick = { applyStyle("~~", "~~") }) { Icon(Icons.Filled.FormatStrikethrough, null, tint = iconColor) }
+                                IconButton(onClick = { applyStyle("==", "==") }) { Icon(Icons.Filled.FormatColorText, null, tint = iconColor) }
+                            }
+                            HorizontalDivider()
+                        }
+                        1 -> {
+                            // 标签
+                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                if (isTagInputVisible) {
+                                    var hasGainedFocus by remember { mutableStateOf(false) }
+                                    LaunchedEffect(Unit) { try { tagFocusRequester.requestFocus() } catch (e: Exception) {} }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        OutlinedTextField(
+                                            value = tagInputText,
+                                            onValueChange = { tagInputText = it },
+                                            placeholder = { Text("输入标签") },
+                                            modifier = Modifier.weight(1f).height(56.dp).focusRequester(tagFocusRequester)
+                                                .onFocusChanged { focusState ->
+                                                    if (focusState.isFocused) { hasGainedFocus = true }
+                                                    else if (hasGainedFocus && tagInputText.isBlank()) { isTagInputVisible = false; editingTagIndex = null }
+                                                },
+                                            singleLine = true,
+                                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                            keyboardActions = KeyboardActions(onDone = {
+                                                if (tagInputText.isNotBlank()) {
+                                                    val text = tagInputText.trim()
+                                                    val idx = editingTagIndex
+                                                    if (idx != null) { onUpdateTag(idx, text); editingTagIndex = null }
+                                                    else onAddTag(text)
+                                                    tagInputText = ""
+                                                }
+                                                isTagInputVisible = false
+                                            })
+                                        )
+                                        IconButton(onClick = {
+                                            isTagInputVisible = false
+                                            tagInputText = ""
+                                            editingTagIndex = null
+                                        }) { Icon(Icons.Filled.Close, contentDescription = "取消", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                        IconButton(onClick = {
+                                            if (tagInputText.isNotBlank()) {
+                                                val text = tagInputText.trim()
+                                                val idx = editingTagIndex
+                                                if (idx != null) { onUpdateTag(idx, text); editingTagIndex = null }
+                                                else onAddTag(text)
+                                                tagInputText = ""
+                                            }
+                                            isTagInputVisible = false
+                                        }) { Icon(Icons.Filled.Check, contentDescription = "确认添加", tint = MaterialTheme.colorScheme.primary) }
+                                    }
+                                } else {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        uiState.tags.forEachIndexed { i, tag ->
+                                            InputChip(
+                                                selected = true,
+                                                onClick = {
+                                                    editingTagIndex = i
+                                                    tagInputText = tag
+                                                    isTagInputVisible = true
+                                                },
+                                                label = { Text(tag) },
+                                                trailingIcon = { Icon(Icons.Filled.Close, null, Modifier.size(InputChipDefaults.AvatarSize).clickable { onRemoveTag(i) }) }
+                                            )
+                                        }
+                                        InputChip(selected = false, onClick = { isTagInputVisible = true }, label = { Text("添加标签") }, trailingIcon = { Icon(Icons.Filled.Add, null, Modifier.size(16.dp)) })
+                                    }
+                                }
+                                if (uiState.recommendedTags.isNotEmpty() || uiState.isRecommendingTags) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text("推荐标签：", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if (uiState.isRecommendingTags) {
+                                        CircularProgressIndicator(modifier = Modifier.size(14.dp).padding(start = 4.dp, top = 4.dp), strokeWidth = 2.dp)
+                                    } else {
+                                        Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                                            uiState.recommendedTags.forEach { tag ->
+                                                Text(text = "#$tag", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.clip(RoundedCornerShape(4.dp)).clickable { onAddTag(tag) }.padding(horizontal = 4.dp, vertical = 2.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            HorizontalDivider()
+                        }
+                        2 -> {
+                            // 颜色：预设颜色 + 自定义 + 增加按钮
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                                    .horizontalScroll(rememberScrollState()),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val presetHues = listOf(
+                                    0f to "红", 30f to "橙", 55f to "黄", 130f to "绿", 210f to "蓝", 270f to "紫"
+                                )
+                                presetHues.forEach { (hue, label) ->
+                                    val color = NoteColorUtil.hueToColor(hue)
+                                    val isSelected = uiState.noteColorHue != null && (uiState.noteColorHue!! - hue).let { it in -2f..2f }
+                                    InputChip(
+                                        selected = isSelected,
+                                        onClick = { localColorHue = hue; onNoteColorHueChange(hue) },
+                                        label = { Text(label) },
+                                        leadingIcon = { Box(modifier = Modifier.size(12.dp).background(color, CircleShape)) }
+                                    )
+                                }
+                                customColors.forEach { customColor ->
+                                    val color = NoteColorUtil.hueToColor(customColor.hue)
+                                    val isSelected = uiState.noteColorHue != null && (uiState.noteColorHue!! - customColor.hue).let { it in -2f..2f }
+                                    InputChip(
+                                        selected = isSelected,
+                                        onClick = { localColorHue = customColor.hue; onNoteColorHueChange(customColor.hue) },
+                                        label = { Text(customColor.name) },
+                                        leadingIcon = { Box(modifier = Modifier.size(12.dp).background(color, CircleShape)) },
+                                        trailingIcon = { Icon(Icons.Filled.Close, null, Modifier.size(InputChipDefaults.AvatarSize).clickable {
+                                            deleteCustomColor(context, customColors.indexOf(customColor))
+                                            customColors = loadCustomColors(context)
+                                        }) }
+                                    )
+                                }
+                                InputChip(selected = false, onClick = { showAddPresetDialog = true }, label = { Text("增加预设颜色") }, trailingIcon = { Icon(Icons.Filled.Add, null, Modifier.size(16.dp)) })
+                                if (uiState.noteColorHue != null) {
+                                    TextButton(
+                                        onClick = { onNoteColorHueChange(null) },
+                                        colors = ButtonDefaults.textButtonColors(
+                                            contentColor = MaterialTheme.colorScheme.error
+                                        )
+                                    ) {
+                                        Text("清除颜色")
+                                    }
+                                }
+                            }
+                            HorizontalDivider()
+                        }
                     }
-                    VerticalDivider()
-                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+
+                    // 编辑区域
+                    Box(modifier = Modifier.weight(1f).padding(top = 8.dp)) {
                         EditorSectionContent()
                     }
                 }
