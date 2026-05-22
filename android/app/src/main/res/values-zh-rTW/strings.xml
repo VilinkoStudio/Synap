@@ -157,4 +157,12 @@
     <string name="ai_base_url_hint">請填寫相容OpenAI的API連結。</string>
     <string name="ai_select_model">選擇模型</string>
     <string name="ai_custom_model">自訂</string>
+    <string name="unsaved_title">保存筆記</string>
+    <string name="unsaved_message">您還未保存目前的筆記，請選擇一個處理方式。</string>
+    <string name="unsaved_continue_editing">繼續編輯</string>
+    <string name="unsaved_save_to_draft">存到草稿箱</string>
+    <string name="unsaved_discard">廢棄</string>
+    <string name="recovery_title">有未保存的筆記</string>
+    <string name="recovery_message">偵測到您上次編輯的筆記還未保存，我們已經為您自動保存到草稿箱。請選擇一個處理上次筆記的方式：</string>
+    <string name="recovery_keep_in_draft">仍存儲在草稿箱內（不推薦）</string>
 </resources>

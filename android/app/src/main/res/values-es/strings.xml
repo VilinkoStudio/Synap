@@ -195,4 +195,12 @@
     <string name="ai_base_url_hint">Introduce URL compatible con OpenAI.</string>
     <string name="ai_select_model">Seleccionar modelo</string>
     <string name="ai_custom_model">Personalizado</string>
+    <string name="unsaved_title">Guardar Nota</string>
+    <string name="unsaved_message">No has guardado tu nota actual. Por favor, elige una opción.</string>
+    <string name="unsaved_continue_editing">Seguir Editando</string>
+    <string name="unsaved_save_to_draft">Guardar en Borradores</string>
+    <string name="unsaved_discard">Descartar</string>
+    <string name="recovery_title">Nota no guardada encontrada</string>
+    <string name="recovery_message">Detectamos que tu última edición no fue guardada. Se ha guardado automáticamente en borradores. Elige cómo manejarla:</string>
+    <string name="recovery_keep_in_draft">Mantener en Borradores (No recomendado)</string>
 </resources>

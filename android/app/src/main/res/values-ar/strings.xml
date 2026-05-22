@@ -195,4 +195,12 @@
     <string name="ai_base_url_hint">أدخل رابطًا متوافقًا مع OpenAI.</string>
     <string name="ai_select_model">اختر النموذج</string>
     <string name="ai_custom_model">مخصص</string>
+    <string name="unsaved_title">حفظ الملاحظة</string>
+    <string name="unsaved_message">لم تقم بحفظ ملاحظتك الحالية. الرجاء اختيار إجراء.</string>
+    <string name="unsaved_continue_editing">متابعة التحرير</string>
+    <string name="unsaved_save_to_draft">حفظ في المسودات</string>
+    <string name="unsaved_discard">تجاهل</string>
+    <string name="recovery_title">تم العثور على ملاحظة غير محفوظة</string>
+    <string name="recovery_message">لم يتم حفظ آخر تعديل لك. تم الحفظ تلقائياً في المسودات. الرجاء اختيار كيفية التعامل معها:</string>
+    <string name="recovery_keep_in_draft">الاحتفاظ في المسودات (غير موصى به)</string>
 </resources>

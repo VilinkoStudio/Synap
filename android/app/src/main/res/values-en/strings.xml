@@ -192,4 +192,12 @@
     <string name="ai_base_url_hint">Please enter an OpenAI-compatible API link.</string>
     <string name="ai_select_model">Select Model</string>
     <string name="ai_custom_model">Custom</string>
+    <string name="unsaved_title">Save Note</string>
+    <string name="unsaved_message">You haven\'t saved your current note. Please choose an action.</string>
+    <string name="unsaved_continue_editing">Continue Editing</string>
+    <string name="unsaved_save_to_draft">Save to Drafts</string>
+    <string name="unsaved_discard">Discard</string>
+    <string name="recovery_title">Unsaved Note Found</string>
+    <string name="recovery_message">We detected that your last edit was not saved. It has been auto-saved to drafts. Please choose how to handle it:</string>
+    <string name="recovery_keep_in_draft">Keep in Drafts (Not Recommended)</string>
 </resources>

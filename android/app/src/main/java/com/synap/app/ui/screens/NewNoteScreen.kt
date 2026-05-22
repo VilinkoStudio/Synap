@@ -1186,10 +1186,10 @@ fun NewNoteScreen(
             if (showBackDialog) {
                 AlertDialog(
                     onDismissRequest = { showBackDialog = false },
-                    title = { Text("保存笔记") },
+                    title = { Text(stringResource(R.string.unsaved_title)) },
                     text = {
                         Column {
-                            Text("您还未保存当前的笔记，请选择一个处理方式。")
+                            Text(stringResource(R.string.unsaved_message))
                             Spacer(modifier = Modifier.height(12.dp))
                             // 笔记卡片预览
                             Surface(
@@ -1233,7 +1233,7 @@ fun NewNoteScreen(
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("保存")
+                                Text(stringResource(R.string.save))
                             }
                             Button(
                                 onClick = {
@@ -1245,30 +1245,35 @@ fun NewNoteScreen(
                                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
                             ) {
-                                Text("继续编辑")
+                                Text(stringResource(R.string.unsaved_continue_editing))
                             }
-                            TextButton(
+                            Button(
                                 onClick = {
                                     showBackDialog = false
                                     onSaveDraft()
                                     hideKeyboardAndNavigate { onNavigateToHome() }
                                 },
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
                             ) {
-                                Text("存到草稿箱")
+                                Text(stringResource(R.string.unsaved_save_to_draft))
                             }
-                            TextButton(
+                            Button(
                                 onClick = {
                                     showBackDialog = false
                                     onDiscardDraft()
                                     hideKeyboardAndNavigate { onNavigateToHome() }
                                 },
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.textButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.error
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
                                 )
                             ) {
-                                Text("废弃")
+                                Text(stringResource(R.string.unsaved_discard))
                             }
                         }
                     }
@@ -1279,10 +1284,10 @@ fun NewNoteScreen(
             recoveryDraft?.let { draft ->
                 AlertDialog(
                     onDismissRequest = {}, // 屏蔽点击空白关闭
-                    title = { Text("有未保存的笔记") },
+                    title = { Text(stringResource(R.string.recovery_title)) },
                     text = {
                         Column {
-                            Text("检测到您上次编辑的笔记还未保存，我们已经为您自动保存到草稿箱。请选择一个处理上次笔记的方式：")
+                            Text(stringResource(R.string.recovery_message))
                             Spacer(modifier = Modifier.height(12.dp))
                             // 笔记卡片预览
                             Surface(
@@ -1321,19 +1326,6 @@ fun NewNoteScreen(
                         ) {
                             Button(
                                 onClick = {
-                                    // 继续编辑 - 加载草稿内容到编辑器
-                                    onContentChange(draft.content)
-                                    draft.tags.forEach { tag -> onAddTag(tag) }
-                                    draft.noteColorHue?.let { onNoteColorHueChange(it) }
-                                    draftStore.delete(draft.id)
-                                    recoveryDraft = null
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("继续编辑")
-                            }
-                            Button(
-                                onClick = {
                                     // 保存 - 加载草稿内容到编辑器，删除草稿，然后保存
                                     onContentChange(draft.content)
                                     draft.tags.forEach { tag -> onAddTag(tag) }
@@ -1342,13 +1334,40 @@ fun NewNoteScreen(
                                     recoveryDraft = null
                                     onSave()
                                 },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(stringResource(R.string.save))
+                            }
+                            Button(
+                                onClick = {
+                                    // 继续编辑 - 加载草稿内容到编辑器
+                                    onContentChange(draft.content)
+                                    draft.tags.forEach { tag -> onAddTag(tag) }
+                                    draft.noteColorHue?.let { onNoteColorHueChange(it) }
+                                    draftStore.delete(draft.id)
+                                    recoveryDraft = null
+                                },
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
                             ) {
-                                Text("保存")
+                                Text(stringResource(R.string.unsaved_continue_editing))
+                            }
+                            Button(
+                                onClick = {
+                                    // 标记为已读
+                                    onMarkDraftAsRead(draft.id)
+                                    recoveryDraft = null
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            ) {
+                                Text(stringResource(R.string.recovery_keep_in_draft))
                             }
                             Button(
                                 onClick = {
@@ -1362,17 +1381,7 @@ fun NewNoteScreen(
                                     contentColor = MaterialTheme.colorScheme.onError
                                 )
                             ) {
-                                Text("废弃")
-                            }
-                            TextButton(
-                                onClick = {
-                                    // 标记为已读
-                                    onMarkDraftAsRead(draft.id)
-                                    recoveryDraft = null
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("仍存储在草稿箱内（不推荐）")
+                                Text(stringResource(R.string.unsaved_discard))
                             }
                         }
                     }

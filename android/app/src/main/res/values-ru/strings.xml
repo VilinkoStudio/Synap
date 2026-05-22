@@ -195,4 +195,12 @@
     <string name="ai_base_url_hint">Введите URL, совместимый с OpenAI.</string>
     <string name="ai_select_model">Выбрать модель</string>
     <string name="ai_custom_model">Пользовательская</string>
+    <string name="unsaved_title">Сохранить заметку</string>
+    <string name="unsaved_message">Вы не сохранили текущую заметку. Пожалуйста, выберите действие.</string>
+    <string name="unsaved_continue_editing">Продолжить редактирование</string>
+    <string name="unsaved_save_to_draft">Сохранить в черновики</string>
+    <string name="unsaved_discard">Отменить</string>
+    <string name="recovery_title">Найдена несохранённая заметка</string>
+    <string name="recovery_message">Ваше последнее редактирование не было сохранено. Оно было автоматически сохранено в черновики. Выберите, как поступить:</string>
+    <string name="recovery_keep_in_draft">Оставить в черновиках (не рекомендуется)</string>
 </resources>

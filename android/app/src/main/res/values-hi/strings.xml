@@ -195,4 +195,12 @@
     <string name="ai_base_url_hint">OpenAI संगत URL दर्ज करें।</string>
     <string name="ai_select_model">मॉडल चुनें</string>
     <string name="ai_custom_model">कस्टम</string>
+    <string name="unsaved_title">नोट सहेजें</string>
+    <string name="unsaved_message">आपने अपना वर्तमान नोट सहेजा नहीं है। कृपया एक कार्रवाई चुनें।</string>
+    <string name="unsaved_continue_editing">संपादन जारी रखें</string>
+    <string name="unsaved_save_to_draft">ड्राफ्ट में सहेजें</string>
+    <string name="unsaved_discard">त्यागें</string>
+    <string name="recovery_title">असहेजा गया नोट मिला</string>
+    <string name="recovery_message">आपका अंतिम संपादन सहेजा नहीं गया था। इसे स्वचालित रूप से ड्राफ्ट में सहेज लिया गया है। कृपया चुनें कि इसे कैसे संभालना है:</string>
+    <string name="recovery_keep_in_draft">ड्राफ्ट में रखें (अनुशंसित नहीं)</string>
 </resources>

@@ -195,4 +195,12 @@
     <string name="ai_base_url_hint">OpenAI সামঞ্জস্যপূর্ণ URL লিখুন।</string>
     <string name="ai_select_model">মডেল নির্বাচন করুন</string>
     <string name="ai_custom_model">কাস্টম</string>
+    <string name="unsaved_title">নোট সংরক্ষণ করুন</string>
+    <string name="unsaved_message">আপনি আপনার বর্তমান নোট সংরক্ষণ করেননি। অনুগ্রহ করে একটি কর্ম নির্বাচন করুন।</string>
+    <string name="unsaved_continue_editing">সম্পাদনা চালিয়ে যান</string>
+    <string name="unsaved_save_to_draft">খসড়ায় সংরক্ষণ করুন</string>
+    <string name="unsaved_discard">বাতিল করুন</string>
+    <string name="recovery_title">অসংরক্ষিত নোট পাওয়া গেছে</string>
+    <string name="recovery_message">আপনার শেষ সম্পাদনা সংরক্ষিত হয়নি। এটি স্বয়ংক্রিয়ভাবে খসড়ায় সংরক্ষিত হয়েছে। অনুগ্রহ করে কীভাবে এটি পরিচালনা করবেন তা নির্বাচন করুন:</string>
+    <string name="recovery_keep_in_draft">খসড়ায় রাখুন (সুপারিশ করা হয় না)</string>
 </resources>

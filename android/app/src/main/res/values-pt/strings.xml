@@ -195,4 +195,12 @@
     <string name="ai_base_url_hint">Insira uma URL compatível com OpenAI.</string>
     <string name="ai_select_model">Selecionar Modelo</string>
     <string name="ai_custom_model">Personalizado</string>
+    <string name="unsaved_title">Salvar Nota</string>
+    <string name="unsaved_message">Você não salvou sua nota atual. Por favor, escolha uma ação.</string>
+    <string name="unsaved_continue_editing">Continuar Editando</string>
+    <string name="unsaved_save_to_draft">Salvar nos Rascunhos</string>
+    <string name="unsaved_discard">Descartar</string>
+    <string name="recovery_title">Nota não salva encontrada</string>
+    <string name="recovery_message">Detectamos que sua última edição não foi salva. Foi salva automaticamente nos rascunhos. Escolha como proceder:</string>
+    <string name="recovery_keep_in_draft">Manter nos Rascunhos (Não recomendado)</string>
 </resources>

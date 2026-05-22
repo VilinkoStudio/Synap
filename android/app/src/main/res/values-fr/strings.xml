@@ -195,4 +195,12 @@
     <string name="ai_base_url_hint">Entrez une URL compatible OpenAI.</string>
     <string name="ai_select_model">Sélectionner le modèle</string>
     <string name="ai_custom_model">Personnalisé</string>
+    <string name="unsaved_title">Enregistrer la note</string>
+    <string name="unsaved_message">Vous n\'avez pas enregistré votre note actuelle. Veuillez choisir une action.</string>
+    <string name="unsaved_continue_editing">Continuer l\'édition</string>
+    <string name="unsaved_save_to_draft">Enregistrer dans les brouillons</string>
+    <string name="unsaved_discard">Ignorer</string>
+    <string name="recovery_title">Note non enregistrée trouvée</string>
+    <string name="recovery_message">Votre dernière modification n\'a pas été enregistrée. Elle a été auto-sauvegardée dans les brouillons. Choisissez comment la traiter :</string>
+    <string name="recovery_keep_in_draft">Garder dans les brouillons (Non recommandé)</string>
 </resources>

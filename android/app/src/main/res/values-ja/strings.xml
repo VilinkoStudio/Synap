@@ -157,4 +157,12 @@
     <string name="ai_base_url_hint">OpenAI互換のAPIリンクを入力してください。</string>
     <string name="ai_select_model">モデルを選択</string>
     <string name="ai_custom_model">カスタム</string>
+    <string name="unsaved_title">ノートを保存</string>
+    <string name="unsaved_message">現在のノートはまだ保存されていません。処理方法を選択してください。</string>
+    <string name="unsaved_continue_editing">編集を続ける</string>
+    <string name="unsaved_save_to_draft">下書きに保存</string>
+    <string name="unsaved_discard">破棄</string>
+    <string name="recovery_title">未保存のノートがあります</string>
+    <string name="recovery_message">前回の編集が保存されていません。自動的に下書きに保存しました。処理方法を選択してください：</string>
+    <string name="recovery_keep_in_draft">下書きに残す（非推奨）</string>
 </resources>

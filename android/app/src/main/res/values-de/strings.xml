@@ -195,4 +195,12 @@
     <string name="ai_base_url_hint">Geben Sie eine OpenAI-kompatible URL ein.</string>
     <string name="ai_select_model">Modell auswählen</string>
     <string name="ai_custom_model">Benutzerdefiniert</string>
+    <string name="unsaved_title">Notiz speichern</string>
+    <string name="unsaved_message">Sie haben Ihre aktuelle Notiz nicht gespeichert. Bitte wählen Sie eine Aktion.</string>
+    <string name="unsaved_continue_editing">Bearbeitung fortsetzen</string>
+    <string name="unsaved_save_to_draft">In Entwürfe speichern</string>
+    <string name="unsaved_discard">Verwerfen</string>
+    <string name="recovery_title">Nicht gespeicherte Notiz gefunden</string>
+    <string name="recovery_message">Ihre letzte Bearbeitung wurde nicht gespeichert. Sie wurde automatisch in den Entwürfen gesichert. Bitte wählen Sie, wie verfahren werden soll:</string>
+    <string name="recovery_keep_in_draft">In Entwürfen behalten (Nicht empfohlen)</string>
 </resources>
