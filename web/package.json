@@ -1,0 +1,30 @@
+{
+  "name": "synap-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "prepare:bindings": "node ./scripts/prepare-bindings.mjs"
+  },
+  "dependencies": {
+    "@unocss/reset": "^66.5.1",
+    "koffi": "^2.11.0",
+    "svelte": "^5.38.6",
+    "@sveltejs/kit": "^2.31.0"
+  },
+  "devDependencies": {
+    "@iconify-json/lucide": "^1.2.67",
+    "@sveltejs/adapter-node": "^5.2.12",
+    "@sveltejs/vite-plugin-svelte": "^6.1.3",
+    "@types/node": "^24.3.0",
+    "sass": "^1.89.2",
+    "svelte-check": "^4.3.1",
+    "typescript": "^5.9.2",
+    "unocss": "^66.5.1",
+    "vite": "^7.1.3"
+  }
+}
