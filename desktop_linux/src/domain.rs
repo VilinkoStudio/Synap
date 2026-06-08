@@ -88,6 +88,26 @@ impl NoteLayout {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum WorkspaceMode {
+    Read,
+    CreateDraft,
+    EditDraft(String),
+    ReplyDraft(String),
+}
+
+impl WorkspaceMode {
+    pub fn is_draft(&self) -> bool {
+        !matches!(self, Self::Read)
+    }
+}
+
+impl Default for WorkspaceMode {
+    fn default() -> Self {
+        Self::Read
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct HomeData {
     pub notes: Vec<NoteDTO>,
@@ -161,6 +181,10 @@ pub struct AppState {
     pub selected_note_id: Option<String>,
     pub selected_note_detail: Option<NoteDetailViewModel>,
     pub selected_note_full: Option<NoteDetailData>,
+    pub workspace_mode: WorkspaceMode,
+    pub draft_content: String,
+    pub draft_tags_text: String,
+    pub context_panel_open: bool,
     pub status: Option<String>,
     pub theme: Theme,
     pub is_loading_more: bool,
@@ -184,6 +208,10 @@ impl Default for AppState {
             selected_note_id: None,
             selected_note_detail: None,
             selected_note_full: None,
+            workspace_mode: WorkspaceMode::Read,
+            draft_content: String::new(),
+            draft_tags_text: String::new(),
+            context_panel_open: false,
             status: None,
             theme: Theme::default(),
             is_loading_more: false,
@@ -230,6 +258,24 @@ impl AppState {
         }
 
         let visible = self.visible_notes();
+
+        if self.content_view == ContentView::NoteDetail {
+            if let Some(selected_id) = self.selected_note_id.as_ref() {
+                self.selected_note_detail = self
+                    .selected_note_full
+                    .as_ref()
+                    .filter(|full| full.note.id == *selected_id)
+                    .map(NoteDetailData::to_view_model)
+                    .or_else(|| {
+                        visible
+                            .iter()
+                            .find(|note| note.id == *selected_id)
+                            .map(NoteDetailViewModel::from)
+                    });
+            }
+            return;
+        }
+
         let is_selected_visible = self
             .selected_note_id
             .as_ref()

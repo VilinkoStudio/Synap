@@ -8,11 +8,10 @@ use relm4::prelude::*;
 use crate::{
     app::message::AppMsg,
     core::DesktopCore,
-    domain::{AppState, ContentView, NoteLayout},
+    domain::{AppState, ContentView, NoteLayout, WorkspaceMode},
     ui::{
-        editor::present_note_editor,
         note_widgets::{build_clickable_note_row, build_note_row, build_waterfall_card},
-        shell::{build_content_pages, install_css},
+        shell::build_content_pages,
         theme::apply_theme,
     },
     usecase::load_home,
@@ -25,12 +24,21 @@ pub struct App {
     list_box: gtk::ListBox,
     content_stack: gtk::Stack,
     empty_page: adw::StatusPage,
-    detail_content_row: adw::ActionRow,
-    detail_tags_row: adw::ActionRow,
-    detail_meta_row: adw::ActionRow,
+    workspace_stack: gtk::Stack,
+    detail_content_label: gtk::Label,
+    detail_tags_box: gtk::Box,
+    detail_meta_label: gtk::Label,
+    detail_toolbar: gtk::Box,
+    context_toggle: gtk::ToggleButton,
+    context_panel: gtk::ScrolledWindow,
     detail_origins_box: gtk::Box,
     detail_replies_box: gtk::Box,
     detail_versions_box: gtk::Box,
+    draft_title_label: gtk::Label,
+    draft_hint_label: gtk::Label,
+    draft_content_buffer: gtk::TextBuffer,
+    draft_content_view: gtk::TextView,
+    draft_tags_entry: gtk::Entry,
     theme_dropdown: gtk::DropDown,
     sync_listener_row: adw::ActionRow,
     sync_addresses_row: adw::ActionRow,
@@ -81,14 +89,14 @@ impl SimpleComponent for App {
                                 add_css_class: "title-1"
                             },
 
-                            pack_end = &gtk::Button {
-                                set_icon_name: "list-add-symbolic",
-                                set_tooltip_text: Some("新建笔记"),
-                                add_css_class: "flat",
-                                connect_clicked[sender] => move |_| {
-                                    sender.input(AppMsg::CreateNote);
-                                }
-                            }
+            pack_end = &gtk::Button {
+                set_icon_name: "list-add-symbolic",
+                set_tooltip_text: Some("新建笔记"),
+                add_css_class: "flat",
+                connect_clicked[sender] => move |_| {
+                    sender.input(AppMsg::StartCreateNote);
+                }
+            }
                         },
 
                         gtk::ListBox {
@@ -402,12 +410,21 @@ impl SimpleComponent for App {
             list_box: pages.list_box.clone(),
             content_stack: pages.content_stack,
             empty_page: pages.empty_page,
-            detail_content_row: pages.detail_content_row,
-            detail_tags_row: pages.detail_tags_row,
-            detail_meta_row: pages.detail_meta_row,
+            workspace_stack: pages.workspace_stack,
+            detail_content_label: pages.detail_content_label,
+            detail_tags_box: pages.detail_tags_box,
+            detail_meta_label: pages.detail_meta_label,
+            detail_toolbar: pages.detail_toolbar,
+            context_toggle: pages.context_toggle,
+            context_panel: pages.context_panel,
             detail_origins_box: pages.detail_origins_box,
             detail_replies_box: pages.detail_replies_box,
             detail_versions_box: pages.detail_versions_box,
+            draft_title_label: pages.draft_title_label,
+            draft_hint_label: pages.draft_hint_label,
+            draft_content_buffer: pages.draft_content_buffer,
+            draft_content_view: pages.draft_content_view,
+            draft_tags_entry: pages.draft_tags_entry,
             theme_dropdown: pages.theme_dropdown,
             sync_listener_row: pages.sync_listener_row,
             sync_addresses_row: pages.sync_addresses_row,
@@ -427,10 +444,12 @@ impl SimpleComponent for App {
         };
 
         let widgets = view_output!();
-        install_css();
         model.connect_note_list(&sender);
         model.rebuild_list(&sender);
         model.sync_ui(&sender);
+        if let Some(note_id) = model.state.selected_note_id.clone() {
+            model.load_note_detail(note_id, &sender);
+        }
 
         ComponentParts { model, widgets }
     }
@@ -453,21 +472,26 @@ impl SimpleComponent for App {
                 content,
                 tags,
             } => self.save_reply(parent_id, content, tags, &sender),
-            AppMsg::CreateNote => self.open_editor(&sender, None, false),
-            AppMsg::EditNote => {
-                self.open_editor(&sender, self.state.selected_note_id.clone(), false)
-            }
-            AppMsg::ReplyToNote => {
-                self.open_editor(&sender, self.state.selected_note_id.clone(), true)
+            AppMsg::CreateNote | AppMsg::StartCreateNote => self.start_create_note(),
+            AppMsg::EditNote | AppMsg::StartEditNote => self.start_edit_note(),
+            AppMsg::ReplyToNote | AppMsg::StartReplyToNote => self.start_reply_to_note(),
+            AppMsg::DraftContentChanged(value) => self.state.draft_content = value,
+            AppMsg::DraftTagsChanged(value) => self.state.draft_tags_text = value,
+            AppMsg::SaveDraft => self.save_draft(&sender),
+            AppMsg::CancelDraft => self.cancel_draft(),
+            AppMsg::ToggleContextPanel => {
+                self.state.context_panel_open = !self.state.context_panel_open
             }
             AppMsg::ThemeChanged(theme) => {
                 self.state.theme = theme;
                 apply_theme(theme);
             }
-            AppMsg::NoteSelected(index) => self.select_note(index),
+            AppMsg::NoteSelected(index) => self.select_note(index, &sender),
             AppMsg::NoteActivated(index) => self.activate_note(index, &sender),
             AppMsg::NoteDetailLoaded(result) => match result {
                 Ok(data) => {
+                    self.state.selected_note_id = Some(data.note.id.clone());
+                    self.state.selected_note_detail = Some(data.to_view_model());
                     self.state.selected_note_full = Some(data);
                     self.state.status = None;
                 }
@@ -491,6 +515,11 @@ impl SimpleComponent for App {
                     self.state.tag_notes = notes;
                     self.state.sync_selection();
                     self.rebuild_list(&sender);
+                    if !self.state.workspace_mode.is_draft() {
+                        if let Some(note_id) = self.state.selected_note_id.clone() {
+                            self.load_note_detail(note_id, &sender);
+                        }
+                    }
                     self.state.status = None;
                 }
                 Err(error) => self.state.status = Some(format!("加载标签笔记失败: {error}")),
@@ -588,8 +617,26 @@ impl App {
         }
 
         self.state.content_view = view;
+        if !matches!(
+            view,
+            ContentView::Notes
+                | ContentView::Trash
+                | ContentView::TagNotes
+                | ContentView::NoteDetail
+        ) {
+            self.state.workspace_mode = WorkspaceMode::Read;
+        }
         self.state.sync_selection();
         self.rebuild_list(sender);
+        if matches!(
+            view,
+            ContentView::Notes | ContentView::Trash | ContentView::TagNotes
+        ) && !self.state.workspace_mode.is_draft()
+        {
+            if let Some(note_id) = self.state.selected_note_id.clone() {
+                self.load_note_detail(note_id, sender);
+            }
+        }
 
         if view == ContentView::Tags {
             let core = self.core.clone();
@@ -624,6 +671,7 @@ impl App {
         match self.core.delete_note(&id) {
             Ok(()) => {
                 self.state.content_view = ContentView::Notes;
+                self.state.workspace_mode = WorkspaceMode::Read;
                 self.refresh_home(sender);
                 self.toast_overlay.add_toast(adw::Toast::new("已删除笔记"));
             }
@@ -648,11 +696,10 @@ impl App {
 
         match result {
             Ok(note) => {
-                self.state.content_view = if is_edit {
-                    ContentView::NoteDetail
-                } else {
-                    ContentView::Notes
-                };
+                self.state.content_view = ContentView::NoteDetail;
+                self.state.workspace_mode = WorkspaceMode::Read;
+                self.state.draft_content.clear();
+                self.state.draft_tags_text.clear();
                 self.state.search_query.clear();
                 self.refresh_home_with_selection(
                     sender,
@@ -678,6 +725,9 @@ impl App {
         match self.core.reply_note(&parent_id, content, tags) {
             Ok(_) => {
                 self.state.content_view = ContentView::NoteDetail;
+                self.state.workspace_mode = WorkspaceMode::Read;
+                self.state.draft_content.clear();
+                self.state.draft_tags_text.clear();
                 self.state.search_query.clear();
                 self.state.selected_note_id = Some(parent_id.clone());
                 self.state.sync_selection();
@@ -689,12 +739,16 @@ impl App {
         }
     }
 
-    fn select_note(&mut self, index: u32) {
+    fn select_note(&mut self, index: u32, sender: &ComponentSender<Self>) {
         let visible = self.state.visible_notes();
         if let Some(note) = visible.get(index as usize) {
             if self.state.selected_note_id.as_deref() != Some(&note.id) {
                 self.state.selected_note_id = Some(note.id.clone());
                 self.state.sync_selection();
+                if !self.state.workspace_mode.is_draft() {
+                    self.state.content_view = ContentView::NoteDetail;
+                    self.load_note_detail(note.id.clone(), sender);
+                }
             }
         }
     }
@@ -709,6 +763,7 @@ impl App {
     fn open_note_detail(&mut self, note_id: String, sender: &ComponentSender<Self>) {
         self.state.selected_note_id = Some(note_id.clone());
         self.state.content_view = ContentView::NoteDetail;
+        self.state.workspace_mode = WorkspaceMode::Read;
         self.state.sync_selection();
         self.rebuild_list(sender);
         self.load_note_detail(note_id, sender);
@@ -1037,6 +1092,7 @@ impl App {
         self.sync_empty_page();
         self.sync_detail_rows();
         self.sync_detail_sections(sender);
+        self.sync_draft_editor();
         self.sync_theme_dropdown();
         self.sync_settings(sender);
         self.sync_tags(sender);
@@ -1046,12 +1102,12 @@ impl App {
     fn sync_content_stack(&self) {
         let is_empty = self.state.visible_notes().is_empty();
         let child_name = match self.state.content_view {
-            ContentView::NoteDetail => "detail",
+            ContentView::NoteDetail => "notes",
             ContentView::Settings => "settings",
             ContentView::Tags => "tags",
             ContentView::Timeline => "timeline",
             ContentView::TagNotes | ContentView::Notes | ContentView::Trash => {
-                if is_empty {
+                if is_empty && !self.state.workspace_mode.is_draft() {
                     "empty"
                 } else {
                     "notes"
@@ -1070,6 +1126,13 @@ impl App {
             };
             self.layout_stack.set_visible_child_name(layout_name);
         }
+
+        self.workspace_stack
+            .set_visible_child_name(if self.state.workspace_mode.is_draft() {
+                "draft"
+            } else {
+                "read"
+            });
     }
 
     fn sync_empty_page(&self) {
@@ -1099,9 +1162,68 @@ impl App {
     }
 
     fn sync_detail_rows(&self) {
-        self.detail_content_row.set_subtitle(&self.detail_content());
-        self.detail_tags_row.set_subtitle(&self.detail_tags());
-        self.detail_meta_row.set_subtitle(&self.detail_meta());
+        let has_note = self.state.selected_note_detail.is_some();
+        self.detail_content_label.set_text(&self.detail_content());
+        self.detail_meta_label.set_text(&self.detail_meta());
+        self.detail_toolbar.set_visible(has_note);
+        self.context_panel
+            .set_visible(self.state.context_panel_open && has_note);
+        self.context_toggle
+            .set_active(self.state.context_panel_open);
+
+        clear_box(&self.detail_tags_box);
+        if let Some(detail) = &self.state.selected_note_detail {
+            if detail.tags.is_empty() {
+                let label = gtk::Label::new(Some("暂无标签"));
+                label.add_css_class("caption");
+                label.add_css_class("dim-label");
+                self.detail_tags_box.append(&label);
+            } else {
+                for tag in &detail.tags {
+                    self.detail_tags_box
+                        .append(&crate::ui::note_widgets::tag_chip(tag));
+                }
+            }
+        }
+    }
+
+    fn sync_draft_editor(&self) {
+        match &self.state.workspace_mode {
+            WorkspaceMode::Read => {}
+            WorkspaceMode::CreateDraft => {
+                self.draft_title_label.set_text("新建笔记");
+                self.draft_hint_label
+                    .set_text("直接记录，不需要先分类。Markdown、清单和引用都可以原样输入。");
+            }
+            WorkspaceMode::EditDraft(_) => {
+                self.draft_title_label.set_text("编辑笔记");
+                self.draft_hint_label
+                    .set_text("保存后会更新这条笔记，并保留版本脉络。");
+            }
+            WorkspaceMode::ReplyDraft(parent_id) => {
+                self.draft_title_label.set_text("回复笔记");
+                let target = self
+                    .state
+                    .selected_note_detail
+                    .as_ref()
+                    .filter(|detail| detail.id == *parent_id)
+                    .map(|detail| compact_single_line(&detail.content, 72))
+                    .unwrap_or_else(|| "当前选中的笔记".to_string());
+                self.draft_hint_label
+                    .set_text(&format!("回复目标：{target}"));
+            }
+        }
+
+        let (start, end) = self.draft_content_buffer.bounds();
+        let current_content = self.draft_content_buffer.text(&start, &end, false);
+        if current_content.as_str() != self.state.draft_content {
+            self.draft_content_buffer
+                .set_text(&self.state.draft_content);
+        }
+
+        if self.draft_tags_entry.text().as_str() != self.state.draft_tags_text {
+            self.draft_tags_entry.set_text(&self.state.draft_tags_text);
+        }
     }
 
     fn sync_detail_sections(&self, sender: &ComponentSender<Self>) {
@@ -1126,7 +1248,7 @@ impl App {
         if let Some(full) = &self.state.selected_note_full {
             if full.other_versions.is_empty() {
                 self.detail_versions_box
-                    .append(&adw::ActionRow::builder().title("无其他版本").build());
+                    .append(&empty_relation_label("无其他版本"));
             } else {
                 for version in &full.other_versions {
                     let note = &version.note;
@@ -1156,7 +1278,7 @@ impl App {
         if let Some(full) = &self.state.selected_note_full {
             let notes = notes(full);
             if notes.is_empty() {
-                container.append(&adw::ActionRow::builder().title(empty_title).build());
+                container.append(&empty_relation_label(empty_title));
             } else {
                 for note in notes {
                     container.append(&build_clickable_note_row(note, sender, note.id.clone()));
@@ -1478,6 +1600,11 @@ impl App {
             Err(error) => self.state.status = Some(format!("加载失败: {error}")),
         }
         self.rebuild_list(sender);
+        if !self.state.workspace_mode.is_draft() {
+            if let Some(note_id) = self.state.selected_note_id.clone() {
+                self.load_note_detail(note_id, sender);
+            }
+        }
     }
 
     fn refresh_home_with_selection(
@@ -1490,49 +1617,87 @@ impl App {
         match load_home(self.core.as_ref(), &query) {
             Ok(home) => {
                 self.state.home = home;
-                self.state.selected_note_id = Some(note_id);
+                self.state.selected_note_id = Some(note_id.clone());
                 self.state.sync_selection();
                 self.state.status = None;
             }
             Err(error) => self.state.status = Some(format!("加载失败: {error}")),
         }
         self.rebuild_list(sender);
+        self.load_note_detail(note_id, sender);
         self.toast_overlay.add_toast(adw::Toast::new(toast_msg));
     }
 
-    fn open_editor(&self, sender: &ComponentSender<Self>, note_id: Option<String>, is_reply: bool) {
-        present_note_editor(
-            sender,
-            note_id,
-            is_reply,
-            self.state.selected_note_detail.clone(),
-        );
+    fn start_create_note(&mut self) {
+        self.state.content_view = ContentView::Notes;
+        self.state.workspace_mode = WorkspaceMode::CreateDraft;
+        self.state.draft_content.clear();
+        self.state.draft_tags_text.clear();
+        self.state.status = None;
+        self.draft_content_view.grab_focus();
+    }
+
+    fn start_edit_note(&mut self) {
+        let Some(detail) = self.state.selected_note_detail.clone() else {
+            self.state.status = Some("请先选择一条笔记".to_string());
+            return;
+        };
+
+        self.state.content_view = ContentView::NoteDetail;
+        self.state.workspace_mode = WorkspaceMode::EditDraft(detail.id);
+        self.state.draft_content = detail.content;
+        self.state.draft_tags_text = detail.tags.join(", ");
+        self.state.status = None;
+        self.draft_content_view.grab_focus();
+    }
+
+    fn start_reply_to_note(&mut self) {
+        let Some(parent_id) = self.state.selected_note_id.clone() else {
+            self.state.status = Some("请先选择一条要回复的笔记".to_string());
+            return;
+        };
+
+        self.state.content_view = ContentView::NoteDetail;
+        self.state.workspace_mode = WorkspaceMode::ReplyDraft(parent_id);
+        self.state.draft_content.clear();
+        self.state.draft_tags_text.clear();
+        self.state.status = None;
+        self.draft_content_view.grab_focus();
+    }
+
+    fn cancel_draft(&mut self) {
+        self.state.workspace_mode = WorkspaceMode::Read;
+        self.state.draft_content.clear();
+        self.state.draft_tags_text.clear();
+        self.state.status = None;
+    }
+
+    fn save_draft(&mut self, sender: &ComponentSender<Self>) {
+        let content = self.state.draft_content.trim().to_string();
+        if content.is_empty() {
+            self.state.status = Some("请输入笔记内容".to_string());
+            return;
+        }
+
+        let tags = parse_tags(&self.state.draft_tags_text);
+        match self.state.workspace_mode.clone() {
+            WorkspaceMode::CreateDraft => self.save_note(None, content, tags, sender),
+            WorkspaceMode::EditDraft(note_id) => {
+                self.save_note(Some(note_id), content, tags, sender)
+            }
+            WorkspaceMode::ReplyDraft(parent_id) => {
+                self.save_reply(parent_id, content, tags, sender)
+            }
+            WorkspaceMode::Read => {}
+        }
     }
 
     fn detail_content(&self) -> String {
         self.state
             .selected_note_detail
             .as_ref()
-            .map(|d| d.content.clone())
+            .map(|d| render_reading_text(&d.content))
             .unwrap_or_else(|| "请先从列表中打开一条笔记。".to_string())
-    }
-
-    fn detail_tags(&self) -> String {
-        self.state
-            .selected_note_detail
-            .as_ref()
-            .map(|d| {
-                if d.tags.is_empty() {
-                    "暂无标签".to_string()
-                } else {
-                    d.tags
-                        .iter()
-                        .map(|t| format!("#{t}"))
-                        .collect::<Vec<_>>()
-                        .join("  ")
-                }
-            })
-            .unwrap_or_default()
     }
 
     fn detail_meta(&self) -> String {
@@ -1550,10 +1715,102 @@ impl App {
     }
 }
 
+fn render_reading_text(content: &str) -> String {
+    let rendered = content
+        .lines()
+        .map(render_reading_line)
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    if rendered.trim().is_empty() {
+        "空白笔记".to_string()
+    } else {
+        rendered
+    }
+}
+
+fn parse_tags(raw: &str) -> Vec<String> {
+    let mut tags = Vec::new();
+
+    for tag in raw.split([',', '，']) {
+        let trimmed = tag.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if tags.iter().any(|existing: &String| existing == trimmed) {
+            continue;
+        }
+        tags.push(trimmed.to_string());
+    }
+
+    tags
+}
+
+fn compact_single_line(content: &str, max_chars: usize) -> String {
+    let normalized = content.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.is_empty() {
+        return "空白笔记".to_string();
+    }
+    if normalized.chars().count() <= max_chars {
+        normalized
+    } else {
+        let preview: String = normalized.chars().take(max_chars).collect();
+        format!("{preview}...")
+    }
+}
+
+fn render_reading_line(line: &str) -> String {
+    let trimmed = line.trim_start();
+    let indent = &line[..line.len() - trimmed.len()];
+
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    let (prefix, mut text) = if let Some(rest) = trimmed.strip_prefix("> ") {
+        ("│ ", rest)
+    } else if let Some(rest) = trimmed.strip_prefix("- [ ] ") {
+        ("☐ ", rest)
+    } else if let Some(rest) = trimmed.strip_prefix("- [x] ") {
+        ("☑ ", rest)
+    } else if let Some(rest) = trimmed.strip_prefix("- ") {
+        ("• ", rest)
+    } else if let Some(rest) = trimmed.strip_prefix("* ") {
+        ("• ", rest)
+    } else {
+        ("", trimmed)
+    };
+
+    while let Some(rest) = text.strip_prefix('#') {
+        text = rest.trim_start();
+    }
+
+    format!("{indent}{prefix}{}", strip_inline_markdown(text))
+}
+
+fn strip_inline_markdown(text: &str) -> String {
+    text.replace("***", "")
+        .replace("**", "")
+        .replace('*', "")
+        .replace("~~", "")
+        .replace("==", "")
+        .replace("<u>", "")
+        .replace("</u>", "")
+}
+
 fn clear_box(container: &gtk::Box) {
     while let Some(child) = container.first_child() {
         container.remove(&child);
     }
+}
+
+fn empty_relation_label(text: &str) -> gtk::Label {
+    let label = gtk::Label::new(Some(text));
+    label.add_css_class("caption");
+    label.add_css_class("dim-label");
+    label.set_halign(gtk::Align::Start);
+    label.set_xalign(0.0);
+    label
 }
 
 fn simple_info_row(title: &str, subtitle: &str) -> adw::ActionRow {
