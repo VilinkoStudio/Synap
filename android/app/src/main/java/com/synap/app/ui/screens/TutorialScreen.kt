@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,6 +45,7 @@ import androidx.compose.material.icons.filled.FormatStrikethrough
 import androidx.compose.material.icons.filled.FormatUnderlined
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
@@ -67,6 +69,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -122,6 +125,10 @@ fun TutorialScreen(
 
     // 控制当前所处页面（0=欢迎页，1=卡片手势页，2=新建笔记页）
     var currentPage by remember { mutableIntStateOf(0) }
+    var animationProgress by remember { mutableFloatStateOf(0f) }
+    var replayTrigger by remember { mutableIntStateOf(0) }
+    var hintText by remember { mutableStateOf("") }
+    val isAnimationFinished = animationProgress >= 1f
 
     Scaffold(
         modifier = Modifier
@@ -154,31 +161,74 @@ fun TutorialScreen(
                     onNext = { currentPage = 1 },
                     onSkip = onFinishTutorial
                 )
-                1 -> NoteCardTutorialPage()
-                2 -> NewNoteTutorialPage()
+                1 -> NoteCardTutorialPage(
+                    onProgressChange = { animationProgress = it },
+                    onHintChange = { hintText = it },
+                    replayTrigger = replayTrigger,
+                )
+                2 -> NewNoteTutorialPage(
+                    onProgressChange = { animationProgress = it },
+                    onHintChange = { hintText = it },
+                    replayTrigger = replayTrigger,
+                )
             }
 
-            // 底部导航栏 (仅在第二屏及之后显示，且移除了跳过按钮)
+            // 底部导航栏 (仅在第二屏及之后显示)
             if (currentPage > 0) {
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = 32.dp, start = 16.dp, end = 16.dp)
+                        .padding(bottom = 32.dp, start = 24.dp, end = 24.dp)
                         .fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
+                    // 字幕
+                    if (!isAnimationFinished && hintText.isNotEmpty()) {
+                        Text(
+                            text = hintText,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+
+                    // 进度条 / 重播按钮
+                    if (isAnimationFinished) {
+                        Button(onClick = {
+                            animationProgress = 0f
+                            hintText = ""
+                            replayTrigger++
+                        }) {
+                            Icon(Icons.Filled.Replay, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("重新播放")
+                        }
+                    } else {
+                        LinearProgressIndicator(
+                            progress = { animationProgress },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+
+                    // 导航按钮
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Button(onClick = { currentPage -= 1 }) {
+                        Button(onClick = {
+                            animationProgress = 0f
+                            hintText = ""
+                            currentPage -= 1
+                        }) {
                             Text("上一个")
                         }
                         Button(onClick = {
                             if (currentPage == 2) {
                                 onFinishTutorial()
                             } else {
+                                animationProgress = 0f
+                                hintText = ""
                                 currentPage += 1
                             }
                         }) {
@@ -393,43 +443,54 @@ private fun IntroPage(
 // 第二屏：卡片手势与多选动画教程
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun NoteCardTutorialPage() {
+private fun NoteCardTutorialPage(
+    onProgressChange: (Float) -> Unit,
+    onHintChange: (String) -> Unit,
+    replayTrigger: Int,
+) {
     val offsetX = remember { Animatable(0f) }
     val scale = remember { Animatable(1f) }
-    var hintText by remember { mutableStateOf("右滑笔记可以删除") }
     var isMultiSelect by remember { mutableStateOf(false) }
 
-    // 核心自动演示动画循环
-    LaunchedEffect(Unit) {
+    // 平滑进度
+    LaunchedEffect(replayTrigger) {
+        val start = System.currentTimeMillis()
+        val durationMs = 12500L
         while (true) {
-            // 1. 演示右滑删除
-            hintText = "右滑笔记可以删除"
-            delay(800)
+            val p = ((System.currentTimeMillis() - start).toFloat() / durationMs).coerceIn(0f, 1f)
+            onProgressChange(p)
+            if (p >= 1f) break
+            delay(16)
+        }
+    }
+
+    LaunchedEffect(replayTrigger) {
+        while (true) {
+            // 1. 右滑删除
+            onHintChange("右滑笔记可以删除")
+            delay(1000)
             offsetX.animateTo(150f, animationSpec = tween(500))
-            delay(1200)
+            delay(1500)
             offsetX.animateTo(0f, animationSpec = tween(500))
-            delay(800)
+            delay(1000)
 
-            // 2. 演示左滑回复
-            hintText = "左滑笔记可以回复这条笔记"
+            // 2. 左滑回复
+            onHintChange("左滑笔记可以回复这条笔记")
             offsetX.animateTo(-150f, animationSpec = tween(500))
-            delay(1200)
+            delay(1500)
             offsetX.animateTo(0f, animationSpec = tween(500))
-            delay(800)
+            delay(1000)
 
-            // 3. 演示长按多选
-            hintText = "长按笔记可以触发多选"
-            // 模拟手指按下缩放
+            // 3. 长按多选
+            onHintChange("长按笔记可以触发多选")
             scale.animateTo(0.95f, tween(150))
             delay(300)
             scale.animateTo(1f, tween(150))
-
             isMultiSelect = true
-            delay(3000)
-
-            // 恢复初始状态
+            delay(3500)
             isMultiSelect = false
-            delay(1000)
+            delay(1350)
+            delay(100000)
         }
     }
 
@@ -537,23 +598,17 @@ private fun NoteCardTutorialPage() {
         }
 
         Spacer(modifier = Modifier.weight(1f))
-
-        // 下方动态变化的提示文字
-        Text(
-            text = hintText,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 80.dp),
-            textAlign = TextAlign.Center
-        )
     }
 }
 
 // 第三屏：新建笔记动画教程
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun NewNoteTutorialPage() {
-    var hintText by remember { mutableStateOf("") }
+private fun NewNoteTutorialPage(
+    onProgressChange: (Float) -> Unit,
+    onHintChange: (String) -> Unit,
+    replayTrigger: Int,
+) {
     var noteText by remember { mutableStateOf("") }
     var tagInputText by remember { mutableStateOf("") }
 
@@ -564,8 +619,19 @@ private fun NewNoteTutorialPage() {
 
     var selectedTags by remember { mutableStateOf<List<String>>(emptyList()) }
 
-    // 核心自动演示动画循环
-    LaunchedEffect(Unit) {
+    // 平滑进度
+    LaunchedEffect(replayTrigger) {
+        val start = System.currentTimeMillis()
+        val durationMs = 19000L
+        while (true) {
+            val p = ((System.currentTimeMillis() - start).toFloat() / durationMs).coerceIn(0f, 1f)
+            onProgressChange(p)
+            if (p >= 1f) break
+            delay(16)
+        }
+    }
+
+    LaunchedEffect(replayTrigger) {
         while (true) {
             // 初始状态清理
             noteText = ""
@@ -577,46 +643,46 @@ private fun NewNoteTutorialPage() {
             clickTarget = ""
 
             // 1. 提示新建
-            hintText = "点击首页的“新建笔记”按钮开始记笔记"
-            delay(2000)
+            onHintChange("点击首页的\u201C新建笔记\u201D按钮开始记笔记")
+            delay(2500)
 
             // 2. 兼容Markdown介绍
-            hintText = "兼容Markdown语法的编辑器"
-            delay(1000)
+            onHintChange("兼容Markdown语法的编辑器")
+            delay(1200)
             showToolbar = true
-            delay(1500)
+            delay(1800)
 
-            // 模拟点击工具栏加粗（“**”）
+            // 模拟点击工具栏加粗
             clickTarget = "toolbar_bold"
-            delay(400)
+            delay(500)
             clickTarget = ""
             noteText = "****"
-            delay(800)
+            delay(1000)
 
             // 3. 打字机输入
             val fullNote = "千门万户曈曈日，总把新桃换旧符。"
             for (i in 1..fullNote.length) {
                 noteText = "**" + fullNote.substring(0, i) + "**"
-                delay(120) // 打字速度
+                delay(120)
             }
-            delay(1000)
+            delay(1200)
 
             // 4. 模拟出现推荐标签
-            hintText = "Synap可以根据你所输入的内容推荐标签"
+            onHintChange("Synap可以根据你所输入的内容推荐标签")
             showRecommendedTag = true
-            delay(2000)
+            delay(2500)
 
             // 模拟点击推荐标签
             clickTarget = "rec_tag"
-            delay(400)
+            delay(500)
             clickTarget = ""
             showRecommendedTag = false
             selectedTags = listOf("古诗")
-            delay(1000)
+            delay(1200)
 
             // 5. 模拟新建标签
-            hintText = "点击“新建标签”可以添加自定义标签"
-            delay(1000)
+            onHintChange("点击\u201C新建标签\u201D可以添加自定义标签")
+            delay(1200)
             clickTarget = "add_tag"
             delay(400)
             clickTarget = ""
@@ -638,8 +704,7 @@ private fun NewNoteTutorialPage() {
             isAddingTag = false
             tagInputText = ""
             selectedTags = listOf("古诗", "王安石")
-
-            delay(3500)
+            delay(100000)
         }
     }
 
@@ -748,7 +813,7 @@ private fun NewNoteTutorialPage() {
                 visible = showToolbar,
                 enter = fadeIn() + slideInVertically(initialOffsetY = { 20 }),
                 exit = fadeOut() + slideOutVertically(targetOffsetY = { 20 }),
-                modifier = Modifier.padding(bottom = 24.dp)
+                modifier = Modifier.padding(bottom = 200.dp)
             ) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -783,15 +848,6 @@ private fun NewNoteTutorialPage() {
                     }
                 }
             }
-
-            // 提示词
-            Text(
-                text = hintText,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 120.dp),
-                textAlign = TextAlign.Center
-            )
         }
     }
 }
