@@ -62,3 +62,7 @@ coreffi/android/app/src/main/java/com/fuwaki/synap/bindings/uniffi/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Agents
+.cursor
+.codegraph
