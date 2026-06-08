@@ -9,6 +9,7 @@ type CoreffiModule = {
   open?: (dbPath: string) => SynapService;
   openMemory?: () => SynapService;
   open_memory?: () => SynapService;
+  FfiErrorIo?: new (message?: string) => Error;
 };
 
 export type SynapService = {

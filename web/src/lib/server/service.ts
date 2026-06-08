@@ -1,7 +1,19 @@
 import { defaultDbPath } from './env';
 import { bindingPackageDir } from './env';
 import { coreffiLibraryPath, getCoreffiModule, pickCallable } from './coreffi';
-import type { LocalIdentity, Note, Peer, SyncSessionRecord, TimelineNotesPage } from '$lib/types';
+import {
+  connectAndSync,
+  ensureSyncListenerStarted,
+  getSyncRuntimeOverview
+} from './sync-runtime';
+import type {
+  LocalIdentity,
+  Note,
+  Peer,
+  SyncOverview,
+  SyncSessionRecord,
+  TimelineNotesPage
+} from '$lib/types';
 
 let cachedService: Promise<any> | undefined;
 
@@ -116,15 +128,25 @@ export async function getSyncOverview(): Promise<{
   localIdentity: LocalIdentity;
   peers: Peer[];
   recentSyncSessions: SyncSessionRecord[];
-}> {
+} & Pick<SyncOverview, 'listener' | 'discovery' | 'discoveredPeers'>> {
   const service = await getServiceRaw();
+  await ensureSyncListenerStarted(service);
+  const runtime = getSyncRuntimeOverview();
   return {
     localIdentity: callMethod(service, ['getLocalIdentity', 'get_local_identity']),
     peers: (callMethod<any[]>(service, ['getPeers', 'get_peers']) ?? []).map(normalizePeer),
     recentSyncSessions: (
       callMethod<any[]>(service, ['getRecentSyncSessions', 'get_recent_sync_sessions'], 10) ?? []
-    ).map(normalizeSyncSessionRecord)
+    ).map(normalizeSyncSessionRecord),
+    listener: runtime.listener,
+    discovery: runtime.discovery,
+    discoveredPeers: runtime.discoveredPeers
   };
+}
+
+export async function pairEndpoint(host: string, port: number) {
+  const service = await getServiceRaw();
+  return await connectAndSync(service, host, port);
 }
 
 export async function updatePeerNote(peerId: string, note?: string) {

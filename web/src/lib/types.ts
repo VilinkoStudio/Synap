@@ -78,4 +78,33 @@ export type SyncOverview = {
   localIdentity: LocalIdentity;
   peers: Peer[];
   recentSyncSessions: SyncSessionRecord[];
+  listener: SyncListenerState;
+  discovery: SyncDiscoveryState;
+  discoveredPeers: DiscoveredSyncPeer[];
+};
+
+export type SyncListenerState = {
+  protocol: string;
+  backend: string;
+  isListening: boolean;
+  listenPort?: number;
+  localAddresses: string[];
+  status: string;
+  errorMessage?: string;
+};
+
+export type SyncDiscoveryState = {
+  serviceType: string;
+  advertisedName?: string;
+  listenPort?: number;
+  isRunning: boolean;
+  errorMessage?: string;
+};
+
+export type DiscoveredSyncPeer = {
+  serviceName: string;
+  displayName: string;
+  host: string;
+  port: number;
+  lastSeenAtMs: number;
 };

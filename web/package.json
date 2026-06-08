@@ -11,10 +11,11 @@
     "prepare:bindings": "node ./scripts/prepare-bindings.mjs"
   },
   "dependencies": {
+    "@sveltejs/kit": "^2.31.0",
     "@unocss/reset": "^66.5.1",
-    "koffi": "^2.11.0",
-    "svelte": "^5.38.6",
-    "@sveltejs/kit": "^2.31.0"
+    "bonjour-service": "^1.4.0",
+    "koffi": "^2.15.6",
+    "svelte": "^5.38.6"
   },
   "devDependencies": {
     "@iconify-json/lucide": "^1.2.67",
