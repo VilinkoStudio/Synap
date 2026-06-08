@@ -391,8 +391,9 @@ fun NoteDetailScreen(
             .fillMaxSize()
             // ========== 应用预返回手势形变 ==========
             .graphicsLayer {
-                translationX = backProgress * 64.dp.toPx() // 向右边缘移动
-                transformOrigin = TransformOrigin(1f, 0.5f) // 缩放原点在右侧中心
+                scaleX = 1f - backProgress * 0.1f // 向内缩放到 90%
+                scaleY = 1f - backProgress * 0.1f
+                transformOrigin = TransformOrigin(0.5f, 0.5f) // 缩放原点在中心
                 shape = RoundedCornerShape(32.dp * backProgress) // 随进度增加圆角
                 clip = true
             }
