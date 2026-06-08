@@ -217,34 +217,26 @@ impl SynapService {
     pub fn get_all_tags(&self) -> Result<Vec<String>, ServiceError> {
         self.with_read(|tx, reader| {
             let tag_reader = TagReader::new(tx)?;
-            let timeline = TimelineView::new(reader);
-            let mut live_tag_ids: HashSet<Uuid> = HashSet::new();
+            let mut tags = Vec::new();
 
-            for note_ref_res in timeline.recent_refs()? {
-                let note_ref = note_ref_res.map_err(ServiceError::from)?;
-                if !Self::is_latest_version(reader, note_ref)? {
-                    continue;
+            for tag_result in tag_reader.all().map_err(redb::Error::from)? {
+                let tag = tag_result.map_err(redb::Error::from)?;
+                let mut has_live_note = false;
+
+                for id_res in reader.tagged_note_ids(&tag).map_err(redb::Error::from)? {
+                    let id = id_res.map_err(redb::Error::from)?;
+                    if let Ok(Some(note)) = reader.get_by_id(&id) {
+                        if !note.is_deleted() {
+                            has_live_note = true;
+                            break;
+                        }
+                    }
                 }
 
-                let note = note_ref
-                    .hydrate(reader)?
-                    .ok_or(ServiceError::NotFound(note_ref.get_id().to_string()))?;
-
-                for tag_id in note.tags() {
-                    live_tag_ids.insert(*tag_id);
+                if has_live_note {
+                    tags.push(tag.get_content().to_string());
                 }
             }
-
-            let mut tags: Vec<String> = live_tag_ids
-                .iter()
-                .filter_map(|id| {
-                    tag_reader
-                        .get_by_id(id)
-                        .ok()
-                        .flatten()
-                        .map(|tag| tag.get_content().to_string())
-                })
-                .collect();
 
             tags.sort();
             Ok(tags)
