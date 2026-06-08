@@ -495,23 +495,6 @@ private fun BackupSyncSection(
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = buildString {
-                        if (syncPort != null) {
-                            append(stringResource(R.string.listening_port))
-                            append(syncPort)
-                            if (syncAddresses.isNotEmpty()) {
-                                append(" · ")
-                                append(syncAddresses.joinToString(", "))
-                            }
-                            append(" · ")
-                        }
-                        append(syncStatus)
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
             Icon(
                 Icons.Filled.KeyboardArrowRight,

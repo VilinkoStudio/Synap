@@ -21,12 +21,17 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -36,6 +41,7 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,17 +50,22 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -79,6 +90,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.CancellationException
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -109,6 +121,23 @@ fun SyncScreen(
 
     // ========== 新增：控制监听状态弹窗的开关 ==========
     var showListeningInfoDialog by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(0) }
+
+    val localPublicKeyBase64 = uiState.localIdentity?.identity?.displayPublicKeyBase64
+    val localSigningBase64 = uiState.localIdentity?.signing?.displayPublicKeyBase64
+    val filteredPeers = uiState.peers.filter { peer ->
+        peer.displayPublicKeyBase64 != localPublicKeyBase64 && peer.displayPublicKeyBase64 != localSigningBase64
+    }
+    val localAddresses = uiState.listenerState.localAddresses.map { it.lowercase().trim() }.toSet()
+    val localPort = uiState.listenerState.listenPort
+    val localFingerprint = uiState.localIdentity?.signing?.kaomojiFingerprint
+    val filteredDiscovered = uiState.discoveredPeers.filter { peer ->
+        val isSameHost = localPort != null && localAddresses.any { addr ->
+            peer.host.lowercase().trim() == addr
+        } && peer.port == localPort
+        val isSameFingerprint = localFingerprint != null && peer.serviceName.contains(localFingerprint)
+        !isSameHost && !isSameFingerprint
+    }
 
     PredictiveBackHandler { progressFlow ->
         try {
@@ -132,28 +161,28 @@ fun SyncScreen(
             },
         topBar = {
             TopAppBar(
-                title = {
-                    // ========== 核心修改 1：在标题旁增加监听状态文字按钮 ==========
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("同步")
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Button(
-                            onClick = { showListeningInfoDialog = true },
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = if (uiState.listenerState.isListening) "正在监听" else "未监听",
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
-                    }
-                },
+                title = { Text("同步") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
+                    FilledTonalButton(
+                        onClick = { showListeningInfoDialog = true },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.CellTower,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (uiState.listenerState.isListening) "正在监听设备" else "未监听",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
                     IconButton(onClick = onRefresh) {
                         Icon(Icons.Filled.Refresh, contentDescription = "刷新")
                     }
@@ -164,70 +193,107 @@ fun SyncScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(innerPadding),
         ) {
-            Spacer(modifier = Modifier.height(4.dp))
+            val tabTitles = listOf("局域网同步", "服务器同步", "同步记录")
+            val coroutineScope = rememberCoroutineScope()
+            val pagerState = rememberPagerState(pageCount = { tabTitles.size })
 
-            // 原本的 SyncOverviewCard 已经被移除，内容已转移至下方的 showListeningInfoDialog 中
+            LaunchedEffect(pagerState.currentPage) {
+                selectedTab = pagerState.currentPage
+            }
 
-            uiState.errorMessage?.let { message ->
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                    ),
-                ) {
-                    Text(
-                        text = message,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(16.dp),
+            TabRow(
+                selectedTabIndex = selectedTab,
+            ) {
+                tabTitles.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTab == index,
+                        onClick = {
+                            selectedTab = index
+                            coroutineScope.launch { pagerState.animateScrollToPage(index) }
+                        },
+                        text = { Text(title) },
                     )
                 }
             }
 
-            IdentitySection(identity = uiState.localIdentity)
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+            ) { page ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Spacer(modifier = Modifier.height(4.dp))
 
-            ConnectionSection(
-                discoveredPeers = uiState.discoveredPeers,
-                connections = uiState.connections,
-                isPairing = uiState.isPairing,
-                onAddConnection = { showAddConnectionDialog = true },
-                onDeleteConnection = onDeleteConnection,
-                onPairConnection = onPairConnection,
-                onPairDiscoveredPeer = onPairDiscoveredPeer,
-            )
+                    if (page == 0) {
+                        uiState.errorMessage?.let { message ->
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                ),
+                            ) {
+                                Text(
+                                    text = message,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.padding(16.dp),
+                                )
+                            }
+                        }
+                    }
 
-            RelaySection(
-                baseUrl = uiState.relayBaseUrl,
-                apiKey = uiState.relayApiKey,
-                statusMessage = uiState.relayStatusMessage,
-                isSyncing = uiState.isRelaySyncing,
-                onBaseUrlChange = onRelayBaseUrlChange,
-                onApiKeyChange = onRelayApiKeyChange,
-                onSave = onSaveRelayConfig,
-                onFetch = onRelayFetch,
-                onPush = onRelayPush,
-            )
+                    when (page) {
+                        0 -> {
+                            IdentitySection(identity = uiState.localIdentity)
+                            ConnectionSection(
+                                discoveredPeers = filteredDiscovered,
+                                connections = uiState.connections,
+                                isPairing = uiState.isPairing,
+                                onAddConnection = { showAddConnectionDialog = true },
+                                onDeleteConnection = onDeleteConnection,
+                                onPairConnection = onPairConnection,
+                                onPairDiscoveredPeer = onPairDiscoveredPeer,
+                            )
+                            PeerSection(
+                                peers = filteredPeers,
+                                isManagingPeer = uiState.isManagingPeer,
+                                pendingTrustPeerId = uiState.pendingTrustPeer?.id,
+                                onTrustPeer = onTrustPeer,
+                                onUpdatePeerNote = onUpdatePeerNote,
+                                onDeletePeer = onDeletePeer,
+                                onSetPeerStatus = onSetPeerStatus,
+                                onDismissPendingTrustPrompt = onDismissPendingTrustPrompt,
+                            )
+                        }
+                        1 -> {
+                            RelaySection(
+                                baseUrl = uiState.relayBaseUrl,
+                                apiKey = uiState.relayApiKey,
+                                statusMessage = uiState.relayStatusMessage,
+                                isSyncing = uiState.isRelaySyncing,
+                                onBaseUrlChange = onRelayBaseUrlChange,
+                                onApiKeyChange = onRelayApiKeyChange,
+                                onSave = onSaveRelayConfig,
+                                onFetch = onRelayFetch,
+                                onPush = onRelayPush,
+                            )
+                        }
+                        2 -> {
+                            SyncStatsSection(
+                                sessions = uiState.recentSyncSessions,
+                                onOpenSession = { session -> selectedSyncSession = session },
+                            )
+                        }
+                    }
 
-            PeerSection(
-                peers = uiState.peers,
-                isManagingPeer = uiState.isManagingPeer,
-                pendingTrustPeerId = uiState.pendingTrustPeer?.id,
-                onTrustPeer = onTrustPeer,
-                onUpdatePeerNote = onUpdatePeerNote,
-                onDeletePeer = onDeletePeer,
-                onSetPeerStatus = onSetPeerStatus,
-                onDismissPendingTrustPrompt = onDismissPendingTrustPrompt,
-            )
-
-            SyncStatsSection(
-                sessions = uiState.recentSyncSessions,
-                onOpenSession = { session -> selectedSyncSession = session },
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+            }
         }
     }
 
@@ -246,7 +312,7 @@ fun SyncScreen(
                         "局域网地址",
                         uiState.listenerState.localAddresses.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "未获取到局域网地址",
                     )
-                    SyncInfoLine("状态", if (uiState.listenerState.isListening) "正在监听" else "未监听")
+                    SyncInfoLine("状态", if (uiState.listenerState.isListening) "正在监听设备" else "未监听")
                 }
             },
             confirmButton = {
@@ -346,7 +412,7 @@ fun SyncScreen(
 
 @Composable
 private fun IdentitySection(identity: LocalIdentity?) {
-    SectionTitle(title = "本机签名密钥", subtitle = "Ed25519 签名密钥，用于设备身份认证")
+    SectionTitle(title = "本机签名密钥", subtitle = "使用Ed25519算法生成唯一数字签名密钥，用于连接设备时的身份确认")
 
     if (identity == null) {
         EmptySectionCard("正在读取此设备信息")
@@ -390,17 +456,6 @@ private fun IdentitySection(identity: LocalIdentity?) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Text(
-                text = "Ed25519",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .background(
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        shape = RoundedCornerShape(8.dp),
-                    )
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
-            )
         }
     }
 }
@@ -415,7 +470,31 @@ private fun ConnectionSection(
     onPairConnection: (String) -> Unit,
     onPairDiscoveredPeer: (String, Int) -> Unit,
 ) {
-    SectionTitle(title = "可用连接", subtitle = "局域网发现和手动添加的地址都可以直接发起同步")
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "可用连接",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.weight(1f),
+        )
+        FilledTonalButton(
+            onClick = onAddConnection,
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("添加连接")
+        }
+    }
 
     Surface(
         modifier = Modifier
@@ -424,37 +503,8 @@ private fun ConnectionSection(
         color = MaterialTheme.colorScheme.surfaceVariant,
     ) {
         Column {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "连接目标",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = "发现到的设备可直接配对，也可以手动添加地址端口",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                FilledTonalButton(onClick = onAddConnection) {
-                    Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("添加连接")
-                }
-            }
-
             if (discoveredPeers.isEmpty() && connections.isEmpty()) {
-                EmptySectionCard("暂无可用连接，请确保和其他设备处于同一局域网下，或者您可以尝试手动添加地址和端口。")
+                EmptySectionCard("暂无可用连接。如果无法搜索到您的设备，请检查是否和其他设备处于同一局域网下，或者您可以尝试点击\u201C添加连接\u201D手动添加设备")
             } else {
                 discoveredPeers.forEachIndexed { index, peer ->
                     if (index > 0) {
@@ -508,7 +558,43 @@ private fun RelaySection(
     onFetch: () -> Unit,
     onPush: () -> Unit,
 ) {
-    SectionTitle(title = "Relay Server", subtitle = "跨网络同步使用的零信任中继，只保存地址和 API Key")
+    var savedBaseUrl by remember { mutableStateOf(baseUrl) }
+    var savedApiKey by remember { mutableStateOf(apiKey) }
+    var showSaveConfirm by remember { mutableStateOf(false) }
+
+    val isUnsaved = baseUrl != savedBaseUrl || apiKey != savedApiKey
+    val canOperate = !isSyncing && baseUrl.isNotBlank() && apiKey.isNotBlank()
+
+    SectionTitle(title = "服务器", subtitle = "使用服务器同步数据，可跨网络使用，请勿将数据保存在不信任的服务器上。同步前需填写服务器地址和API密钥，并在设备列表将需要同步的设备添加为\u201C可信任设备\u201D")
+
+    if (showSaveConfirm) {
+        AlertDialog(
+            onDismissRequest = { showSaveConfirm = false },
+            title = { Text("确认修改服务器信息") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("修改前：", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                    SyncInfoLine("服务器地址：", savedBaseUrl.ifBlank { "（空）" })
+                    SyncInfoLine("API 密钥：", savedApiKey.ifBlank { "（空）" })
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("修改后：", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                    SyncInfoLine("服务器地址：", baseUrl.ifBlank { "（空）" })
+                    SyncInfoLine("API 密钥：", apiKey.ifBlank { "（空）" })
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showSaveConfirm = false
+                    savedBaseUrl = baseUrl
+                    savedApiKey = apiKey
+                    onSave()
+                }) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSaveConfirm = false }) { Text("取消") }
+            }
+        )
+    }
 
     Surface(
         modifier = Modifier
@@ -523,7 +609,7 @@ private fun RelaySection(
             OutlinedTextField(
                 value = baseUrl,
                 onValueChange = onBaseUrlChange,
-                label = { Text("Relay 地址") },
+                label = { Text("服务器地址") },
                 placeholder = { Text("http://relay.example.com:8080") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
@@ -531,7 +617,7 @@ private fun RelaySection(
             OutlinedTextField(
                 value = apiKey,
                 onValueChange = onApiKeyChange,
-                label = { Text("API Key") },
+                label = { Text("API 密钥") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
@@ -542,31 +628,109 @@ private fun RelaySection(
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                FilledTonalButton(
-                    onClick = onSave,
-                    enabled = !isSyncing,
-                    modifier = Modifier.weight(1f),
+            if (isUnsaved) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text("保存")
+                    OutlinedButton(
+                        onClick = {
+                            onBaseUrlChange(savedBaseUrl)
+                            onApiKeyChange(savedApiKey)
+                        },
+                        enabled = !isSyncing,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("取消")
+                    }
+                    Button(
+                        onClick = {
+                            val wasEmpty = savedBaseUrl.isBlank() && savedApiKey.isBlank()
+                            if (wasEmpty) {
+                                savedBaseUrl = baseUrl
+                                savedApiKey = apiKey
+                                onSave()
+                            } else {
+                                showSaveConfirm = true
+                            }
+                        },
+                        enabled = !isSyncing,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("保存")
+                    }
                 }
-                FilledTonalButton(
-                    onClick = onFetch,
-                    enabled = !isSyncing && baseUrl.isNotBlank(),
-                    modifier = Modifier.weight(1f),
+            } else if (canOperate) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text("拉取")
+                    Button(
+                        onClick = onFetch,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Filled.ArrowDownward, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("拉取")
+                    }
+                    Button(
+                        onClick = onPush,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Filled.ArrowUpward, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("推送")
+                    }
                 }
-                Button(
-                    onClick = onPush,
-                    enabled = !isSyncing && baseUrl.isNotBlank(),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("推送")
+            }
+        }
+    }
+
+    Spacer(modifier = Modifier.height(4.dp))
+    Text(
+        text = "推荐的服务器",
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 4.dp),
+    )
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable {
+                onBaseUrlChange("http://relay.synap.vilinko.com")
+                onApiKeyChange("default-key")
+            },
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Vilinko官方服务器",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "官方",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier
+                            .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(4.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
                 }
+                Text(
+                    text = "http://relay.synap.vilinko.com",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -592,7 +756,7 @@ private fun DiscoveredConnectionRow(
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = peer.displayName,
+                text = peer.displayName.removePrefix("Synap·").removePrefix("Synap-"),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -629,7 +793,7 @@ private fun PeerSection(
     onSetPeerStatus: (String, PeerTrustStatus) -> Unit,
     onDismissPendingTrustPrompt: () -> Unit,
 ) {
-    SectionTitle(title = "设备列表", subtitle = "包含已信任、待确认和已撤销的对端公钥")
+    SectionTitle(title = "设备列表", subtitle = "包含已信任、待确认和已撤销的设备")
 
     if (peers.isEmpty()) {
         EmptySectionCard("还没有发现任何局域网内的设备")
@@ -678,6 +842,25 @@ private fun PeerRow(
 ) {
     var expanded by remember { mutableStateOf(peer.status == PeerTrustStatus.Pending) }
     var noteDraft by remember { mutableStateOf(peer.note.orEmpty()) }
+    var isEditingNote by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("删除设备") },
+            text = { Text("确定要删除该设备吗？删除后需要重新配对才能同步。") },
+            confirmButton = {
+                Button(onClick = {
+                    showDeleteConfirm = false
+                    onDeletePeer()
+                }) { Text("删除") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
+            }
+        )
+    }
 
     val avatarBitmap = remember(peer.avatarPng) {
         BitmapFactory.decodeByteArray(peer.avatarPng, 0, peer.avatarPng.size)
@@ -730,28 +913,8 @@ private fun PeerRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    OutlinedTextField(
-                        value = noteDraft,
-                        onValueChange = { noteDraft = it },
-                        label = { Text("备注") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                    )
-                    FilledTonalButton(
-                        onClick = { onUpdatePeerNote(noteDraft.ifBlank { null }) },
-                        enabled = !isManagingPeer,
-                    ) {
-                        Text("保存")
-                    }
-                }
-
                 if (peer.status == PeerTrustStatus.Pending) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -779,30 +942,71 @@ private fun PeerRow(
                         }
                     }
                 } else {
+                    if (isEditingNote) {
+                        OutlinedTextField(
+                            value = noteDraft,
+                            onValueChange = { noteDraft = it },
+                            label = { Text("备注") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    noteDraft = peer.note.orEmpty()
+                                    isEditingNote = false
+                                },
+                                enabled = !isManagingPeer,
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text("取消")
+                            }
+                            Button(
+                                onClick = {
+                                    onUpdatePeerNote(noteDraft.ifBlank { null })
+                                    isEditingNote = false
+                                },
+                                enabled = !isManagingPeer,
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text("保存")
+                            }
+                        }
+                    } else {
+                        FilledTonalButton(
+                            onClick = { isEditingNote = true },
+                            enabled = !isManagingPeer,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("修改备注")
+                        }
+                    }
                     val targetStatus = if (peer.status == PeerTrustStatus.Trusted) {
                         PeerTrustStatus.Revoked
                     } else {
                         PeerTrustStatus.Trusted
                     }
                     val actionLabel = if (peer.status == PeerTrustStatus.Trusted) "撤销信任" else "设为可信"
-                    Row(
+                    FilledTonalButton(
+                        onClick = { onSetPeerStatus(targetStatus) },
+                        enabled = !isManagingPeer,
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        FilledTonalButton(
-                            onClick = { onSetPeerStatus(targetStatus) },
-                            enabled = !isManagingPeer,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text(actionLabel)
-                        }
-                        TextButton(
-                            onClick = onDeletePeer,
-                            enabled = !isManagingPeer,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text("删除", color = MaterialTheme.colorScheme.error)
-                        }
+                        Text(actionLabel)
+                    }
+                    Button(
+                        onClick = { showDeleteConfirm = true },
+                        enabled = !isManagingPeer,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        ),
+                    ) {
+                        Text("删除")
                     }
                 }
             }
@@ -849,14 +1053,24 @@ private fun SyncStatsSection(
     sessions: List<SyncSessionRecord>,
     onOpenSession: (SyncSessionRecord) -> Unit,
 ) {
-    SectionTitle(title = "同步统计", subtitle = "展示最近一次和最近几次同步结果")
-
     val latest = sessions.firstOrNull()
     if (latest == null) {
+        Text(
+            text = "上次同步",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(start = 4.dp),
+        )
         EmptySectionCard("还没有任何同步记录")
         return
     }
 
+    Text(
+        text = "上次同步",
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 4.dp),
+    )
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -867,11 +1081,6 @@ private fun SyncStatsSection(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                text = "最近一次同步",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
             SyncInfoLine("时间", formatTimestamp(latest.finishedAtMs.toLong()))
             SyncInfoLine("结果", latest.status.displayLabel())
             SyncInfoLine("方向", latest.role.displayLabel())
@@ -879,17 +1088,24 @@ private fun SyncStatsSection(
             SyncInfoLine("应用记录", latest.recordsApplied.toString())
             SyncInfoLine("发送/接收", "${latest.recordsSent}/${latest.recordsReceived}")
             SyncInfoLine("耗时", "${latest.durationMs} ms")
+        }
+    }
 
-            if (sessions.size > 1) {
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                )
-                Text(
-                    text = "最近记录",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                sessions.take(5).forEachIndexed { index, session ->
+    if (sessions.size > 1) {
+        Text(
+            text = "历史同步记录",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(start = 4.dp),
+        )
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp)),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+        ) {
+            Column {
+                sessions.drop(1).take(5).forEachIndexed { index, session ->
                     if (index > 0) {
                         HorizontalDivider(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
@@ -899,7 +1115,7 @@ private fun SyncStatsSection(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { onOpenSession(session) }
-                            .padding(vertical = 2.dp),
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Text(
@@ -1047,6 +1263,7 @@ private fun EmptySectionCard(message: String) {
     ) {
         Text(
             text = message,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(16.dp),
         )
