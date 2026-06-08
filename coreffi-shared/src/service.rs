@@ -510,7 +510,10 @@ impl SynapService {
         self.inner
             .initiate_sync(ForeignSyncTransport::new(transport))
             .map(Self::map_sync_session)
-            .map_err(Into::into)
+            .map_err(|err| {
+                eprintln!("[synap-coreffi] initiate_sync failed: {err:?}");
+                err.into()
+            })
     }
 
     pub fn listen_sync(
@@ -520,7 +523,10 @@ impl SynapService {
         self.inner
             .listen_sync(ForeignSyncTransport::new(transport))
             .map(Self::map_sync_session)
-            .map_err(Into::into)
+            .map_err(|err| {
+                eprintln!("[synap-coreffi] listen_sync failed: {err:?}");
+                err.into()
+            })
     }
 }
 

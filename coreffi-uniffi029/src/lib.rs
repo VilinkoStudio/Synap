@@ -1,4 +1,4 @@
-//! Synap Core UniFFI adapter for current Android and Node consumers.
+//! Synap Core UniFFI adapter for consumers pinned to UniFFI 0.29.4.
 
 #[path = "../../coreffi-shared/src/adapter.rs"]
 mod adapter;
@@ -11,5 +11,4 @@ mod types;
 
 pub use adapter::*;
 
-// Include uniffi bindings - this will generate the Kotlin bindings
 uniffi::include_scaffolding!("synap");

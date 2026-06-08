@@ -1,49 +1,38 @@
 import { spawnSync } from 'node:child_process';
-import fs from 'node:fs';
 import path from 'node:path';
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..');
-const targetDir = path.join(repoRoot, 'target');
-const outputDir = path.join(targetDir, 'generated', 'nodejs', 'synap-coreffi');
-const manifestPath = path.join(repoRoot, 'coreffi', 'Cargo.toml');
-const crateName = 'uniffi_synap_coreffi';
-const packageName = '@synap/coreffi';
+const outputDir = path.join(repoRoot, 'target', 'generated', 'nodejs', 'synap-coreffi');
+const sharedUdlPath = path.join(repoRoot, 'coreffi-shared', 'src', 'synap.udl');
+const adapterConfigPath = path.join(repoRoot, 'coreffi', 'uniffi.toml');
+const webNodeModulesDir = path.join(repoRoot, 'web', 'node_modules');
 
-const libFile = resolveLibraryPath();
-
-runOrThrow('cargo', ['build', '-p', 'synap-coreffi'], repoRoot);
 runOrThrow(
-  'uniffi-bindgen-node-js',
+  'cargo',
   [
-    'generate',
-    libFile,
+    'run',
+    '-p',
+    'xtask',
+    '--',
+    'gen-uniffi-node',
+    '--udl',
+    sharedUdlPath,
+    '--config',
+    adapterConfigPath,
     '--out-dir',
     outputDir,
     '--crate-name',
-    crateName,
+    'uniffi_synap_coreffi',
     '--package-name',
-    packageName,
-    '--manifest-path',
-    manifestPath,
+    '@synap/coreffi',
+    '--rust-package',
+    'synap-coreffi',
+    '--node-modules-dir',
+    webNodeModulesDir,
     '--manual-load'
   ],
   repoRoot
 );
-
-const copiedLibPath = path.join(outputDir, path.basename(libFile));
-fs.mkdirSync(outputDir, { recursive: true });
-fs.copyFileSync(libFile, copiedLibPath);
-
-function resolveLibraryPath() {
-  const debugDir = path.join(targetDir, 'debug');
-  if (process.platform === 'darwin') {
-    return path.join(debugDir, 'libuniffi_synap_coreffi.dylib');
-  }
-  if (process.platform === 'win32') {
-    return path.join(debugDir, 'uniffi_synap_coreffi.dll');
-  }
-  return path.join(debugDir, 'libuniffi_synap_coreffi.so');
-}
 
 function runOrThrow(command, args, cwd) {
   const result = spawnSync(command, args, {

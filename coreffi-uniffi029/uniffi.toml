@@ -1,0 +1,3 @@
+[bindings.csharp]
+cdylib_name = "uniffi_synap_coreffi_uniffi029"
+namespace = "uniffi.synap_coreffi"

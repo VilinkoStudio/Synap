@@ -14,9 +14,11 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RepoRoot>$(MSBuildThisFileDirectory)..\</RepoRoot>
     <GeneratedUniFFIDir>$(BaseIntermediateOutputPath)Generated\UniFFI</GeneratedUniFFIDir>
-    <CoreffiUdl>$(RepoRoot)coreffi\src\synap.udl</CoreffiUdl>
-    <CoreffiConfig>$(RepoRoot)coreffi\uniffi.toml</CoreffiConfig>
-    <RustDllName>uniffi_synap_coreffi.dll</RustDllName>
+    <CoreffiUdl>$(RepoRoot)coreffi-shared\src\synap.udl</CoreffiUdl>
+    <CoreffiConfig>$(RepoRoot)coreffi-uniffi029\uniffi.toml</CoreffiConfig>
+    <RustCoreffiPackage>synap-coreffi-uniffi029</RustCoreffiPackage>
+    <RustCoreffiCrateName>uniffi_synap_coreffi_uniffi029</RustCoreffiCrateName>
+    <RustDllName>uniffi_synap_coreffi_uniffi029.dll</RustDllName>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
@@ -101,13 +103,13 @@
     <MakeDir Directories="$(GeneratedUniFFIDir)" />
     <Exec
       WorkingDirectory="$(RepoRoot)"
-      Command="cargo run -p xtask -- gen-uniffi-csharp --udl &quot;$(CoreffiUdl)&quot; --config &quot;$(CoreffiConfig)&quot; --out-dir &quot;$(GeneratedUniFFIDir)&quot;" />
+      Command="cargo run -p xtask -- gen-uniffi-csharp --udl &quot;$(CoreffiUdl)&quot; --config &quot;$(CoreffiConfig)&quot; --out-dir &quot;$(GeneratedUniFFIDir)&quot; --crate-name &quot;$(RustCoreffiCrateName)&quot;" />
   </Target>
 
   <Target Name="BuildCoreffiRust" BeforeTargets="BeforeCompile" DependsOnTargets="GenerateCoreffiCSharpBindings">
     <Exec
       WorkingDirectory="$(RepoRoot)"
-      Command="cargo build -p synap-coreffi --target $(RustTargetTriple) $(RustCargoProfileArg)" />
+      Command="cargo build -p $(RustCoreffiPackage) --target $(RustTargetTriple) $(RustCargoProfileArg)" />
   </Target>
 
   <Target Name="CopyCoreffiRustDll" AfterTargets="Build" DependsOnTargets="BuildCoreffiRust">

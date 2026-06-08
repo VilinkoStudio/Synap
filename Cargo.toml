@@ -2,10 +2,13 @@
 members = [
     "core",
     "corenet",
+    "coreffi-shared",
     "coreffi",
+    "coreffi-uniffi029",
     "cli",
     "xtask",
-    "web", "desktop_linux", "relay",
+    "desktop_linux",
+    "relay",
 ]
 resolver = "2"
 

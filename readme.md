@@ -32,20 +32,31 @@
 
 ## 工程架构
 
-本项目采用 Monorepo 组织结构。当前 Rust workspace 成员为 `core`、`coreffi`、`cli`、`desktop_linux`、`xtask`、`web`；`android` 由 Gradle 管理。
+本项目采用 Monorepo 组织结构。当前 Rust workspace 成员为 `core`、`corenet`、`coreffi-shared`、`coreffi`、`coreffi-uniffi029`、`cli`、`desktop_linux`、`relay`、`xtask`；`android` 与 `web` 分别由 Gradle 和 pnpm/Vite 管理。
 
 * `core/`：Rust 逻辑内核。负责纯 Rust KV 数据落盘、不可变 DAG 状态机维护、读时过滤渲染算法以及同步协议。
-* `coreffi/`：Rust FFI 封装层。通过 UniFFI 将 `core` 暴露给原生平台调用。
+* `corenet/`：跨设备同步网络层。负责发现、通道与同步服务的网络抽象。
+* `coreffi-shared/`：UniFFI 共享 FFI facade。这里保存唯一维护的 `src/synap.udl`，以及 `error`、`types`、`service`、`adapter` 等 FFI-facing Rust 源码。
+* `coreffi/`：UniFFI `0.31.0` adapter crate。面向 Android/Kotlin 与 Node/Web，导出 `uniffi_synap_coreffi`。
+* `coreffi-uniffi029/`：UniFFI `0.29.4` adapter crate。面向 C# / WinUI，以及其他被 UniFFI 0.29 生态钉住的消费者，导出 `uniffi_synap_coreffi_uniffi029`。
 * `cli/`：Rust 命令行前端。提供纯终端环境下的捕获、检索、图谱与同步入口。
 * `desktop_linux/`：当前 Linux 桌面端实现。基于 Rust + GTK4 + libadwaita，仅面向 Linux 平台发布。
+* `relay/`：零信任同步中继服务。
 * `android/`：Kotlin 原生应用。Gradle 在构建期编译 `coreffi`，并接入自动生成的 UniFFI Kotlin 绑定。
-* `xtask/`：Rust 工具目标。当前主要用于从 `coreffi/src/synap.udl` 生成 Android 侧 UniFFI Kotlin 绑定。
-* `web/`：Leptos + Axum RS 全栈前端。使用 `cargo-leptos` 构建。
+* `xtask/`：Rust 工具目标。负责从 `coreffi-shared/src/synap.udl` 生成 Kotlin、C# 与 Node 绑定，并在 `target/xtask/uniffi-input/...` 下创建版本 adapter 专用的临时输入 crate。
+* `web/`：SvelteKit + Vite 前端。通过生成的 Node UniFFI 绑定加载 `coreffi` 动态库。
+
+UniFFI 结构约定：
+
+* `coreffi-shared/src/synap.udl` 是唯一维护的 UDL。不要为不同平台复制 UDL。
+* `coreffi-shared/src/*.rs` 是唯一维护的 FFI-facing Rust facade 源码。`coreffi` 与 `coreffi-uniffi029` 使用 `#[path = "../../coreffi-shared/src/..."]` 将这些模块纳入各自 adapter crate。这个做法是刻意保留的：UniFFI 生成的类型需要属于当前导出 crate，普通依赖 re-export 会破坏绑定元数据解析。
+* 不同 UniFFI 版本只在 adapter crate 层分叉。平台代码只选择自己兼容的 adapter，不维护第二套 UDL 或第二套业务 FFI 层。
+* `target/xtask/uniffi-input/...` 是生成工具输入，不是源码。它用于让 UniFFI/Node 生成器按 adapter crate 名解析元数据，不能提交进版本管理。
 
 当前平台策略：
 
 * Linux：已提供 `desktop_linux`，作为当前唯一维护中的桌面端实现。
-* Windows：计划未来单独开发原生桌面端，推荐路线为 C# + WinUI + UniFFI 共享 Rust 核心，而不是直接复用 GTK 壳层。
+* Windows：原生桌面端采用 C# + WinUI + UniFFI 共享 Rust 核心。由于 `uniffi-bindgen-cs v0.10.0` 对应 UniFFI `0.29.4`，Windows 当前使用 `coreffi-uniffi029`，但 UDL 与 FFI facade 仍来自 `coreffi-shared`。
 * 苹果生态：当前不计划兼容 macOS、iOS 或其他 Apple 平台，也没有对应的发布计划。
 
 ## 构建与运行
@@ -74,45 +85,45 @@ cd android
 
 Android 的 `preBuild` 会先执行两件事：
 
-* 编译 `coreffi` 对应的 Android 动态库。
-* 通过 `cargo run -p xtask -- gen-uniffi-kotlin ...` 生成 Kotlin UniFFI 绑定到 `build/generated/...`。
+* 编译 `coreffi` 对应的 Android 动态库 `libuniffi_synap_coreffi.so`。
+* 通过 `cargo run -p xtask -- gen-uniffi-kotlin --udl coreffi-shared/src/synap.udl --config coreffi/uniffi.toml ...` 生成 Kotlin UniFFI 绑定到 `android/app/build/generated/...`。
 
-启动 Web 全栈应用：
-
-```bash
-cargo leptos watch --workspace -p web
-```
-
-或运行 Release 版本：
+生成 Web/Node 绑定：
 
 ```bash
-cargo leptos build --release -p web
+pnpm --dir web prepare:bindings
 ```
 
-使用 Docker 构建并运行 Web 服务：
+该命令会调用 `xtask gen-uniffi-node`，构建 `synap-coreffi` cdylib，生成 `target/generated/nodejs/synap-coreffi`，并复制当前平台动态库。Web 服务端通过生成的 ESM 包手动 `load()` 这个动态库。
+
+启动 Web 应用：
 
 ```bash
-docker build -f web/Dockerfile -t synap-web .
-docker run -d \
-  --name synap-web \
-  -p 8080:8080 \
-  -v synap-data:/data \
-  synap-web
+pnpm --dir web dev
 ```
 
-说明：
+检查 Web 类型：
 
-* `web/Dockerfile` 需要从仓库根目录构建，因为 `web` 依赖了工作区内的 `core` crate。
-* 容器默认监听 `0.0.0.0:8080`。
-* Web 服务通过 `SYNAP_WEB_DB` 读取数据库路径；镜像默认值为 `/data/synap-web.redb`，因此建议挂载 `/data` 做持久化。
-* GitHub Actions 会在普通提交与 PR 上执行镜像构建校验，并在 tag 上发布 `ghcr.io/<owner>/synap-web` 镜像。
+```bash
+pnpm --dir web check
+```
+
+生成 C# 绑定时使用 0.29 adapter：
+
+```bash
+cargo run -p xtask -- gen-uniffi-csharp \
+  --udl coreffi-shared/src/synap.udl \
+  --config coreffi-uniffi029/uniffi.toml \
+  --out-dir desktop_windows/obj/Generated/UniFFI \
+  --crate-name uniffi_synap_coreffi_uniffi029
+```
 
 ## 仓库约定
 
 这个仓库是单仓多端，但不要求每个 feature 一次性完成全平台适配。主线维护的是“共享核心 + 当前正在维护的平台集合”，不是“所有壳层永远同步完成”。约定如下：
 
 * 不直接在 `master` 上做长期开发。新功能、新重构、新实验统一从 `feat/*`、`refactor/*`、`spike/*` 分支开始，`master` 只保留可运行、可回退的提交。
-* 一个跨端功能按“层”拆提交，而不是按“今天改了什么”拆提交。推荐顺序是 `core/` -> `coreffi/` -> `android|desktop|cli|web/` -> `docs|build`。
+* 一个跨端功能按“层”拆提交，而不是按“今天改了什么”拆提交。推荐顺序是 `core/` -> `coreffi-shared/` -> `coreffi|coreffi-uniffi029/` -> `android|desktop|cli|web/` -> `docs|build`。
 * 一个 feature 可以逐个平台落地，但合入 `master` 的提交不应该把本次涉及的平台直接打坏。
 * 允许本地存在 WIP 提交，但整理进主线前需要压成一串可解释、可回退的提交。
 * 构建产物、本地数据库、UniFFI 生成绑定、`jniLibs` 与其他本地产物不进入版本管理；它们应由构建流程重新生成。

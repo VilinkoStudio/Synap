@@ -10,6 +10,7 @@
 | 0002 | 明确 corenet 范围与 core 中普通 HTTP 能力边界 | 已接受 |
 | 0003 | 引入零信任 relay 作为去中心化同步的补充 | 已接受 |
 | 0004 | 明确直连 sync 与 relay 的密码学设计边界 | 已接受 |
+| 0005 | 共享 UniFFI facade 与版本化 adapter crate | 已接受 |
 
 ## 状态说明
 

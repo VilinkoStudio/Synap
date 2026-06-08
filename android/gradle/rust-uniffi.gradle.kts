@@ -6,7 +6,8 @@ val isWindows = System.getProperty("os.name").lowercase().contains("windows")
 
 val repoRootDir = rootDir.parentFile
 val coreffiDir = repoRootDir.resolve("coreffi")
-val coreffiUdlFile = coreffiDir.resolve("src/synap.udl")
+val coreffiSharedDir = repoRootDir.resolve("coreffi-shared")
+val coreffiUdlFile = coreffiSharedDir.resolve("src/synap.udl")
 val coreffiTomlFile = coreffiDir.resolve("uniffi.toml")
 val xtaskManifestFile = repoRootDir.resolve("xtask/Cargo.toml")
 val generatedCoreffiBindingsDir = layout.buildDirectory.dir("generated/source/uniffi/coreffi/kotlin").get().asFile
@@ -298,6 +299,8 @@ val generateCoreffiBindings by tasks.registering(Exec::class) {
             coreffiTomlFile.absolutePath,
             "--out-dir",
             generatedCoreffiBindingsDir.absolutePath,
+            "--crate-name",
+            "uniffi_synap_coreffi",
         )
     }
 }
