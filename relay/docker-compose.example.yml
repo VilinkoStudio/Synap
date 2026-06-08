@@ -1,0 +1,33 @@
+services:
+  relay:
+    image: ghcr.io/vilinkostudio/synap-relay:latest
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      SYNAP_RELAY_LISTEN: 0.0.0.0:8787
+      SYNAP_RELAY_SERVER_NAME: synap-relay
+      SYNAP_RELAY_REDIS_URL: redis://redis:6379/
+      SYNAP_RELAY_EMBEDDED_REDIS: disabled
+      SYNAP_RELAY_REDIS_LISTEN: 127.0.0.1:6379
+      SYNAP_RELAY_API_KEY: default-key
+    depends_on:
+      - redis
+    networks:
+      - relay-net
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    networks:
+      - relay-net
+
+volumes:
+  redis-data:
+
+networks:
+  relay-net:
+    driver: bridge
