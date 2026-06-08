@@ -6,6 +6,7 @@ import {
   approvePeer,
   getSyncOverview,
   listNotes,
+  pairEndpoint,
   recommendTags,
   removePeer,
   setPeerStatus,
@@ -31,6 +32,11 @@ type PeerNoteInput = {
 type PeerStatusInput = {
   peerId?: string;
   status?: string;
+};
+
+type PairEndpointInput = {
+  host?: string;
+  port?: number | string;
 };
 
 function requireText(value: unknown, name: string) {
@@ -101,4 +107,13 @@ export const deletePeerRemote = command('unchecked', async (input: { peerId?: st
   const peerId = requireText(input.peerId, 'peerId');
   await removePeer(peerId);
   return { peerId };
+});
+
+export const pairEndpointRemote = command('unchecked', async (input: PairEndpointInput = {}) => {
+  const host = requireText(input.host, 'host');
+  const port = Number(input.port);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error('port must be between 1 and 65535');
+  }
+  return await pairEndpoint(host, port);
 });

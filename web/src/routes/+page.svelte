@@ -11,6 +11,7 @@
     editNoteRemote,
     getHome,
     getTagRecommendations,
+    pairEndpointRemote,
     setPeerStatusRemote,
     updatePeerNoteRemote
   } from '$lib/remote/synap.remote';
@@ -52,6 +53,8 @@
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   let activePeerId = '';
   let peerNoteDraft = '';
+  let syncHostInput = '';
+  let syncPortInput = '';
   let syncMessage = '';
   let isSyncMutating = false;
   let selectedSessionId = '';
@@ -376,6 +379,21 @@
   function sessionStatusLabel(status: string) {
     return status === 'Completed' ? '完成' : status === 'PendingTrust' ? '待信任' : '失败';
   }
+
+  async function pairDiscovered(host: string, port: number) {
+    await runSyncAction(() => pairEndpointRemote({ host, port }), `已完成 ${host}:${port} 同步`);
+    await loadNotes({ message: '同步后已刷新笔记' });
+  }
+
+  async function pairManualEndpoint() {
+    const host = syncHostInput.trim();
+    const port = Number(syncPortInput);
+    if (!host || !Number.isInteger(port)) {
+      syncMessage = '请输入有效的主机和端口';
+      return;
+    }
+    await pairDiscovered(host, port);
+  }
 </script>
 
 <svelte:head>
@@ -500,8 +518,8 @@
         <h3>同步与信任</h3>
         <div class="setting-card setting-card--stacked">
           <div class="setting-info">
-            <h3>SSR 同步监听</h3>
-            <p>Node/SvelteKit 迁移后当前页面直连 coreffi；TCP listener 尚未作为 coreffi 接口暴露，暂不在 Web 端自动启动。</p>
+            <h3>Node 同步监听</h3>
+            <p>Web 后端使用 Node TCP 监听和 mDNS 发现，连接通过 coreffi 的 SyncTransport 进入 synap-core。</p>
           </div>
           <div class="setting-actions">
             <button class="ui-button ui-button--primary" type="button" disabled={isSyncMutating} on:click={() => refreshSync('同步状态已刷新')}>
@@ -516,16 +534,26 @@
               <div class="sync-card-header">
                 <div>
                   <div class="sync-eyebrow">监听状态</div>
-                  <h3>未接管</h3>
+                  <h3>{syncOverview.listener.status}</h3>
                 </div>
-                <div class="sync-chip">Stopped</div>
+                <div class="sync-chip">{syncOverview.listener.isListening ? 'Listening' : 'Stopped'}</div>
               </div>
               <div class="sync-meta-grid">
-                <div class="sync-meta-item"><span class="sync-meta-label">协议</span><strong>TCP</strong></div>
-                <div class="sync-meta-item"><span class="sync-meta-label">后端</span><strong>Node/coreffi</strong></div>
-                <div class="sync-meta-item"><span class="sync-meta-label">端口</span><strong>未分配</strong></div>
-                <div class="sync-meta-item"><span class="sync-meta-label">局域网地址</span><strong>未检测到</strong></div>
+                <div class="sync-meta-item"><span class="sync-meta-label">协议</span><strong>{syncOverview.listener.protocol}</strong></div>
+                <div class="sync-meta-item"><span class="sync-meta-label">后端</span><strong>{syncOverview.listener.backend}</strong></div>
+                <div class="sync-meta-item"><span class="sync-meta-label">端口</span><strong>{syncOverview.listener.listenPort ?? '未分配'}</strong></div>
+                <div class="sync-meta-item"><span class="sync-meta-label">局域网地址</span><strong>{syncOverview.listener.localAddresses.join(', ') || '未检测到'}</strong></div>
               </div>
+              {#if syncOverview.listener.errorMessage}
+                <div class="settings-inline-error">{syncOverview.listener.errorMessage}</div>
+              {/if}
+              <div class="sync-meta-grid">
+                <div class="sync-meta-item"><span class="sync-meta-label">mDNS</span><strong>{syncOverview.discovery.isRunning ? '运行中' : '未运行'}</strong></div>
+                <div class="sync-meta-item"><span class="sync-meta-label">服务名</span><strong>{syncOverview.discovery.advertisedName ?? '未广播'}</strong></div>
+              </div>
+              {#if syncOverview.discovery.errorMessage}
+                <div class="settings-inline-error">{syncOverview.discovery.errorMessage}</div>
+              {/if}
             </div>
 
             <div class="setting-card setting-card--stacked sync-overview-card">
@@ -557,6 +585,50 @@
           {#if syncMessage}
             <div class="settings-inline-message">{syncMessage}</div>
           {/if}
+
+          <div class="settings-section-block">
+            <div class="settings-section-heading">
+              <div>
+                <h3>局域网连接</h3>
+                <p>发现 {syncOverview.discoveredPeers.length} 个 Synap 设备，也可以手动输入主机和端口。</p>
+              </div>
+              <button class="ui-button" type="button" on:click={() => refreshSync('发现列表已刷新')}>刷新发现</button>
+            </div>
+
+            <div class="setting-card setting-card--stacked">
+              <div class="setting-actions sync-manual-connect">
+                <input class="settings-input" placeholder="主机地址" bind:value={syncHostInput} />
+                <input class="settings-input settings-input--port" placeholder="端口" bind:value={syncPortInput} />
+                <button class="ui-button ui-button--primary" type="button" disabled={isSyncMutating} on:click={pairManualEndpoint}>连接同步</button>
+              </div>
+            </div>
+
+            <div class="sync-peer-list">
+              {#if syncOverview.discoveredPeers.length === 0}
+                <div class="setting-card">
+                  <div class="setting-info">
+                    <h3>暂未发现局域网设备</h3>
+                    <p>确认其他设备已打开同步监听，且处在同一局域网/mDNS 可达环境。</p>
+                  </div>
+                </div>
+              {/if}
+
+              {#each syncOverview.discoveredPeers as discovered}
+                <div class="setting-card setting-card--stacked sync-peer-card">
+                  <div class="sync-card-header">
+                    <div>
+                      <div class="sync-eyebrow">mDNS 发现</div>
+                      <h3>{discovered.displayName}</h3>
+                    </div>
+                    <div class="sync-chip">{discovered.host}:{discovered.port}</div>
+                  </div>
+                  <div class="sync-peer-actions">
+                    <button class="ui-button ui-button--primary" type="button" disabled={isSyncMutating} on:click={() => pairDiscovered(discovered.host, discovered.port)}>连接同步</button>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
 
           <div class="settings-section-block">
             <div class="settings-section-heading">

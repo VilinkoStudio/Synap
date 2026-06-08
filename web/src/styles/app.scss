@@ -439,6 +439,19 @@ h3 {
     color: var(--text-main);
 }
 
+.settings-input--port {
+    max-width: 120px;
+}
+
+.sync-manual-connect {
+    align-items: stretch;
+}
+
+.sync-manual-connect .settings-input:first-child {
+    min-width: 220px;
+    flex: 1;
+}
+
 .list-empty {
     padding: 16px 18px;
     color: var(--text-muted);
