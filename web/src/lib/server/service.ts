@@ -58,7 +58,7 @@ function normalizeNote(raw: any): Note {
 
 function normalizeNotesPage(raw: any): TimelineNotesPage {
   return {
-    notes: (raw.notes ?? []).map(normalizeNote),
+    notes: (raw.notes ?? []).map(normalizeNote).filter((note: Note) => !note.deleted),
     next_cursor: raw.next_cursor ?? undefined
   };
 }
@@ -99,7 +99,7 @@ export async function listNotes(query: string, cursor?: string): Promise<Timelin
   }
 
   return {
-    notes: (callMethod<any[]>(service, ['search'], trimmed, 50) ?? []).map(normalizeNote),
+    notes: (callMethod<any[]>(service, ['search'], trimmed, 50) ?? []).map(normalizeNote).filter((note: Note) => !note.deleted),
     next_cursor: undefined
   };
 }

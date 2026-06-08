@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FormatBold
 import androidx.compose.material.icons.filled.FormatColorText
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.FormatQuote
@@ -408,18 +409,12 @@ fun NewNoteScreen(
                 actions = {
                     if (!isTabletDevice) {
                         val currentColor = uiState.noteColorHue?.let { NoteColorUtil.hueToColor(it) }
-                        TextButton(
-                            onClick = { showColorDialog = true },
-                            colors = ButtonDefaults.textButtonColors(
-                                containerColor = currentColor?.copy(alpha = 0.15f)
-                                    ?: MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                        IconButton(onClick = { showColorDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Filled.Palette,
+                                contentDescription = "笔记颜色",
+                                tint = currentColor ?: MaterialTheme.colorScheme.onSurface
                             )
-                        ) {
-                            if (currentColor != null) {
-                                Box(modifier = Modifier.size(10.dp).background(currentColor, CircleShape))
-                                Spacer(modifier = Modifier.width(6.dp))
-                            }
-                            Text("笔记颜色", color = currentColor ?: MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
                         }
                     }
                     // Draft box icon
@@ -516,7 +511,14 @@ fun NewNoteScreen(
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                     // 大屏幕：标签栏顶部直接放颜色选择器
                     if (isTablet) {
-                        Text("笔记颜色", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                        val tabletColor = uiState.noteColorHue?.let { NoteColorUtil.hueToColor(it) }
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)) {
+                            Text("笔记颜色", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (tabletColor != null) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(modifier = Modifier.size(10.dp).background(tabletColor, CircleShape))
+                            }
+                        }
                         NoteColorPickerContent(
                             currentHue = uiState.noteColorHue,
                             localHue = localColorHue,
@@ -1157,13 +1159,24 @@ fun NewNoteScreen(
                             onDeleteCustomColor = { index ->
                                 deleteCustomColor(context, index)
                                 customColors = loadCustomColors(context)
-                            }
+                            },
+                            showClearButton = false
                         )
                     },
                     confirmButton = {},
                     dismissButton = {
-                        TextButton(onClick = { showColorDialog = false }) {
-                            Text("关闭")
+                        Row {
+                            if (uiState.noteColorHue != null) {
+                                TextButton(onClick = {
+                                    onNoteColorHueChange(null)
+                                    showColorDialog = false
+                                }) {
+                                    Text("清除颜色", color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                            TextButton(onClick = { showColorDialog = false }) {
+                                Text("关闭")
+                            }
                         }
                     }
                 )
@@ -1401,6 +1414,7 @@ private fun NoteColorPickerContent(
     customColors: List<CustomColor>,
     onAddPreset: () -> Unit,
     onDeleteCustomColor: (Int) -> Unit,
+    showClearButton: Boolean = true,
 ) {
     Column {
         val presetHues = listOf(
@@ -1419,53 +1433,34 @@ private fun NoteColorPickerContent(
             for ((hue, label) in presetHues) {
                 val color = NoteColorUtil.hueToColor(hue)
                 val isSelected = currentHue != null && (currentHue - hue).let { it in -2f..2f }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .background(color, CircleShape)
-                            .clickable {
-                                onLocalHueChange(hue)
-                                onColorChange(hue)
-                            }
-                            .then(
-                                if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
-                                else Modifier
-                            )
-                    )
-                    Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                InputChip(
+                    selected = isSelected,
+                    onClick = {
+                        onLocalHueChange(hue)
+                        onColorChange(hue)
+                    },
+                    label = { Text(label) },
+                    leadingIcon = { Box(modifier = Modifier.size(12.dp).background(color, CircleShape)) }
+                )
             }
-        }
-
-        if (customColors.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                for ((index, customColor) in customColors.withIndex()) {
-                    val color = NoteColorUtil.hueToColor(customColor.hue)
-                    val isSelected = currentHue != null && (currentHue - customColor.hue).let { it in -2f..2f }
-                    InputChip(
-                        selected = isSelected,
-                        onClick = {
-                            onLocalHueChange(customColor.hue)
-                            onColorChange(customColor.hue)
-                        },
-                        label = { Text(customColor.name) },
-                        leadingIcon = { Box(modifier = Modifier.size(12.dp).background(color, CircleShape)) },
-                        trailingIcon = { Icon(Icons.Filled.Close, null, Modifier.size(InputChipDefaults.AvatarSize).clickable { onDeleteCustomColor(index) }) }
-                    )
-                }
-                InputChip(selected = false, onClick = onAddPreset, label = { Text("增加预设颜色") }, trailingIcon = { Icon(Icons.Filled.Add, null, Modifier.size(16.dp)) })
+            for ((index, customColor) in customColors.withIndex()) {
+                val color = NoteColorUtil.hueToColor(customColor.hue)
+                val isSelected = currentHue != null && (currentHue - customColor.hue).let { it in -2f..2f }
+                InputChip(
+                    selected = isSelected,
+                    onClick = {
+                        onLocalHueChange(customColor.hue)
+                        onColorChange(customColor.hue)
+                    },
+                    label = { Text(customColor.name) },
+                    leadingIcon = { Box(modifier = Modifier.size(12.dp).background(color, CircleShape)) },
+                    trailingIcon = { Icon(Icons.Filled.Close, null, Modifier.size(InputChipDefaults.AvatarSize).clickable { onDeleteCustomColor(index) }) }
+                )
             }
-        } else {
-            Spacer(modifier = Modifier.height(8.dp))
             InputChip(selected = false, onClick = onAddPreset, label = { Text("增加预设颜色") }, trailingIcon = { Icon(Icons.Filled.Add, null, Modifier.size(16.dp)) })
         }
 
-        if (currentHue != null) {
+        if (showClearButton && currentHue != null) {
             Spacer(modifier = Modifier.height(8.dp))
             Button(
                 onClick = onClear,
