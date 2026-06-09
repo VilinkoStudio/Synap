@@ -2,6 +2,14 @@
 
 ​一款极简的用于快速思维捕获的软件。
 
+[简体中文 README](readme.md)（当前） | [English README](readme_en-us.md)
+
+## 下载体验
+
+目前软件仍在前期开发阶段，你可以前往项目的 [Github Release](https://github.com/VilinkoStudio/Synap/releases) 体验开发版本。
+
+[软件官网](https://vilinkostudio.github.io/synap.vilinko.com/)
+
 ## 灵感来源
 
 ​传统笔记软件总是强迫你在记录前先思考：“这个想法该放进哪个文件夹？” ，这种强制分类带来的心理负担，往往会扼杀转瞬即逝的灵感。
