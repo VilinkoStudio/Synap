@@ -126,6 +126,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 @Composable
 fun HomeScreen(
     uiState: HomeUiState,
+    buildVersion: String = "",
     onOpenSettings: () -> Unit,
     onComposeNote: () -> Unit,
     onOpenNote: (String) -> Unit,
@@ -935,6 +936,20 @@ fun HomeScreen(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
+                        if (buildVersion.isNotBlank()) {
+                            val tag = detectVersionType(buildVersion)
+                            if (tag != VersionType.Release) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = tag.name,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier
+                                        .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                )
+                            }
+                        }
                     }
 
                     // 2. 搜索框
@@ -1098,6 +1113,20 @@ fun HomeScreen(
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.primary
                                         )
+                                        if (buildVersion.isNotBlank()) {
+                                            val tag = detectVersionType(buildVersion)
+                                            if (tag != VersionType.Release) {
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = tag.name,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                    modifier = Modifier
+                                                        .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(4.dp))
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                                )
+                                            }
+                                        }
                                     }
                                 },
                                 actions = {

@@ -19,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.synap.app.ui.viewmodel.SettingsViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -114,9 +115,12 @@ fun SynapNavGraph(
                 ) {
                     val viewModel: HomeViewModel = hiltViewModel()
                     val uiState by viewModel.uiState.collectAsState()
+                    val settingsVm: SettingsViewModel = hiltViewModel()
+                    val settingsState by settingsVm.uiState.collectAsState()
 
                     HomeScreen(
                         uiState = uiState,
+                        buildVersion = settingsState.buildVersion,
                         onOpenSettings = { navController.navigate("settings") },
                         onComposeNote = { navController.navigate(editorRoute()) },
                         onOpenNote = { noteId -> navController.navigate(detailRoute(noteId)) },
@@ -243,6 +247,7 @@ fun SynapNavGraph(
                         onNavigateToSync = { navController.navigate("sync") },
                         onNavigateToTeam = { navController.navigate("team") },
                         onNavigateToTutorial = { navController.navigate("tutorial") },
+                        onNavigateToVersion = { navController.navigate("version") },
                         onNavigateBack = { navController.popBackStack() },
                         draftCapacity = draftCapacity,
                         onDraftCapacityChange = onDraftCapacityChange,
@@ -339,6 +344,16 @@ fun SynapNavGraph(
 
                 composable("team") {
                     TeamScreen(onNavigateBack = { navController.popBackStack() })
+                }
+
+                composable("version") {
+                    val settingsVm: SettingsViewModel = hiltViewModel()
+                    val settingsState by settingsVm.uiState.collectAsState()
+                    VersionScreen(
+                        buildVersion = settingsState.buildVersion,
+                        buildVersionDetails = settingsState.buildVersionDetails,
+                        onNavigateBack = { navController.popBackStack() },
+                    )
                 }
 
                 composable(
