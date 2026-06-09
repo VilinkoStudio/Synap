@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -607,6 +608,7 @@ private fun AboutSection(
     buildVersionDetails: String?,
     onNavigateToTeam: () -> Unit,
     onNavigateToTutorial: () -> Unit,
+    onNavigateToVersion: () -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -638,26 +640,37 @@ private fun AboutSection(
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = stringResource(R.string.version_info),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = buildVersion,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            buildVersionDetails?.takeIf { it.isNotBlank() }?.let { details ->
-                Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onNavigateToVersion() }
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.version_info), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                    val vType = detectVersionType(buildVersion)
+                    if (vType != VersionType.Release) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = vType.name,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier
+                                .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = details,
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = buildVersion + (buildVersionDetails?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         HorizontalDivider(
@@ -713,7 +726,7 @@ private fun AboutSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://synap.rth1.xyz/")))
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://vilinkostudio.github.io/synap.vilinko.com/")))
                 }
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -792,6 +805,7 @@ fun SettingsScreen(
     onNavigateToSync: () -> Unit,
     onNavigateToTeam: () -> Unit,
     onNavigateToTutorial: () -> Unit,
+    onNavigateToVersion: () -> Unit,
     onNavigateBack: () -> Unit,
     draftCapacity: Int,
     onDraftCapacityChange: (Int) -> Unit,
@@ -875,6 +889,7 @@ fun SettingsScreen(
                     buildVersionDetails = buildVersionDetails,
                     onNavigateToTeam = onNavigateToTeam,
                     onNavigateToTutorial = onNavigateToTutorial,
+                    onNavigateToVersion = onNavigateToVersion,
                 )
             }
 
