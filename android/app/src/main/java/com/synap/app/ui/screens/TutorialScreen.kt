@@ -1,81 +1,44 @@
 package com.synap.app.ui.screens
 
-import androidx.activity.compose.PredictiveBackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
-import androidx.compose.material.icons.automirrored.filled.Reply
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.FormatBold
-import androidx.compose.material.icons.filled.FormatColorText
-import androidx.compose.material.icons.filled.FormatItalic
-import androidx.compose.material.icons.filled.FormatQuote
-import androidx.compose.material.icons.filled.FormatStrikethrough
-import androidx.compose.material.icons.filled.FormatUnderlined
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Replay
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FloatingToolbarDefaults
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.InputChip
-import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -83,346 +46,148 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.synap.app.R
-import kotlinx.coroutines.delay
-import java.util.concurrent.CancellationException
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TutorialScreen(
-    currentThemeMode: Int,
-    onThemeModeChange: (Int) -> Unit,
-    useMonet: Boolean,
-    supportsMonet: Boolean,
-    onUseMonetChange: (Boolean) -> Unit,
-    customThemeHue: Float,
-    onCustomThemeHueChange: (Float) -> Unit,
+    hasSeenAgreement: Boolean,
     availableLanguages: List<String>,
     currentLanguageIndex: Int,
     onLanguageSelect: (Int) -> Unit,
-    onFinishTutorial: () -> Unit
+    onAgreementAccepted: () -> Unit,
+    onFinish: () -> Unit
 ) {
-    // ========== 预返回手势核心状态 ==========
-    var backProgress by remember { mutableFloatStateOf(0f) }
+    BackHandler {}
 
-    PredictiveBackHandler { progressFlow ->
-        try {
-            progressFlow.collect { backEvent ->
-                backProgress = backEvent.progress // 收集系统侧滑进度 (0.0 ~ 1.0)
-            }
-            onFinishTutorial() // 手指松开且达到返回阈值时触发
-        } catch (e: CancellationException) {
-            backProgress = 0f // 用户取消了侧滑，重置进度
+    // 0 = language, 1 = agreement, 2 = welcome
+    var currentPage by remember { mutableIntStateOf(if (hasSeenAgreement) 2 else 0) }
+
+    LaunchedEffect(Unit) {
+        if (hasSeenAgreement) {
+            onFinish()
         }
     }
 
-    // 控制当前所处页面（0=欢迎页，1=卡片手势页，2=新建笔记页）
-    var currentPage by remember { mutableIntStateOf(0) }
-    var animationProgress by remember { mutableFloatStateOf(0f) }
-    var replayTrigger by remember { mutableIntStateOf(0) }
-    var hintText by remember { mutableStateOf("") }
-    val isAnimationFinished = animationProgress >= 1f
-
     Scaffold(
-        modifier = Modifier
-            .fillMaxSize()
-            // ========== 应用预返回手势形变 ==========
-            .graphicsLayer {
-                translationX = backProgress * 64.dp.toPx() // 向右边缘移动
-                transformOrigin = TransformOrigin(1f, 0.5f) // 缩放原点在右侧中心
-                shape = RoundedCornerShape(32.dp * backProgress) // 随进度增加圆角
-                clip = true
+        modifier = Modifier.fillMaxSize(),
+        topBar = {
+            when (currentPage) {
+                0 -> TopAppBar(
+                    title = { Text(stringResource(R.string.language)) },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
+                1 -> TopAppBar(
+                    title = { Text(stringResource(R.string.user_agreement)) },
+                    navigationIcon = {
+                        IconButton(onClick = { currentPage = 0 }) {
+                            Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
             }
+        }
     ) { innerPadding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            when (currentPage) {
-                0 -> IntroPage(
-                    currentThemeMode = currentThemeMode,
-                    onThemeModeChange = onThemeModeChange,
-                    useMonet = useMonet,
-                    supportsMonet = supportsMonet,
-                    onUseMonetChange = onUseMonetChange,
-                    customThemeHue = customThemeHue,
-                    onCustomThemeHueChange = onCustomThemeHueChange,
-                    availableLanguages = availableLanguages,
-                    currentLanguageIndex = currentLanguageIndex,
-                    onLanguageSelect = onLanguageSelect,
-                    onNext = { currentPage = 1 },
-                    onSkip = onFinishTutorial
-                )
-                1 -> NoteCardTutorialPage(
-                    onProgressChange = { animationProgress = it },
-                    onHintChange = { hintText = it },
-                    replayTrigger = replayTrigger,
-                )
-                2 -> NewNoteTutorialPage(
-                    onProgressChange = { animationProgress = it },
-                    onHintChange = { hintText = it },
-                    replayTrigger = replayTrigger,
-                )
-            }
-
-            // 底部导航栏 (仅在第二屏及之后显示)
-            if (currentPage > 0) {
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 32.dp, start = 24.dp, end = 24.dp)
-                        .fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
-                ) {
-                    // 字幕
-                    if (!isAnimationFinished && hintText.isNotEmpty()) {
-                        Text(
-                            text = hintText,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            textAlign = TextAlign.Center,
-                        )
-                    }
-
-                    // 进度条 / 重播按钮
-                    if (isAnimationFinished) {
-                        Button(onClick = {
-                            animationProgress = 0f
-                            hintText = ""
-                            replayTrigger++
-                        }) {
-                            Icon(Icons.Filled.Replay, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("重新播放")
-                        }
+            AnimatedContent(
+                targetState = currentPage,
+                transitionSpec = {
+                    if (targetState > initialState) {
+                        slideInHorizontally(tween(300)) { it } + fadeIn(tween(300)) togetherWith
+                            slideOutHorizontally(tween(300)) { -it } + fadeOut(tween(300))
                     } else {
-                        LinearProgressIndicator(
-                            progress = { animationProgress },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
+                        slideInHorizontally(tween(300)) { -it } + fadeIn(tween(300)) togetherWith
+                            slideOutHorizontally(tween(300)) { it } + fadeOut(tween(300))
                     }
-
-                    // 导航按钮
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Button(onClick = {
-                            animationProgress = 0f
-                            hintText = ""
-                            currentPage -= 1
-                        }) {
-                            Text("上一个")
+                },
+                label = "pageTransition",
+                modifier = Modifier.weight(1f)
+            ) { page ->
+                when (page) {
+                    0 -> LanguagePage(
+                        availableLanguages = availableLanguages,
+                        currentLanguageIndex = currentLanguageIndex,
+                        onLanguageSelect = onLanguageSelect,
+                        onNext = { currentPage = 1 }
+                    )
+                    1 -> AgreementPage(
+                        onAgree = {
+                            onAgreementAccepted()
+                            currentPage = 2
                         }
-                        Button(onClick = {
-                            if (currentPage == 2) {
-                                onFinishTutorial()
-                            } else {
-                                animationProgress = 0f
-                                hintText = ""
-                                currentPage += 1
-                            }
-                        }) {
-                            Text(if (currentPage == 2) "完成" else "下一个")
-                        }
-                    }
+                    )
+                    2 -> WelcomePage(
+                        onStart = onFinish
+                    )
                 }
             }
         }
     }
 }
 
-// 第一屏：欢迎介绍与真实生效的快速设置
 @Composable
-private fun IntroPage(
-    currentThemeMode: Int,
-    onThemeModeChange: (Int) -> Unit,
-    useMonet: Boolean,
-    supportsMonet: Boolean,
-    onUseMonetChange: (Boolean) -> Unit,
-    customThemeHue: Float,
-    onCustomThemeHueChange: (Float) -> Unit,
+private fun LanguagePage(
     availableLanguages: List<String>,
     currentLanguageIndex: Int,
     onLanguageSelect: (Int) -> Unit,
-    onNext: () -> Unit,
-    onSkip: () -> Unit
+    onNext: () -> Unit
 ) {
-    var showLanguageDialog by remember { mutableStateOf(false) }
-
-    if (showLanguageDialog) {
-        AlertDialog(
-            onDismissRequest = { showLanguageDialog = false },
-            title = { Text(stringResource(R.string.select_language)) },
-            text = {
-                Column {
-                    availableLanguages.forEachIndexed { index, lang ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    onLanguageSelect(index)
-                                    showLanguageDialog = false
-                                }
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(lang, modifier = Modifier.weight(1f))
-                            if (currentLanguageIndex == index) {
-                                Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showLanguageDialog = false }) { Text("关闭") }
-            }
-        )
-    }
-
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
-        // 上半部分：滚动区域，包含标题和设置
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 24.dp, end = 24.dp, top = 48.dp)
+                .padding(start = 24.dp, end = 24.dp, top = 16.dp)
         ) {
-            Text(
-                text = "Synap",
-                style = MaterialTheme.typography.displayLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Start
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "一款极简的用于快速思维捕获的笔记应用",
-                style = MaterialTheme.typography.titleMedium,
-                textAlign = TextAlign.Start,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(48.dp))
-
-            // 快速设置区域
-            Text(
-                text = "快速设置",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "您也可以稍后在设置页中调整这些选项",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                // 1. 深浅色
-                val themeOptions = listOf(
-                    stringResource(R.string.theme_system),
-                    stringResource(R.string.theme_light),
-                    stringResource(R.string.theme_dark)
-                )
-
-                themeOptions.forEachIndexed { index, title ->
+                availableLanguages.forEachIndexed { index, lang ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onThemeModeChange(index) }
+                            .clickable { onLanguageSelect(index) }
                             .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                        if (currentThemeMode == index) {
+                        Text(
+                            text = lang,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (currentLanguageIndex == index) {
                             Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         }
                     }
-                    if (index < 2) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), modifier = Modifier.padding(horizontal = 16.dp))
-                }
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), modifier = Modifier.padding(horizontal = 16.dp))
-
-                // 2. Monet 开关
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Filled.Palette, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.sync_system_color), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                        Text(
-                            text = when {
-                                !supportsMonet -> stringResource(R.string.monet_unsupported)
-                                useMonet -> stringResource(R.string.monet_enabled)
-                                else -> stringResource(R.string.monet_disabled)
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    if (index < availableLanguages.size - 1) {
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                            modifier = Modifier.padding(horizontal = 16.dp)
                         )
                     }
-                    Switch(checked = useMonet, onCheckedChange = onUseMonetChange, enabled = supportsMonet)
-                }
-
-                // 3. 拖动调节主题色
-                AnimatedVisibility(visible = !useMonet, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-                    Column {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), modifier = Modifier.padding(horizontal = 16.dp))
-                        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.Tune, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 16.dp))
-                                Text(stringResource(R.string.adjust_theme_color), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            val currentPureColor = Color.hsv(customThemeHue, 1f, 1f)
-                            Slider(
-                                value = customThemeHue,
-                                onValueChange = onCustomThemeHueChange,
-                                valueRange = 0f..360f,
-                                colors = SliderDefaults.colors(thumbColor = currentPureColor, activeTrackColor = currentPureColor)
-                            )
-                        }
-                    }
-                }
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), modifier = Modifier.padding(horizontal = 16.dp))
-
-                // 4. 语言选择
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showLanguageDialog = true }
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Filled.Language, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 16.dp))
-                    Text(stringResource(R.string.language), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                    Text(availableLanguages.getOrNull(currentLanguageIndex) ?: "", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
 
-        // 下半部分：固定在底部的按钮
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -430,440 +195,103 @@ private fun IntroPage(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Button(onClick = onNext) {
-                Text("查看使用教程")
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            TextButton(onClick = onSkip) {
-                Text("我已了解使用方法，跳过教程")
+                Text(stringResource(R.string.next))
             }
         }
     }
 }
 
-// 第二屏：卡片手势与多选动画教程
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun NoteCardTutorialPage(
-    onProgressChange: (Float) -> Unit,
-    onHintChange: (String) -> Unit,
-    replayTrigger: Int,
-) {
-    val offsetX = remember { Animatable(0f) }
-    val scale = remember { Animatable(1f) }
-    var isMultiSelect by remember { mutableStateOf(false) }
+private fun AgreementPage(onAgree: () -> Unit) {
+    val scrollState = rememberScrollState()
+    var hasScrolledToBottom by remember { mutableStateOf(false) }
 
-    // 平滑进度
-    LaunchedEffect(replayTrigger) {
-        val start = System.currentTimeMillis()
-        val durationMs = 12500L
-        while (true) {
-            val p = ((System.currentTimeMillis() - start).toFloat() / durationMs).coerceIn(0f, 1f)
-            onProgressChange(p)
-            if (p >= 1f) break
-            delay(16)
-        }
-    }
-
-    LaunchedEffect(replayTrigger) {
-        while (true) {
-            // 1. 右滑删除
-            onHintChange("右滑笔记可以删除")
-            delay(1000)
-            offsetX.animateTo(150f, animationSpec = tween(500))
-            delay(1500)
-            offsetX.animateTo(0f, animationSpec = tween(500))
-            delay(1000)
-
-            // 2. 左滑回复
-            onHintChange("左滑笔记可以回复这条笔记")
-            offsetX.animateTo(-150f, animationSpec = tween(500))
-            delay(1500)
-            offsetX.animateTo(0f, animationSpec = tween(500))
-            delay(1000)
-
-            // 3. 长按多选
-            onHintChange("长按笔记可以触发多选")
-            scale.animateTo(0.95f, tween(150))
-            delay(300)
-            scale.animateTo(1f, tween(150))
-            isMultiSelect = true
-            delay(3500)
-            isMultiSelect = false
-            delay(1350)
-            delay(100000)
+    LaunchedEffect(scrollState.value, scrollState.maxValue) {
+        if (scrollState.maxValue > 0 && scrollState.value >= scrollState.maxValue - 10) {
+            hasScrolledToBottom = true
         }
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp)
+        modifier = Modifier.fillMaxSize()
     ) {
-        Spacer(modifier = Modifier.height(32.dp))
-        Text(
-            text = "笔记卡片",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-
-        Spacer(modifier = Modifier.height(80.dp))
-
-        Box(
-            modifier = Modifier.fillMaxWidth(),
-            contentAlignment = Alignment.Center
-        ) {
-            // 底层滑动背景：右滑显示左侧(红/删除)，左滑显示右侧(主色/回复)
-            val bgColor = when {
-                offsetX.value > 0 -> MaterialTheme.colorScheme.errorContainer
-                offsetX.value < 0 -> MaterialTheme.colorScheme.primaryContainer
-                else -> Color.Transparent
-            }
-
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(bgColor, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 24.dp)
-            ) {
-                if (offsetX.value > 0) {
-                    Icon(
-                        imageVector = Icons.Filled.Delete,
-                        contentDescription = "删除",
-                        modifier = Modifier.align(Alignment.CenterStart), // 卡片向右滑，图标在左边露出来
-                        tint = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                } else if (offsetX.value < 0) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Reply,
-                        contentDescription = "回复",
-                        modifier = Modifier.align(Alignment.CenterEnd), // 卡片向左滑，图标在右边露出来
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-            }
-
-            // 顶层示例卡片
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .offset(x = offsetX.value.dp) // 跟随动画滑动
-                    .scale(scale.value),          // 跟随动画缩放
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isMultiSelect) MaterialTheme.colorScheme.secondaryContainer
-                    else MaterialTheme.colorScheme.surfaceVariant
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "这是一条示例笔记，仅用作教程使用。千门万户曈曈日，总把新桃换旧符。",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    // 多选状态下的复选框
-                    AnimatedVisibility(visible = isMultiSelect) {
-                        Checkbox(
-                            checked = true,
-                            onCheckedChange = null,
-                            modifier = Modifier.padding(start = 16.dp)
-                        )
-                    }
-                }
-            }
-        }
-
-        // 多选模式下紧贴卡片下方出现的浮动工具栏
-        AnimatedVisibility(
-            visible = isMultiSelect,
-            enter = fadeIn() + slideInVertically(initialOffsetY = { -it }),
-            exit = fadeOut() + slideOutVertically(targetOffsetY = { -it }),
-            modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 16.dp)
-        ) {
-            HorizontalFloatingToolbar(
-                expanded = true,
-                colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
-                    toolbarContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                    toolbarContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            ) {
-                IconButton(onClick = { }) { Icon(Icons.Filled.ContentCopy, contentDescription = "复制") }
-                IconButton(onClick = { }) { Icon(Icons.Filled.Share, contentDescription = "分享") }
-                IconButton(onClick = { }) { Icon(Icons.Filled.Delete, contentDescription = "删除") }
-            }
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-    }
-}
-
-// 第三屏：新建笔记动画教程
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun NewNoteTutorialPage(
-    onProgressChange: (Float) -> Unit,
-    onHintChange: (String) -> Unit,
-    replayTrigger: Int,
-) {
-    var noteText by remember { mutableStateOf("") }
-    var tagInputText by remember { mutableStateOf("") }
-
-    var showRecommendedTag by remember { mutableStateOf(false) }
-    var isAddingTag by remember { mutableStateOf(false) }
-    var showToolbar by remember { mutableStateOf(false) }
-    var clickTarget by remember { mutableStateOf("") }
-
-    var selectedTags by remember { mutableStateOf<List<String>>(emptyList()) }
-
-    // 平滑进度
-    LaunchedEffect(replayTrigger) {
-        val start = System.currentTimeMillis()
-        val durationMs = 19000L
-        while (true) {
-            val p = ((System.currentTimeMillis() - start).toFloat() / durationMs).coerceIn(0f, 1f)
-            onProgressChange(p)
-            if (p >= 1f) break
-            delay(16)
-        }
-    }
-
-    LaunchedEffect(replayTrigger) {
-        while (true) {
-            // 初始状态清理
-            noteText = ""
-            tagInputText = ""
-            selectedTags = emptyList()
-            showRecommendedTag = false
-            isAddingTag = false
-            showToolbar = false
-            clickTarget = ""
-
-            // 1. 提示新建
-            onHintChange("点击首页的\u201C新建笔记\u201D按钮开始记笔记")
-            delay(2500)
-
-            // 2. 兼容Markdown介绍
-            onHintChange("兼容Markdown语法的编辑器")
-            delay(1200)
-            showToolbar = true
-            delay(1800)
-
-            // 模拟点击工具栏加粗
-            clickTarget = "toolbar_bold"
-            delay(500)
-            clickTarget = ""
-            noteText = "****"
-            delay(1000)
-
-            // 3. 打字机输入
-            val fullNote = "千门万户曈曈日，总把新桃换旧符。"
-            for (i in 1..fullNote.length) {
-                noteText = "**" + fullNote.substring(0, i) + "**"
-                delay(120)
-            }
-            delay(1200)
-
-            // 4. 模拟出现推荐标签
-            onHintChange("Synap可以根据你所输入的内容推荐标签")
-            showRecommendedTag = true
-            delay(2500)
-
-            // 模拟点击推荐标签
-            clickTarget = "rec_tag"
-            delay(500)
-            clickTarget = ""
-            showRecommendedTag = false
-            selectedTags = listOf("古诗")
-            delay(1200)
-
-            // 5. 模拟新建标签
-            onHintChange("点击\u201C新建标签\u201D可以添加自定义标签")
-            delay(1200)
-            clickTarget = "add_tag"
-            delay(400)
-            clickTarget = ""
-            isAddingTag = true
-            delay(500)
-
-            // 模拟打字输入新标签
-            val fullTag = "王安石"
-            for (i in 1..fullTag.length) {
-                tagInputText = fullTag.substring(0, i)
-                delay(150)
-            }
-            delay(800)
-
-            // 模拟点击确定
-            clickTarget = "check_tag"
-            delay(400)
-            clickTarget = ""
-            isAddingTag = false
-            tagInputText = ""
-            selectedTags = listOf("古诗", "王安石")
-            delay(100000)
-        }
-    }
-
-    Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 48.dp) // 避开顶部空间
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(start = 24.dp, end = 24.dp, top = 16.dp)
         ) {
-            Text(
-                text = "新建笔记",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 24.dp)
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // 模拟的新建笔记 UI
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
-
-                // 标签栏区域
-                if (isAddingTag) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = tagInputText,
-                            onValueChange = {},
-                            placeholder = { Text("输入标签") },
-                            modifier = Modifier.weight(1f).height(56.dp),
-                            singleLine = true,
-                            readOnly = true // 教程演示专用
-                        )
-                        Box(contentAlignment = Alignment.Center) {
-                            IconButton(onClick = {}) {
-                                Icon(Icons.Filled.Check, contentDescription = "确认添加", tint = MaterialTheme.colorScheme.primary)
-                            }
-                            ClickPointer(visible = clickTarget == "check_tag")
-                        }
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        selectedTags.forEach { tag ->
-                            InputChip(
-                                selected = true,
-                                onClick = {},
-                                label = { Text(tag) },
-                                trailingIcon = { Icon(Icons.Filled.Close, null, Modifier.size(InputChipDefaults.AvatarSize)) }
-                            )
-                        }
-                        Box(contentAlignment = Alignment.Center) {
-                            InputChip(
-                                selected = false,
-                                onClick = {},
-                                label = { Text("添加标签") },
-                                trailingIcon = { Icon(Icons.Filled.Add, null, Modifier.size(16.dp)) }
-                            )
-                            ClickPointer(visible = clickTarget == "add_tag")
-                        }
-                    }
-                }
-
-                // 推荐标签区域
-                if (showRecommendedTag) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("推荐标签：", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = "#古诗",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.primaryContainer.copy(alpha=0.3f)).padding(horizontal = 4.dp, vertical = 2.dp)
-                            )
-                            ClickPointer(visible = clickTarget == "rec_tag")
-                        }
-                    }
-                }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                // 输入区域 (高度缩短至3行左右)
-                Box(modifier = Modifier.fillMaxWidth().height(80.dp)) {
-                    Text(
-                        text = noteText.ifEmpty { "开始记录你的灵感..." },
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = if (noteText.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            // 模拟工具栏悬浮在提示词上方
-            AnimatedVisibility(
-                visible = showToolbar,
-                enter = fadeIn() + slideInVertically(initialOffsetY = { 20 }),
-                exit = fadeOut() + slideOutVertically(targetOffsetY = { 20 }),
-                modifier = Modifier.padding(bottom = 200.dp)
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                tonalElevation = 1.dp
             ) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
-                    shadowElevation = 8.dp
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 8.dp)
-                            .horizontalScroll(rememberScrollState()),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val iconColor = MaterialTheme.colorScheme.onSurface
-                        val textStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = iconColor)
+                Text(
+                    text = stringResource(R.string.terms_of_use),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .verticalScroll(scrollState)
+                )
+            }
+        }
 
-                        // 在加粗按钮上设置模拟点击锚点
-                        Box(contentAlignment = Alignment.Center) {
-                            IconButton(onClick = {}) { Icon(Icons.Filled.FormatBold, null, tint = iconColor) }
-                            ClickPointer(visible = clickTarget == "toolbar_bold")
-                        }
-                        IconButton(onClick = {}) { Icon(Icons.Filled.FormatItalic, null, tint = iconColor) }
-                        IconButton(onClick = {}) { Icon(Icons.Filled.FormatStrikethrough, null, tint = iconColor) }
-                        IconButton(onClick = {}) { Icon(Icons.Filled.FormatUnderlined, null, tint = iconColor) }
-                        IconButton(onClick = {}) { Icon(Icons.Filled.FormatColorText, null, tint = iconColor) }
-                        IconButton(onClick = {}) { Icon(Icons.Filled.FormatQuote, null, tint = iconColor) }
-                        IconButton(onClick = {}) { Text("H1", style = textStyle) }
-                        IconButton(onClick = {}) { Text("H2", style = textStyle) }
-                        IconButton(onClick = {}) { Icon(Icons.AutoMirrored.Filled.FormatListBulleted, null, tint = iconColor) }
-                        IconButton(onClick = {}) { Text("1.", style = textStyle) }
-                    }
-                }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 24.dp, horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Button(
+                onClick = onAgree,
+                enabled = hasScrolledToBottom,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.agree_and_continue))
             }
         }
     }
 }
 
-// 模拟点击时的视觉圆点反馈
 @Composable
-private fun ClickPointer(visible: Boolean) {
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(tween(150)),
-        exit = fadeOut(tween(300))
+private fun WelcomePage(onStart: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize()
     ) {
-        Box(
+        Column(
             modifier = Modifier
-                .size(40.dp)
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), CircleShape)
-        )
+                .weight(1f)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Synap",
+                style = MaterialTheme.typography.displayLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = stringResource(R.string.welcome_to_synap),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 48.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Button(onClick = onStart) {
+                Text(stringResource(R.string.start_use))
+            }
+        }
     }
 }

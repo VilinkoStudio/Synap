@@ -67,14 +67,14 @@ fun SynapNavGraph(
     onNoteTextSizeChange: (Float) -> Unit,
     noteLineSpacing: Float,
     onNoteLineSpacingChange: (Float) -> Unit,
-    hasSeenTutorial: Boolean,
-    onTutorialFinished: () -> Unit,
+    hasSeenAgreement: Boolean,
+    onAgreementAccepted: () -> Unit,
     databaseActivity: MainActivity?,
     draftCapacity: Int,
     onDraftCapacityChange: (Int) -> Unit,
 ) {
     val navController = rememberNavController()
-    val startDestination = remember { if (hasSeenTutorial) "home" else "tutorial" }
+    val startDestination = remember { if (hasSeenAgreement) "home" else "tutorial" }
 
     SharedTransitionLayout {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -89,18 +89,12 @@ fun SynapNavGraph(
             ) {
                 composable("tutorial") {
                     TutorialScreen(
-                        currentThemeMode = themeMode,
-                        onThemeModeChange = onThemeModeChange,
-                        useMonet = useMonet,
-                        supportsMonet = supportsMonet,
-                        onUseMonetChange = onUseMonetChange,
-                        customThemeHue = customThemeHue,
-                        onCustomThemeHueChange = onCustomThemeHueChange,
+                        hasSeenAgreement = hasSeenAgreement,
                         availableLanguages = languages,
                         currentLanguageIndex = selectedLanguageIndex,
                         onLanguageSelect = onLanguageSelect,
-                        onFinishTutorial = {
-                            onTutorialFinished()
+                        onAgreementAccepted = onAgreementAccepted,
+                        onFinish = {
                             navController.navigate("home") { popUpTo("tutorial") { inclusive = true } }
                         }
                     )
@@ -246,7 +240,6 @@ fun SynapNavGraph(
                         onNavigateToAIScenarios = { navController.navigate("setting_ai_scenarios") },
                         onNavigateToSync = { navController.navigate("sync") },
                         onNavigateToTeam = { navController.navigate("team") },
-                        onNavigateToTutorial = { navController.navigate("tutorial") },
                         onNavigateToVersion = { navController.navigate("version") },
                         onNavigateBack = { navController.popBackStack() },
                         draftCapacity = draftCapacity,
