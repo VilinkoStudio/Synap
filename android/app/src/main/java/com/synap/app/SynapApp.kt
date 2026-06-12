@@ -90,7 +90,7 @@ fun SynapApp(activity: MainActivity?) {
     var currentFontWeight by remember { mutableIntStateOf(prefs.getInt("fontWeight", 400)) }
 
     var handedness by remember { mutableStateOf(prefs.getString("handedness", "靠右") ?: "靠右") }
-    var hasSeenTutorial by remember { mutableStateOf(prefs.getBoolean("hasSeenTutorial", false)) }
+    var hasSeenAgreement by remember { mutableStateOf(prefs.getBoolean("hasSeenAgreement", false)) }
     var draftCapacity by remember { mutableIntStateOf(prefs.getInt("draftCapacity", 20)) }
 
     val sessionViewModel: AppSessionViewModel = hiltViewModel()
@@ -176,7 +176,8 @@ fun SynapApp(activity: MainActivity?) {
                             currentFontWeight = currentFontWeight, onFontWeightChange = { currentFontWeight = it; prefs.edit().putInt("fontWeight", it).apply() },
                             noteTextSize = noteTextSize, onNoteTextSizeChange = { noteTextSize = it; prefs.edit().putFloat("noteTextSize", it).apply() },
                             noteLineSpacing = noteLineSpacing, onNoteLineSpacingChange = { noteLineSpacing = it; prefs.edit().putFloat("noteLineSpacing", it).apply() }, // --- 传递行距属性与持久化 ---
-                            hasSeenTutorial = hasSeenTutorial, onTutorialFinished = { hasSeenTutorial = true; prefs.edit().putBoolean("hasSeenTutorial", true).apply() },
+                            hasSeenAgreement = hasSeenAgreement,
+                            onAgreementAccepted = { hasSeenAgreement = true; prefs.edit().putBoolean("hasSeenAgreement", true).apply() },
                             databaseActivity = activity,
                             draftCapacity = draftCapacity, onDraftCapacityChange = { draftCapacity = it; prefs.edit().putInt("draftCapacity", it).apply() },
                         )

@@ -30,7 +30,6 @@ import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
@@ -607,7 +606,6 @@ private fun AboutSection(
     buildVersion: String,
     buildVersionDetails: String?,
     onNavigateToTeam: () -> Unit,
-    onNavigateToTutorial: () -> Unit,
     onNavigateToVersion: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -703,28 +701,6 @@ private fun AboutSection(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { onNavigateToTutorial() }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.MenuBook,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(end = 16.dp)
-            )
-            Text(stringResource(R.string.tutorial), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-            Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-
-        HorizontalDivider(
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-            modifier = Modifier.padding(horizontal = 16.dp),
-        )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
                 .clickable {
                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://vilinkostudio.github.io/synap.vilinko.com/")))
                 }
@@ -804,7 +780,6 @@ fun SettingsScreen(
     onNavigateToAIScenarios: () -> Unit,
     onNavigateToSync: () -> Unit,
     onNavigateToTeam: () -> Unit,
-    onNavigateToTutorial: () -> Unit,
     onNavigateToVersion: () -> Unit,
     onNavigateBack: () -> Unit,
     draftCapacity: Int,
@@ -888,7 +863,6 @@ fun SettingsScreen(
                     buildVersion = buildVersion,
                     buildVersionDetails = buildVersionDetails,
                     onNavigateToTeam = onNavigateToTeam,
-                    onNavigateToTutorial = onNavigateToTutorial,
                     onNavigateToVersion = onNavigateToVersion,
                 )
             }
