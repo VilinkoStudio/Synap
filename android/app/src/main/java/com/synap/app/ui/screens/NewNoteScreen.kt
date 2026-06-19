@@ -69,7 +69,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
@@ -131,10 +130,7 @@ import com.synap.app.LocalNoteFontWeight
 import com.synap.app.LocalNoteLineSpacing
 import com.synap.app.LocalNoteTextSize
 import com.synap.app.R
-import com.synap.app.ui.components.MarkdownTableEditor
-import com.synap.app.ui.util.MarkdownTableParser
 import com.synap.app.ui.util.NoteColorUtil
-import com.synap.app.ui.util.ParsedTable
 import com.synap.app.ui.viewmodel.EditorMode
 import com.synap.app.ui.viewmodel.EditorUiState
 import kotlinx.coroutines.CancellationException
@@ -160,42 +156,6 @@ private fun parseColorLocal(tag: String): Color? {
 data class CheckboxInfo(val range: IntRange, val isChecked: Boolean, val rect: Rect)
 
 data class CustomColor(val hue: Float, val name: String)
-
-sealed class ContentSegment {
-    data class Text(val text: String) : ContentSegment()
-    data class Table(val table: ParsedTable) : ContentSegment()
-}
-
-fun parseContentSegments(text: String, tables: List<ParsedTable>): List<ContentSegment> {
-    if (tables.isEmpty()) return listOf(ContentSegment.Text(text))
-
-    val segments = mutableListOf<ContentSegment>()
-    var lastEnd = 0
-
-    for (table in tables) {
-        // 表格前的文本
-        val before = text.substring(lastEnd, table.startOffset)
-        if (before.isNotEmpty()) {
-            segments.add(ContentSegment.Text(before))
-        } else if (segments.isEmpty() || segments.last() is ContentSegment.Table) {
-            // 表格在最前面或紧跟另一个表格，加空行
-            segments.add(ContentSegment.Text(""))
-        }
-        segments.add(ContentSegment.Table(table))
-        lastEnd = table.endOffset
-    }
-
-    // 表格后的文本
-    val after = text.substring(lastEnd)
-    if (after.isNotEmpty()) {
-        segments.add(ContentSegment.Text(after))
-    } else {
-        // 表格在末尾，加空行让用户可以继续输入
-        segments.add(ContentSegment.Text(""))
-    }
-
-    return segments
-}
 
 private fun saveCustomColor(context: Context, color: CustomColor) {
     val prefs = context.getSharedPreferences("custom_colors", Context.MODE_PRIVATE)
@@ -265,15 +225,7 @@ fun NewNoteScreen(
     var showColorDialog by remember { mutableStateOf(false) }
     var localColorHue by remember { mutableFloatStateOf(uiState.noteColorHue ?: 210f) }
     var showAddPresetDialog by remember { mutableStateOf(false) }
-    var showTableDialog by remember { mutableStateOf(false) }
-    var showTableEditDialog by remember { mutableStateOf(false) }
-    var tableEditCallback by remember { mutableStateOf<((Int, Int) -> Unit)?>(null) }
-    var tableDeleteCallback by remember { mutableStateOf<(() -> Unit)?>(null) }
-    var currentTableRows by remember { mutableIntStateOf(0) }
-    var currentTableCols by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
-    val labPrefs = remember { context.getSharedPreferences("synap_prefs", Context.MODE_PRIVATE) }
-    val enableTable = remember { labPrefs.getBoolean("lab_enable_table", false) }
     var customColors by remember { mutableStateOf(loadCustomColors(context)) }
 
     // 检查是否有需要恢复的草稿（进程意外终止）
@@ -321,63 +273,7 @@ fun NewNoteScreen(
         onContentChange(newText)
     }
 
-    val insertTable: (Int, Int) -> Unit = { rows, cols ->
-        val cursor = textFieldValue.selection.min
-        val text = textFieldValue.text
-        val sb = StringBuilder()
-        // 表头
-        sb.append("| ")
-        for (c in 1..cols) sb.append(" | ")
-        sb.append("\n| ")
-        for (c in 1..cols) sb.append("--- | ")
-        sb.append("\n")
-        // 数据行
-        for (r in 1..rows) {
-            sb.append("| ")
-            for (c in 1..cols) sb.append(" | ")
-            sb.append("\n")
-        }
-
-        // 判断当前行是否有内容
-        val lineStart = text.lastIndexOf('\n', cursor - 1).let { if (it == -1) 0 else it + 1 }
-        val lineEnd = text.indexOf('\n', cursor).let { if (it == -1) text.length else it }
-        val currentLine = text.substring(lineStart, lineEnd)
-        val needNewLineBefore = currentLine.isNotBlank()
-
-        // 判断表格后面是否有换行或到末尾
-        val afterCursor = text.substring(cursor)
-        val needNewLineAfter = afterCursor.isNotEmpty() && !afterCursor.startsWith("\n")
-
-        val tableBody = sb.toString()
-        val prefix = if (needNewLineBefore) "\n" else ""
-        val suffix = if (needNewLineAfter) "\n" else ""
-
-        val tableText = prefix + tableBody + suffix
-        val insertPos = if (currentLine.isBlank() && !needNewLineBefore) lineStart else cursor
-        val newText = text.substring(0, insertPos) + tableText + text.substring(cursor)
-        val newCursor = insertPos + tableText.length
-        textFieldValue = textFieldValue.copy(text = newText, selection = TextRange(newCursor))
-        onContentChange(newText)
-    }
-
-    // 检测光标是否在表格段内
-    var isCursorInTable by remember { mutableStateOf(false) }
-
-    fun checkCursorInTable() {
-        if (!enableTable) { isCursorInTable = false; return }
-        val text = textFieldValue.text
-        val cursor = textFieldValue.selection.min
-        val tables = MarkdownTableParser.parseTables(text)
-        isCursorInTable = tables.any { cursor in it.startOffset until it.endOffset }
-    }
-
-    LaunchedEffect(textFieldValue.selection.min, textFieldValue.text) {
-        checkCursorInTable()
-    }
-
-    // 智能行首格式替换与有序列表打断逻辑
     val applyLinePrefix: (String) -> Unit = { newPrefix ->
-        if (!isCursorInTable) {
         val text = textFieldValue.text
         val selection = textFieldValue.selection
         var lineStart = selection.min
@@ -421,7 +317,6 @@ fun NewNoteScreen(
             val newText = text.substring(0, lineStart) + prefixToApply + currentLine + text.substring(lineEnd)
             textFieldValue = textFieldValue.copy(text = newText, selection = TextRange(selection.start + prefixToApply.length))
             onContentChange(newText)
-        }
         }
     }
 
@@ -591,20 +486,17 @@ fun NewNoteScreen(
                         val iconColor = MaterialTheme.colorScheme.onSurface
                         val textStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = iconColor)
 
-                        IconButton(onClick = { applyLinePrefix("- [ ] ") }, enabled = !isCursorInTable) { Icon(Icons.Filled.CheckBox, null, tint = iconColor.copy(alpha = if (isCursorInTable) 0.3f else 1f)) }
-                        IconButton(onClick = { applyLinePrefix("- ") }, enabled = !isCursorInTable) { Icon(Icons.Filled.FormatListBulleted, null, tint = iconColor.copy(alpha = if (isCursorInTable) 0.3f else 1f)) }
-                        IconButton(onClick = { applyLinePrefix("1. ") }, enabled = !isCursorInTable) { Text("1.", style = textStyle.copy(color = iconColor.copy(alpha = if (isCursorInTable) 0.3f else 1f))) }
-                        if (enableTable) {
-                            IconButton(onClick = { showTableDialog = true }) { Text("⊞", style = textStyle.copy(fontSize = MaterialTheme.typography.titleLarge.fontSize)) }
-                        }
-                        IconButton(onClick = { applyLinePrefix("# ") }, enabled = !isCursorInTable) { Text("H1", style = textStyle.copy(color = iconColor.copy(alpha = if (isCursorInTable) 0.3f else 1f))) }
-                        IconButton(onClick = { applyLinePrefix("## ") }, enabled = !isCursorInTable) { Text("H2", style = textStyle.copy(color = iconColor.copy(alpha = if (isCursorInTable) 0.3f else 1f))) }
-                        IconButton(onClick = { applyLinePrefix("> ") }, enabled = !isCursorInTable) { Icon(Icons.Filled.FormatQuote, null, tint = iconColor.copy(alpha = if (isCursorInTable) 0.3f else 1f)) }
-                        IconButton(onClick = { applyStyle("**", "**") }) { Icon(Icons.Filled.FormatBold, null, tint = iconColor) }
-                        IconButton(onClick = { applyStyle("*", "*") }) { Icon(Icons.Filled.FormatItalic, null, tint = iconColor) }
-                        IconButton(onClick = { applyStyle("<u>", "</u>") }) { Icon(Icons.Filled.FormatUnderlined, null, tint = iconColor) }
-                        IconButton(onClick = { applyStyle("~~", "~~") }) { Icon(Icons.Filled.FormatStrikethrough, null, tint = iconColor) }
-                        IconButton(onClick = { applyStyle("==", "==") }) { Icon(Icons.Filled.FormatColorText, null, tint = iconColor) }
+                        IconButton(onClick = { applyLinePrefix("- [ ] ") }) { Icon(Icons.Filled.CheckBox, null) }
+                        IconButton(onClick = { applyLinePrefix("- ") }) { Icon(Icons.Filled.FormatListBulleted, null) }
+                        IconButton(onClick = { applyLinePrefix("1. ") }) { Text("1.", style = textStyle) }
+                        IconButton(onClick = { applyLinePrefix("# ") }) { Text("H1", style = textStyle) }
+                        IconButton(onClick = { applyLinePrefix("## ") }) { Text("H2", style = textStyle) }
+                        IconButton(onClick = { applyLinePrefix("> ") }) { Icon(Icons.Filled.FormatQuote, null) }
+                        IconButton(onClick = { applyStyle("**", "**") }) { Icon(Icons.Filled.FormatBold, null) }
+                        IconButton(onClick = { applyStyle("*", "*") }) { Icon(Icons.Filled.FormatItalic, null) }
+                        IconButton(onClick = { applyStyle("<u>", "</u>") }) { Icon(Icons.Filled.FormatUnderlined, null) }
+                        IconButton(onClick = { applyStyle("~~", "~~") }) { Icon(Icons.Filled.FormatStrikethrough, null) }
+                        IconButton(onClick = { applyStyle("==", "==") }) { Icon(Icons.Filled.FormatColorText, null) }
                     }
                 }
             }
@@ -840,13 +732,8 @@ fun NewNoteScreen(
                         }
 
                         Column(modifier = Modifier.fillMaxSize().verticalScroll(textScrollState)) {
-                            val parsedTables = remember(textFieldValue.text, enableTable) {
-                                if (enableTable) MarkdownTableParser.parseTables(textFieldValue.text) else emptyList()
-                            }
 
-                            if (parsedTables.isEmpty()) {
-                                // 无表格，使用原来的 BasicTextField
-                                Box(modifier = Modifier.fillMaxWidth()) {
+                            Box(modifier = Modifier.fillMaxWidth()) {
                                     if (textFieldValue.text.isEmpty()) {
                                         Text(
                                             text = "开始记录你的灵感...",
@@ -1067,171 +954,6 @@ fun NewNoteScreen(
                                     )
                                 }
                             }
-                        } else {
-                                // 有表格，分段渲染
-                                var segments by remember(textFieldValue.text) {
-                                    mutableStateOf(parseContentSegments(textFieldValue.text, parsedTables))
-                                }
-
-                                Column(modifier = Modifier.fillMaxWidth()) {
-                                    for ((segIndex, segment) in segments.withIndex()) {
-                                        when (segment) {
-                                            is ContentSegment.Text -> {
-                                                var isEditing by remember { mutableStateOf(false) }
-                                                if (isEditing) {
-                                                    var localText by remember { mutableStateOf(segment.text) }
-                                                    BasicTextField(
-                                                        value = localText,
-                                                        onValueChange = { newValue ->
-                                                            localText = newValue
-                                                            segments = segments.toMutableList().also {
-                                                                it[segIndex] = ContentSegment.Text(newValue)
-                                                            }
-                                                            // 重建完整文本
-                                                            val newText = segments.mapIndexed { i, seg ->
-                                                                val raw = when (seg) {
-                                                                    is ContentSegment.Text -> seg.text
-                                                                    is ContentSegment.Table -> seg.table.toMarkdown()
-                                                                }
-                                                                // 文本段后面紧跟表格时，确保以换行结尾
-                                                                val next = segments.getOrNull(i + 1)
-                                                                if (seg is ContentSegment.Text && next is ContentSegment.Table && raw.isNotEmpty() && !raw.endsWith("\n")) {
-                                                                    raw + "\n"
-                                                                } else {
-                                                                    raw
-                                                                }
-                                                            }.joinToString("")
-                                                            textFieldValue = textFieldValue.copy(text = newText)
-                                                            onContentChange(newText)
-                                                        },
-                                                        textStyle = MaterialTheme.typography.bodyLarge.copy(
-                                                            fontFamily = LocalNoteFontFamily.current,
-                                                            fontSize = baseFontSize.sp,
-                                                            lineHeight = (baseFontSize * LocalNoteLineSpacing.current).sp,
-                                                            color = MaterialTheme.colorScheme.onSurface,
-                                                        ),
-                                                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                                    )
-                                                } else {
-                                                    Text(
-                                                        text = segment.text.ifEmpty { "\n" },
-                                                        style = MaterialTheme.typography.bodyLarge.copy(
-                                                            fontFamily = LocalNoteFontFamily.current,
-                                                            fontSize = baseFontSize.sp,
-                                                            lineHeight = (baseFontSize * LocalNoteLineSpacing.current).sp,
-                                                            color = MaterialTheme.colorScheme.onSurface,
-                                                        ),
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .clickable { isEditing = true }
-                                                            .padding(vertical = 4.dp),
-                                                    )
-                                                }
-                                            }
-                                            is ContentSegment.Table -> {
-                                                fun rebuildTextFromSegments(): String {
-                                                    return segments.joinToString("") { seg ->
-                                                        when (seg) {
-                                                            is ContentSegment.Text -> seg.text
-                                                            is ContentSegment.Table -> seg.table.toMarkdown()
-                                                        }
-                                                    }
-                                                }
-                                                MarkdownTableEditor(
-                                                    table = segment.table,
-                                                    onCellChange = { rowIndex, colIndex, newValue ->
-                                                        val updatedTable = if (rowIndex == -1) {
-                                                            segment.table.copy(
-                                                                headers = segment.table.headers.toMutableList().also {
-                                                                    it[colIndex] = newValue
-                                                                }
-                                                            )
-                                                        } else {
-                                                            segment.table.copy(
-                                                                rows = segment.table.rows.toMutableList().also { rows ->
-                                                                    rows[rowIndex] = rows[rowIndex].toMutableList().also {
-                                                                        while (it.size <= colIndex) it.add("")
-                                                                        it[colIndex] = newValue
-                                                                    }
-                                                                }
-                                                            )
-                                                        }
-                                                        segments = segments.toMutableList().also {
-                                                            it[segIndex] = ContentSegment.Table(updatedTable)
-                                                        }
-                                                        val newText = rebuildTextFromSegments()
-                                                        textFieldValue = textFieldValue.copy(text = newText)
-                                                        onContentChange(newText)
-                                                    },
-                                                    modifier = Modifier.padding(vertical = 8.dp),
-                                                )
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                                                    horizontalArrangement = Arrangement.End,
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                ) {
-                                                    val currentSegIndex = segIndex
-                                                    TextButton(
-                                                        onClick = {
-                                                            currentTableRows = segment.table.rows.size
-                                                            currentTableCols = segment.table.colCount
-                                                            tableEditCallback = { newRows, newCols ->
-                                                                val oldTable = (segments[currentSegIndex] as ContentSegment.Table).table
-                                                                val newHeaders = (0 until newCols).map { c -> oldTable.headers.getOrElse(c) { "" } }
-                                                                val newRowsData = (0 until newRows).map { r ->
-                                                                    val oldRow = oldTable.rows.getOrElse(r) { emptyList() }
-                                                                    (0 until newCols).map { c -> oldRow.getOrElse(c) { "" } }
-                                                                }
-                                                                val updatedTable = ParsedTable(
-                                                                    startOffset = oldTable.startOffset,
-                                                                    endOffset = oldTable.endOffset,
-                                                                    headers = newHeaders,
-                                                                    rows = newRowsData,
-                                                                )
-                                                                segments = segments.toMutableList().also {
-                                                                    it[currentSegIndex] = ContentSegment.Table(updatedTable)
-                                                                }
-                                                                val newText = rebuildTextFromSegments()
-                                                                textFieldValue = textFieldValue.copy(text = newText)
-                                                                onContentChange(newText)
-                                                            }
-                                                            tableDeleteCallback = {
-                                                                segments = segments.toMutableList().also {
-                                                                    it.removeAt(currentSegIndex)
-                                                                }
-                                                                val newText = rebuildTextFromSegments()
-                                                                textFieldValue = textFieldValue.copy(text = newText)
-                                                                onContentChange(newText)
-                                                            }
-                                                            showTableEditDialog = true
-                                                        },
-                                                    ) {
-                                                        Icon(Icons.Filled.Edit, contentDescription = "编辑", modifier = Modifier.size(16.dp))
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        Text("编辑", style = MaterialTheme.typography.labelMedium)
-                                                    }
-                                                    TextButton(
-                                                        onClick = {
-                                                            segments = segments.toMutableList().also {
-                                                                it.removeAt(currentSegIndex)
-                                                            }
-                                                            val newText = rebuildTextFromSegments()
-                                                            textFieldValue = textFieldValue.copy(text = newText)
-                                                            onContentChange(newText)
-                                                        },
-                                                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                                                    ) {
-                                                        Icon(Icons.Filled.Delete, contentDescription = "删除", modifier = Modifier.size(16.dp))
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        Text("删除", style = MaterialTheme.typography.labelMedium)
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
 
                             Spacer(modifier = Modifier.height(50.dp))
                         }
@@ -1257,20 +979,17 @@ fun NewNoteScreen(
                                 val iconColor = MaterialTheme.colorScheme.onSurface
                                 val textStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = iconColor)
 
-                                IconButton(onClick = { applyLinePrefix("- [ ] ") }, enabled = !isCursorInTable) { Icon(Icons.Filled.CheckBox, null, tint = iconColor.copy(alpha = if (isCursorInTable) 0.3f else 1f)) }
-                                IconButton(onClick = { applyLinePrefix("- ") }, enabled = !isCursorInTable) { Icon(Icons.Filled.FormatListBulleted, null, tint = iconColor.copy(alpha = if (isCursorInTable) 0.3f else 1f)) }
-                                IconButton(onClick = { applyLinePrefix("1. ") }, enabled = !isCursorInTable) { Text("1.", style = textStyle.copy(color = iconColor.copy(alpha = if (isCursorInTable) 0.3f else 1f))) }
-                                if (enableTable) {
-                                    IconButton(onClick = { showTableDialog = true }) { Text("⊞", style = textStyle.copy(fontSize = MaterialTheme.typography.titleLarge.fontSize)) }
-                                }
-                                IconButton(onClick = { applyLinePrefix("# ") }, enabled = !isCursorInTable) { Text("H1", style = textStyle.copy(color = iconColor.copy(alpha = if (isCursorInTable) 0.3f else 1f))) }
-                                IconButton(onClick = { applyLinePrefix("## ") }, enabled = !isCursorInTable) { Text("H2", style = textStyle.copy(color = iconColor.copy(alpha = if (isCursorInTable) 0.3f else 1f))) }
-                                IconButton(onClick = { applyLinePrefix("> ") }, enabled = !isCursorInTable) { Icon(Icons.Filled.FormatQuote, null, tint = iconColor.copy(alpha = if (isCursorInTable) 0.3f else 1f)) }
-                                IconButton(onClick = { applyStyle("**", "**") }) { Icon(Icons.Filled.FormatBold, null, tint = iconColor) }
-                                IconButton(onClick = { applyStyle("*", "*") }) { Icon(Icons.Filled.FormatItalic, null, tint = iconColor) }
-                                IconButton(onClick = { applyStyle("<u>", "</u>") }) { Icon(Icons.Filled.FormatUnderlined, null, tint = iconColor) }
-                                IconButton(onClick = { applyStyle("~~", "~~") }) { Icon(Icons.Filled.FormatStrikethrough, null, tint = iconColor) }
-                                IconButton(onClick = { applyStyle("==", "==") }) { Icon(Icons.Filled.FormatColorText, null, tint = iconColor) }
+                                IconButton(onClick = { applyLinePrefix("- [ ] ") }) { Icon(Icons.Filled.CheckBox, null) }
+                                IconButton(onClick = { applyLinePrefix("- ") }) { Icon(Icons.Filled.FormatListBulleted, null) }
+                                IconButton(onClick = { applyLinePrefix("1. ") }) { Text("1.", style = textStyle) }
+                                IconButton(onClick = { applyLinePrefix("# ") }) { Text("H1", style = textStyle) }
+                                IconButton(onClick = { applyLinePrefix("## ") }) { Text("H2", style = textStyle) }
+                                IconButton(onClick = { applyLinePrefix("> ") }) { Icon(Icons.Filled.FormatQuote, null) }
+                                IconButton(onClick = { applyStyle("**", "**") }) { Icon(Icons.Filled.FormatBold, null) }
+                                IconButton(onClick = { applyStyle("*", "*") }) { Icon(Icons.Filled.FormatItalic, null) }
+                                IconButton(onClick = { applyStyle("<u>", "</u>") }) { Icon(Icons.Filled.FormatUnderlined, null) }
+                                IconButton(onClick = { applyStyle("~~", "~~") }) { Icon(Icons.Filled.FormatStrikethrough, null) }
+                                IconButton(onClick = { applyStyle("==", "==") }) { Icon(Icons.Filled.FormatColorText, null) }
                             }
                             HorizontalDivider()
                         }
@@ -1477,30 +1196,6 @@ fun NewNoteScreen(
                         saveCustomColor(context, CustomColor(hue, name))
                         customColors = loadCustomColors(context)
                         showAddPresetDialog = false
-                    }
-                )
-            }
-
-            // 表格插入弹窗
-            if (showTableDialog) {
-                TableInsertDialog(
-                    onDismiss = { showTableDialog = false },
-                    onInsert = { rows, cols ->
-                        insertTable(rows, cols)
-                        showTableDialog = false
-                    }
-                )
-            }
-
-            // 表格编辑弹窗
-            if (showTableEditDialog) {
-                TableEditDialog(
-                    currentRows = currentTableRows,
-                    currentCols = currentTableCols,
-                    onDismiss = { showTableEditDialog = false },
-                    onConfirm = { newRows, newCols ->
-                        tableEditCallback?.invoke(newRows, newCols)
-                        showTableEditDialog = false
                     }
                 )
             }
@@ -1844,104 +1539,6 @@ private fun AddPresetColorDialog(
             TextButton(onClick = onDismiss) {
                 Text("取消")
             }
-        }
-    )
-}
-
-@Composable
-private fun TableInsertDialog(
-    onDismiss: () -> Unit,
-    onInsert: (rows: Int, cols: Int) -> Unit,
-) {
-    var rows by remember { mutableIntStateOf(2) }
-    var cols by remember { mutableIntStateOf(2) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("插入表格") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("行数", modifier = Modifier.weight(1f))
-                    FilledTonalIconButton(onClick = { if (rows > 1) rows-- }) {
-                        Icon(Icons.Filled.Remove, contentDescription = null, modifier = Modifier.size(18.dp))
-                    }
-                    Text("$rows", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 12.dp))
-                    FilledTonalIconButton(onClick = { if (rows < 30) rows++ }) {
-                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("列数", modifier = Modifier.weight(1f))
-                    FilledTonalIconButton(onClick = { if (cols > 1) cols-- }) {
-                        Icon(Icons.Filled.Remove, contentDescription = null, modifier = Modifier.size(18.dp))
-                    }
-                    Text("$cols", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 12.dp))
-                    FilledTonalIconButton(onClick = { if (cols < 15) cols++ }) {
-                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = { onInsert(rows, cols) }) { Text("插入") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        }
-    )
-}
-
-@Composable
-private fun TableEditDialog(
-    currentRows: Int,
-    currentCols: Int,
-    onDismiss: () -> Unit,
-    onConfirm: (rows: Int, cols: Int) -> Unit,
-) {
-    var rows by remember { mutableIntStateOf(currentRows) }
-    var cols by remember { mutableIntStateOf(currentCols) }
-    val showWarning = rows < currentRows || cols < currentCols
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("编辑表格") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("行数", modifier = Modifier.weight(1f))
-                    FilledTonalIconButton(onClick = { if (rows > 1) rows-- }) {
-                        Icon(Icons.Filled.Remove, contentDescription = null, modifier = Modifier.size(18.dp))
-                    }
-                    Text("$rows", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 12.dp))
-                    FilledTonalIconButton(onClick = { if (rows < 30) rows++ }) {
-                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("列数", modifier = Modifier.weight(1f))
-                    FilledTonalIconButton(onClick = { if (cols > 1) cols-- }) {
-                        Icon(Icons.Filled.Remove, contentDescription = null, modifier = Modifier.size(18.dp))
-                    }
-                    Text("$cols", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 12.dp))
-                    FilledTonalIconButton(onClick = { if (cols < 15) cols++ }) {
-                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    }
-                }
-                if (showWarning) {
-                    Text(
-                        "*当前修改的行列数目小于原本的数目，超出的单元格数据将被删除",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = { onConfirm(rows, cols) }) { Text("确定") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
         }
     )
 }
