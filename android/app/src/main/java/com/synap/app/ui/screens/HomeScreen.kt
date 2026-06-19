@@ -21,6 +21,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -1106,7 +1107,10 @@ fun HomeScreen(
                         } else {
                             TopAppBar(
                                 title = {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.horizontalScroll(rememberScrollState())
+                                    ) {
                                         Text(
                                             text = "Synap",
                                             style = MaterialTheme.typography.titleLarge,
@@ -1127,65 +1131,71 @@ fun HomeScreen(
                                                 )
                                             }
                                         }
+                                        Spacer(modifier = Modifier.width(8.dp))
                                     }
                                 },
                                 actions = {
-                                    AnimatedVisibility(
-                                        visible = !isAtTop,
-                                        enter = fadeIn(),
-                                        exit = fadeOut()
+                                    Row(
+                                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        IconButton(onClick = onOpenSearch) {
-                                            Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.content_desc_search))
-                                        }
-                                    }
-
-                                    if (isNavCollapsed && !isTablet) {
-                                        Box {
-                                            IconButton(onClick = { showNavMenu = !showNavMenu }) {
-                                                Icon(Icons.Filled.MoreVert, contentDescription = "更多")
-                                            }
-                                            DropdownMenu(
-                                                expanded = showNavMenu,
-                                                onDismissRequest = { showNavMenu = false }
-                                            ) {
-                                                DropdownMenuItem(
-                                                    text = { Text("扫一扫") },
-                                                    onClick = { showNavMenu = false; openScanner() },
-                                                    leadingIcon = { Icon(Icons.Filled.QrCodeScanner, contentDescription = null) }
-                                                )
-                                                DropdownMenuItem(
-                                                    text = { Text(stringResource(R.string.starmap_title)) },
-                                                    onClick = { showNavMenu = false; onOpenStarmap() },
-                                                    leadingIcon = { Icon(Icons.Filled.Map, contentDescription = null) }
-                                                )
-                                                DropdownMenuItem(
-                                                    text = { Text(stringResource(R.string.trash_title)) },
-                                                    onClick = { showNavMenu = false; onOpenTrash() },
-                                                    leadingIcon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null) }
-                                                )
-                                                DropdownMenuItem(
-                                                    text = { Text(stringResource(R.string.settings)) },
-                                                    onClick = { showNavMenu = false; onOpenSettings() },
-                                                    leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) }
-                                                )
+                                        AnimatedVisibility(
+                                            visible = !isAtTop,
+                                            enter = fadeIn(),
+                                            exit = fadeOut()
+                                        ) {
+                                            IconButton(onClick = onOpenSearch) {
+                                                Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.content_desc_search))
                                             }
                                         }
-                                    } else {
-                                        IconButton(onClick = openScanner) {
-                                            Icon(Icons.Filled.QrCodeScanner, contentDescription = "扫一扫")
-                                        }
 
-                                         IconButton(onClick = onOpenStarmap) {
-                                            Icon(Icons.Filled.Map, contentDescription = stringResource(R.string.starmap_title))
-                                        }
+                                        if (isNavCollapsed && !isTablet) {
+                                            Box {
+                                                IconButton(onClick = { showNavMenu = !showNavMenu }) {
+                                                    Icon(Icons.Filled.MoreVert, contentDescription = "更多")
+                                                }
+                                                DropdownMenu(
+                                                    expanded = showNavMenu,
+                                                    onDismissRequest = { showNavMenu = false }
+                                                ) {
+                                                    DropdownMenuItem(
+                                                        text = { Text("扫一扫") },
+                                                        onClick = { showNavMenu = false; openScanner() },
+                                                        leadingIcon = { Icon(Icons.Filled.QrCodeScanner, contentDescription = null) }
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = { Text(stringResource(R.string.starmap_title)) },
+                                                        onClick = { showNavMenu = false; onOpenStarmap() },
+                                                        leadingIcon = { Icon(Icons.Filled.Map, contentDescription = null) }
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = { Text(stringResource(R.string.trash_title)) },
+                                                        onClick = { showNavMenu = false; onOpenTrash() },
+                                                        leadingIcon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null) }
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = { Text(stringResource(R.string.settings)) },
+                                                        onClick = { showNavMenu = false; onOpenSettings() },
+                                                        leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) }
+                                                    )
+                                                }
+                                            }
+                                        } else {
+                                            IconButton(onClick = openScanner) {
+                                                Icon(Icons.Filled.QrCodeScanner, contentDescription = "扫一扫")
+                                            }
 
-                                        IconButton(onClick = onOpenTrash) {
-                                            Icon(Icons.Filled.DeleteSweep, contentDescription = stringResource(R.string.trash_title))
-                                        }
+                                            IconButton(onClick = onOpenStarmap) {
+                                                Icon(Icons.Filled.Map, contentDescription = stringResource(R.string.starmap_title))
+                                            }
 
-                                        IconButton(onClick = onOpenSettings) {
-                                            Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.content_desc_settings))
+                                            IconButton(onClick = onOpenTrash) {
+                                                Icon(Icons.Filled.DeleteSweep, contentDescription = stringResource(R.string.trash_title))
+                                            }
+
+                                            IconButton(onClick = onOpenSettings) {
+                                                Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.content_desc_settings))
+                                            }
                                         }
                                     }
                                 },

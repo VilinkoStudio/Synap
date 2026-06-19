@@ -95,10 +95,7 @@ import com.synap.app.LocalNoteFontWeight
 import com.synap.app.LocalNoteLineSpacing
 import com.synap.app.LocalNoteTextSize
 import com.synap.app.R
-import com.synap.app.ui.components.MarkdownTableEditor
 import com.synap.app.ui.components.ShareExportSheet
-import com.synap.app.ui.util.MarkdownTableParser
-import com.synap.app.ui.util.ParsedTable
 import com.synap.app.ui.model.Note
 import com.synap.app.ui.model.NoteVersion
 import com.synap.app.ui.util.NoteColorUtil
@@ -388,7 +385,6 @@ fun NoteDetailScreen(
     val prefs = remember { context.getSharedPreferences("synap_prefs", android.content.Context.MODE_PRIVATE) }
     val widgetAlignment = remember { prefs.getString("widget_alignment", "default") ?: "default" }
     val isLargeScreen = remember { context.resources.configuration.screenWidthDp >= 700 }
-    val enableTable = remember { prefs.getBoolean("lab_enable_table", false) }
 
     Scaffold(
         modifier = Modifier
@@ -632,13 +628,19 @@ fun NoteDetailScreen(
                         buildMarkdownAnnotatedString(note.content, primaryColor, highlightColor, baseFontSize, isCompact = false)
                     }
 
-                    val parsedTables = remember(note.content, enableTable) {
-                        if (enableTable) MarkdownTableParser.parseTables(note.content) else emptyList()
-                    }
-
-                    val detailSegments = remember(note.content, parsedTables) {
-                        if (parsedTables.isEmpty()) null
-                        else parseContentSegments(note.content, parsedTables)
+                    val noteContentBlock: @Composable () -> Unit = {
+                        SelectionContainer {
+                            Text(
+                                text = annotatedContent,
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontFamily = LocalNoteFontFamily.current,
+                                    fontWeight = LocalNoteFontWeight.current,
+                                    fontSize = LocalNoteTextSize.current,
+                                    lineHeight = LocalNoteTextSize.current * LocalNoteLineSpacing.current
+                                ),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                     }
 
                     if (isLargeScreen) {
@@ -646,28 +648,7 @@ fun NoteDetailScreen(
                         Row(modifier = Modifier.fillMaxWidth()) {
                             // 左侧：正文
                             Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
-                                if (detailSegments != null) {
-                                    NoteContentSegments(
-                                        segments = detailSegments,
-                                        content = note.content,
-                                        primaryColor = primaryColor,
-                                        highlightColor = highlightColor,
-                                        baseFontSize = baseFontSize,
-                                    )
-                                } else {
-                                    SelectionContainer {
-                                        Text(
-                                            text = annotatedContent,
-                                            style = MaterialTheme.typography.bodyLarge.copy(
-                                                fontFamily = LocalNoteFontFamily.current,
-                                                fontWeight = LocalNoteFontWeight.current,
-                                                fontSize = LocalNoteTextSize.current,
-                                                lineHeight = LocalNoteTextSize.current * LocalNoteLineSpacing.current
-                                            ),
-                                            modifier = Modifier.fillMaxWidth(),
-                                        )
-                                    }
-                                }
+                                noteContentBlock()
 
                                 if (uiState.errorMessage != null) {
                                     Text(
@@ -717,28 +698,7 @@ fun NoteDetailScreen(
                         }
                     } else {
                         // 小屏：单列布局
-                        if (detailSegments != null) {
-                            NoteContentSegments(
-                                segments = detailSegments,
-                                content = note.content,
-                                primaryColor = primaryColor,
-                                highlightColor = highlightColor,
-                                baseFontSize = baseFontSize,
-                            )
-                        } else {
-                            SelectionContainer {
-                                Text(
-                                    text = annotatedContent,
-                                    style = MaterialTheme.typography.bodyLarge.copy(
-                                        fontFamily = LocalNoteFontFamily.current,
-                                        fontWeight = LocalNoteFontWeight.current,
-                                        fontSize = LocalNoteTextSize.current,
-                                        lineHeight = LocalNoteTextSize.current * LocalNoteLineSpacing.current
-                                    ),
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                            }
-                        }
+                        noteContentBlock()
 
                         if (uiState.errorMessage != null) {
                             Text(
@@ -1227,54 +1187,5 @@ fun generateQRCodeBitmap(text: String, size: Int = 512, primaryColor: Int = andr
     } catch (e: Exception) {
         e.printStackTrace()
         null
-    }
-}
-
-@Composable
-private fun NoteContentSegments(
-    segments: List<ContentSegment>,
-    content: String,
-    primaryColor: Color,
-    highlightColor: Color,
-    baseFontSize: Float,
-) {
-    val noteFontFamily = LocalNoteFontFamily.current
-    val noteFontWeight = LocalNoteFontWeight.current
-    val noteTextSize = LocalNoteTextSize.current
-    val noteLineSpacing = LocalNoteLineSpacing.current
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        for (segment in segments) {
-            when (segment) {
-                is ContentSegment.Text -> {
-                    if (segment.text.isNotBlank()) {
-                        val annotated = remember(segment.text, primaryColor, highlightColor, baseFontSize) {
-                            buildMarkdownAnnotatedString(segment.text, primaryColor, highlightColor, baseFontSize, isCompact = false)
-                        }
-                        SelectionContainer {
-                            Text(
-                                text = annotated,
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontFamily = noteFontFamily,
-                                    fontWeight = noteFontWeight,
-                                    fontSize = noteTextSize,
-                                    lineHeight = noteTextSize * noteLineSpacing,
-                                ),
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                    } else {
-                        Spacer(modifier = Modifier.height(noteTextSize.value.dp * noteLineSpacing))
-                    }
-                }
-                is ContentSegment.Table -> {
-                    MarkdownTableEditor(
-                        table = segment.table,
-                        onCellChange = null,
-                        modifier = Modifier.padding(vertical = 8.dp),
-                    )
-                }
-            }
-        }
     }
 }
