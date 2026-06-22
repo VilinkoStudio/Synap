@@ -1,0 +1,214 @@
+/*
+ * Synap Desktop — Flat & Minimal
+ *
+ * Direction: 扁平 + 圆角 + 大面积留白 + 组件紧凑
+ * No shadows, no glow, no decoration.
+ * Space is for content to breathe, not for chrome.
+ */
+
+/* ── Scrollbar — thin overlay, smooth feel ── */
+
+scrollbar {
+    background: transparent;
+    transition: opacity 200ms ease;
+}
+
+scrollbar slider {
+    min-width: 4px;
+    min-height: 4px;
+    border-radius: 100px;
+    background-color: alpha(currentColor, 0.15);
+    transition: min-width 200ms ease, min-height 200ms ease, background-color 200ms ease;
+}
+
+scrollbar slider:hover {
+    background-color: alpha(currentColor, 0.3);
+    min-width: 6px;
+}
+
+scrollbar.horizontal slider {
+    min-height: 4px;
+    min-width: 40px;
+}
+
+scrollbar.horizontal slider:hover {
+    min-height: 6px;
+}
+
+/* ── Sidebar — single continuous panel ── */
+
+.synap-sidebar {
+    background: transparent;
+}
+
+/* Remove all borders/separators from sidebar ListBox */
+.synap-sidebar list.navigation-sidebar {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.synap-sidebar list.navigation-sidebar row {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* ── Sidebar Navigation ── */
+
+.synap-nav-row {
+    padding: 6px 10px;
+    border-radius: 8px;
+    transition: background-color 150ms ease;
+}
+
+.synap-nav-row:hover {
+    background-color: alpha(currentColor, 0.05);
+}
+
+.synap-nav-row image {
+    opacity: 0.55;
+    transition: opacity 150ms ease;
+}
+
+.synap-nav-row label {
+    font-weight: 400;
+    opacity: 0.8;
+    transition: opacity 150ms ease;
+}
+
+.synap-nav-row.active {
+    background-color: alpha(currentColor, 0.07);
+}
+
+.synap-nav-row.active image {
+    opacity: 0.85;
+}
+
+.synap-nav-row.active label {
+    font-weight: 500;
+    opacity: 1;
+}
+
+/* ── Note Cards ── */
+
+.synap-note-card {
+    padding: 8px 10px;
+    border-radius: 8px;
+    transition: background-color 150ms ease;
+}
+
+.synap-note-card:hover {
+    background-color: alpha(currentColor, 0.04);
+}
+
+.synap-note-card label.synap-card-content {
+    font-size: 13px;
+    opacity: 0.88;
+}
+
+.synap-note-card label.synap-card-time {
+    font-size: 11px;
+    opacity: 0.4;
+}
+
+/* ── Tag Chips ── */
+
+.synap-tag-chip {
+    font-size: 11px;
+    opacity: 0.4;
+    padding: 1px 5px;
+    border-radius: 4px;
+    transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+.synap-tag-chip:hover {
+    opacity: 0.7;
+    background-color: alpha(currentColor, 0.08);
+}
+
+/* ── Section Headings ── */
+
+.synap-section-heading {
+    font-weight: 500;
+    font-size: 12px;
+    opacity: 0.5;
+    margin-top: 2px;
+    margin-bottom: 2px;
+}
+
+/* ── Flat buttons — smooth press ── */
+
+button.flat {
+    transition: background-color 150ms ease;
+}
+
+/* ── Content Area ── */
+
+.synap-content-area {
+    padding: 16px;
+}
+
+/* ── Detail Page — generous outer, tight inner ── */
+
+.synap-detail-clamp {
+    margin-top: 40px;
+    margin-bottom: 48px;
+    margin-start: 36px;
+    margin-end: 36px;
+}
+
+.synap-detail-article {
+    padding: 8px 0;
+}
+
+/* ── Draft Page ── */
+
+.synap-draft-clamp {
+    margin-top: 40px;
+    margin-bottom: 48px;
+    margin-start: 36px;
+    margin-end: 36px;
+}
+
+.synap-draft-shell {
+    padding: 8px 0;
+}
+
+/* ── Context Panel ── */
+
+.synap-context-panel {
+    padding: 28px 20px;
+}
+
+/* ── Tags Page ── */
+
+.synap-tags-page {
+    padding: 32px 28px;
+}
+
+/* ── Timeline Page ── */
+
+.synap-timeline-page {
+    padding: 32px 28px;
+}
+
+/* ── Timeline Session ── */
+
+.synap-timeline-session {
+    margin-bottom: 4px;
+}
+
+/* ── Waterfall Flow Box ── */
+
+.synap-waterfall-flow {
+    padding: 16px;
+}
+
+/* ── Detail Section ── */
+
+.synap-detail-section {
+    margin-bottom: 4px;
+}

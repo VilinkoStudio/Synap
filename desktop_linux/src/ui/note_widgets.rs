@@ -4,73 +4,58 @@ use synap_core::dto::NoteDTO;
 
 use crate::{
     app::{App, message::AppMsg},
-    domain::{NoteListItemViewModel, format_timestamp},
+    domain::format_timestamp,
 };
 
-pub fn build_note_row(note: &NoteDTO) -> gtk::ListBoxRow {
+/// 笔记列表行（浏览模式）— 点击进入沉浸阅读
+pub fn build_note_row(note: &NoteDTO, sender: &ComponentSender<App>) -> gtk::ListBoxRow {
     let row = gtk::ListBoxRow::new();
     row.set_activatable(true);
-    row.set_child(Some(&build_note_card_body(note, NoteCardMode::List)));
+
+    let body = build_note_card_body(note);
+    row.set_child(Some(&body));
+
+    let note_id = note.id.clone();
+    let s = sender.input_sender().clone();
+    row.connect_activate(move |_| {
+        let _ = s.send(AppMsg::OpenNoteFocus(note_id.clone()));
+    });
+
     row
 }
 
+/// 可点击的笔记卡片（上下文面板中的关联笔记）— 点击进入沉浸阅读
 pub fn build_clickable_note_row(
     note: &NoteDTO,
     sender: &ComponentSender<App>,
     note_id: String,
 ) -> gtk::Box {
-    let card = build_note_card_body(note, NoteCardMode::Related);
+    let card = build_note_card_body(note);
     card.add_css_class("card");
 
+    let s = sender.input_sender().clone();
     let gesture = gtk::GestureClick::new();
-    let sender_clone = sender.input_sender().clone();
     gesture.connect_released(move |_, _, _, _| {
-        let _ = sender_clone.send(AppMsg::OpenNoteDetail(note_id.clone()));
+        let _ = s.send(AppMsg::OpenNoteFocus(note_id.clone()));
     });
     card.add_controller(gesture);
 
     card
 }
 
-pub fn build_waterfall_card(note: &NoteDTO, sender: &ComponentSender<App>) -> gtk::FlowBoxChild {
-    let card = build_note_card_body(note, NoteCardMode::Waterfall);
-    card.add_css_class("card");
+fn build_note_card_body(note: &NoteDTO) -> gtk::Box {
+    let preview = compact_preview(&note.content, 150);
 
-    let gesture = gtk::GestureClick::new();
-    let note_id = note.id.clone();
-    let sender_clone = sender.input_sender().clone();
-    gesture.connect_released(move |_, _, _, _| {
-        let _ = sender_clone.send(AppMsg::OpenNoteDetail(note_id.clone()));
-    });
-    card.add_controller(gesture);
-
-    let flow_child = gtk::FlowBoxChild::new();
-    flow_child.set_child(Some(&card));
-    flow_child
-}
-
-#[derive(Clone, Copy)]
-enum NoteCardMode {
-    List,
-    Waterfall,
-    Related,
-}
-
-fn build_note_card_body(note: &NoteDTO, mode: NoteCardMode) -> gtk::Box {
-    let preview = match mode {
-        NoteCardMode::List => compact_preview(&note.content, 150),
-        NoteCardMode::Waterfall => NoteListItemViewModel::from(note).preview,
-        NoteCardMode::Related => compact_preview(&note.content, 260),
-    };
-
-    let card = gtk::Box::new(gtk::Orientation::Vertical, 10);
+    let card = gtk::Box::new(gtk::Orientation::Vertical, 8);
     card.set_hexpand(true);
-    card.set_margin_top(12);
-    card.set_margin_bottom(12);
-    card.set_margin_start(14);
-    card.set_margin_end(14);
+    card.set_margin_top(8);
+    card.set_margin_bottom(8);
+    card.set_margin_start(8);
+    card.set_margin_end(8);
+    card.add_css_class("synap-note-card");
 
     let content_label = gtk::Label::new(Some(&preview));
+    content_label.add_css_class("synap-card-content");
     content_label.set_wrap(true);
     content_label.set_natural_wrap_mode(gtk::NaturalWrapMode::Word);
     content_label.set_justify(gtk::Justification::Left);
@@ -78,41 +63,23 @@ fn build_note_card_body(note: &NoteDTO, mode: NoteCardMode) -> gtk::Box {
     content_label.set_xalign(0.0);
     content_label.set_selectable(false);
     content_label.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    match mode {
-        NoteCardMode::List => {
-            content_label.set_lines(3);
-            content_label.set_max_width_chars(88);
-        }
-        NoteCardMode::Waterfall => {
-            content_label.set_lines(8);
-            content_label.set_max_width_chars(42);
-        }
-        NoteCardMode::Related => {
-            content_label.set_lines(6);
-            content_label.set_max_width_chars(72);
-        }
-    }
+    content_label.set_lines(3);
+    content_label.set_max_width_chars(88);
     card.append(&content_label);
 
-    let footer = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+    let footer = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     footer.set_hexpand(true);
     footer.set_valign(gtk::Align::Center);
 
     let time_label = gtk::Label::new(Some(&format_timestamp(note.created_at)));
     time_label.add_css_class("caption");
     time_label.add_css_class("dim-label");
+    time_label.add_css_class("synap-card-time");
     time_label.set_halign(gtk::Align::Start);
     time_label.set_xalign(0.0);
     footer.append(&time_label);
 
-    let tags = build_tags_box(
-        &note.tags,
-        match mode {
-            NoteCardMode::Waterfall => 4,
-            NoteCardMode::Related => 5,
-            NoteCardMode::List => 6,
-        },
-    );
+    let tags = build_tags_box(&note.tags, 6);
     footer.append(&tags);
     card.append(&footer);
 
@@ -120,7 +87,7 @@ fn build_note_card_body(note: &NoteDTO, mode: NoteCardMode) -> gtk::Box {
 }
 
 pub fn build_tags_box(tags: &[String], limit: usize) -> gtk::Box {
-    let tags_box = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    let tags_box = gtk::Box::new(gtk::Orientation::Horizontal, 4);
     tags_box.set_halign(gtk::Align::Start);
     tags_box.set_hexpand(true);
 
@@ -142,6 +109,7 @@ pub fn tag_chip(tag: &str) -> gtk::Label {
     let label = gtk::Label::new(Some(&format!("#{tag}")));
     label.add_css_class("caption");
     label.add_css_class("dim-label");
+    label.add_css_class("synap-tag-chip");
     label.set_xalign(0.0);
     label
 }

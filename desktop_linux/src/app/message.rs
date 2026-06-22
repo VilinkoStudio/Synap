@@ -9,23 +9,22 @@ use synap_core::{
 
 #[derive(Debug)]
 pub enum AppMsg {
+    // ── Browse navigation ──
     Navigate(ContentView),
     SearchChanged(String),
     LayoutChanged(NoteLayout),
-    DeleteNote,
-    SaveNote {
-        id: Option<String>,
-        content: String,
-        tags: Vec<String>,
-    },
-    SaveReply {
-        parent_id: String,
-        content: String,
-        tags: Vec<String>,
-    },
-    CreateNote,
-    EditNote,
-    ReplyToNote,
+    ClearFilters,
+
+    // ── Focus mode ──
+    OpenNoteFocus(String),
+    NoteRowActivated(u32),
+    ExitFocus,
+    NoteDetailLoaded(Result<NoteDetailData, ServiceError>),
+
+    // ── Context panel ──
+    ToggleContextPanel,
+
+    // ── Editing ──
     StartCreateNote,
     StartEditNote,
     StartReplyToNote,
@@ -33,20 +32,28 @@ pub enum AppMsg {
     DraftTagsChanged(String),
     SaveDraft,
     CancelDraft,
-    ToggleContextPanel,
+
+    // ── Note operations ──
+    DeleteNote,
+    EditNote,
+    ReplyToNote,
+
+    // ── Theme ──
     ThemeChanged(Theme),
-    NoteSelected(u32),
-    NoteActivated(u32),
-    NoteDetailLoaded(Result<NoteDetailData, ServiceError>),
-    OpenNoteDetail(String),
+
+    // ── List loading ──
     LoadMoreNotes,
     MoreNotesLoaded(Result<(Vec<NoteDTO>, Option<String>, bool), ServiceError>),
+
+    // ── Tags ──
     TagSelected(String),
     TagsLoaded(Result<Vec<String>, ServiceError>),
     TagNotesLoaded(Result<Vec<NoteDTO>, ServiceError>),
-    TagSuggestionsLoaded(Result<Vec<String>, ServiceError>),
-    ClearFilters,
+
+    // ── Timeline ──
     TimelineLoaded(Result<Vec<synap_core::dto::TimelineSessionDTO>, ServiceError>),
+
+    // ── Sync ──
     RefreshSync,
     SyncOverviewLoaded {
         listener: Result<corenet::ListenerState, ServiceError>,
@@ -78,7 +85,5 @@ pub enum AppMsg {
         status: PeerTrustStatusDTO,
     },
     DeletePeer(String),
-    OpenPeer(String),
-    UpdatePeerDraft(String),
     SyncSessionCompleted(Result<SyncSessionDTO, ServiceError>),
 }

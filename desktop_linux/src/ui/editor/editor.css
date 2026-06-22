@@ -1,0 +1,142 @@
+/* ── Editor Headings ── */
+
+.synap-editor-heading {
+    margin-top: 4px;
+    margin-bottom: 2px;
+}
+
+.synap-editor-heading-1 {
+    font-size: 24px;
+    font-weight: 600;
+    margin-top: 8px;
+}
+
+.synap-editor-heading-2 {
+    font-size: 20px;
+    font-weight: 600;
+    margin-top: 6px;
+}
+
+.synap-editor-heading-3 {
+    font-size: 17px;
+    font-weight: 600;
+}
+
+.synap-editor-heading-4,
+.synap-editor-heading-5,
+.synap-editor-heading-6 {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+/* ── Editor Paragraph ── */
+
+.synap-editor-paragraph {
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+/* ── Editor Code Block ── */
+
+.synap-editor-code-block {
+    border-radius: 8px;
+    padding: 12px 16px;
+    background-color: alpha(currentColor, 0.05);
+}
+
+.synap-editor-code-lang {
+    font-size: 11px;
+    font-weight: 500;
+    opacity: 0.45;
+    margin-bottom: 4px;
+}
+
+.synap-editor-code-content {
+    font-size: 13px;
+}
+
+/* ── Editor Blockquote ── */
+
+.synap-editor-blockquote {
+    padding-start: 12px;
+}
+
+.synap-editor-blockquote-bar {
+    background-color: alpha(currentColor, 0.25);
+    border-radius: 2px;
+    margin-end: 12px;
+}
+
+.synap-editor-blockquote-content {
+    opacity: 0.85;
+}
+
+/* ── Editor List ── */
+
+.synap-editor-list {
+    padding-start: 4px;
+}
+
+.synap-editor-list-marker {
+    font-size: 14px;
+    opacity: 0.6;
+    min-width: 20px;
+}
+
+/* ── Editor Horizontal Rule ── */
+
+.synap-editor-hr {
+    margin-top: 12px;
+    margin-bottom: 12px;
+    min-height: 1px;
+    background-color: alpha(currentColor, 0.12);
+}
+
+/* ── Editor Block Hover (edit mode hint) ── */
+
+.synap-editor-block-editable {
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: background-color 150ms ease;
+}
+
+.synap-editor-block-editable:hover {
+    background-color: alpha(currentColor, 0.03);
+    cursor: text;
+}
+
+/* ── Editor Edit Mode TextView ── */
+
+.synap-editor-edit-view {
+    font-size: 14px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid alpha(currentColor, 0.15);
+    background-color: alpha(currentColor, 0.02);
+    caret-color: currentColor;
+}
+
+.synap-editor-edit-view:focus {
+    border-color: alpha(currentColor, 0.3);
+}
+
+/* ── Editor Empty State ── */
+
+.synap-editor-empty {
+    opacity: 0.35;
+    font-style: italic;
+    font-size: 15px;
+}
+
+/* ── Reading Tags Overlay ── */
+
+.synap-reading-tags-overlay {
+    padding: 6px 14px;
+    border-radius: 20px;
+    background-color: alpha(currentColor, 0.06);
+    transition: opacity 200ms ease;
+}
+
+.synap-reading-tags-overlay:hover {
+    background-color: alpha(currentColor, 0.1);
+}

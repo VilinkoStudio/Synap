@@ -4,27 +4,36 @@ use relm4::prelude::*;
 use crate::{
     app::{App, message::AppMsg},
     domain::{AppState, ContentView, Theme},
+    ui::editor::WysiwygEditor,
 };
+
+/// Configure a ScrolledWindow with smooth scrolling defaults.
+fn smooth_scroller(sw: &gtk::ScrolledWindow) {
+    sw.set_kinetic_scrolling(true);
+    sw.set_overlay_scrolling(true);
+    sw.set_propagate_natural_height(true);
+}
 
 pub struct ContentPages {
     pub content_stack: gtk::Stack,
     pub list_box: gtk::ListBox,
     pub empty_page: adw::StatusPage,
-    pub workspace_stack: gtk::Stack,
-    pub detail_content_label: gtk::Label,
-    pub detail_tags_box: gtk::Box,
-    pub detail_meta_label: gtk::Label,
-    pub detail_toolbar: gtk::Box,
-    pub context_toggle: gtk::ToggleButton,
-    pub context_panel: gtk::ScrolledWindow,
-    pub detail_origins_box: gtk::Box,
-    pub detail_replies_box: gtk::Box,
-    pub detail_versions_box: gtk::Box,
-    pub draft_title_label: gtk::Label,
-    pub draft_hint_label: gtk::Label,
-    pub draft_content_buffer: gtk::TextBuffer,
-    pub draft_content_view: gtk::TextView,
-    pub draft_tags_entry: gtk::Entry,
+
+    // reading/editing page (shared editor)
+    pub reading_context_panel: gtk::ScrolledWindow,
+    pub reading_editor: WysiwygEditor,
+    pub reading_tags_box: gtk::Box,
+    pub reading_meta_label: gtk::Label,
+    pub reading_origins_box: gtk::Box,
+    pub reading_replies_box: gtk::Box,
+    pub reading_versions_box: gtk::Box,
+
+    // editing overlay (tags entry, shown only in edit mode)
+    pub editing_title_label: gtk::Label,
+    pub editing_hint_label: gtk::Label,
+    pub editing_tags_entry: gtk::Entry,
+
+    // settings
     pub theme_dropdown: gtk::DropDown,
     pub sync_listener_row: adw::ActionRow,
     pub sync_addresses_row: adw::ActionRow,
@@ -37,37 +46,30 @@ pub struct ContentPages {
     pub sync_connections_box: gtk::Box,
     pub sync_peers_box: gtk::Box,
     pub sync_sessions_box: gtk::Box,
+
+    // tags
     pub tags_flow_box: gtk::FlowBox,
+
+    // timeline
     pub timeline_container: gtk::Box,
-    pub layout_stack: gtk::Stack,
-    pub flow_box: gtk::FlowBox,
 }
 
 pub fn build_content_pages(state: &AppState, sender: &ComponentSender<App>) -> ContentPages {
     let content_stack = gtk::Stack::new();
     content_stack.set_hexpand(true);
     content_stack.set_vexpand(true);
-    content_stack.set_margin_start(12);
-    content_stack.set_margin_end(12);
-    content_stack.set_margin_top(12);
-    content_stack.set_margin_bottom(12);
+    content_stack.set_transition_type(gtk::StackTransitionType::Crossfade);
+    content_stack.set_transition_duration(180);
+
+    // ── Browse pages ──
 
     let list_box = gtk::ListBox::new();
     list_box.set_css_classes(&["boxed-list"]);
     list_box.set_selection_mode(gtk::SelectionMode::Single);
     list_box.set_vexpand(true);
 
-    let (layout_stack, flow_box, notes_browser) = build_notes_browser(&list_box, sender);
-    let detail_page = build_detail_page(sender);
-    let draft_page = build_draft_page(sender);
-    let workspace_stack = gtk::Stack::new();
-    workspace_stack.set_hexpand(true);
-    workspace_stack.set_vexpand(true);
-    workspace_stack.add_named(&detail_page.article_scroller, Some("read"));
-    workspace_stack.add_named(&draft_page.root, Some("draft"));
-    let notes_page =
-        build_notes_workbench(&notes_browser, &workspace_stack, &detail_page.context_panel);
-    content_stack.add_named(&notes_page, Some("notes"));
+    let notes_scroller = build_notes_list(&list_box, sender);
+    content_stack.add_named(&notes_scroller, Some("notes"));
 
     let empty_page = adw::StatusPage::new();
     empty_page.set_icon_name(Some("network-workgroup-symbolic"));
@@ -82,6 +84,22 @@ pub fn build_content_pages(state: &AppState, sender: &ComponentSender<App>) -> C
     let timeline_page = build_timeline_page();
     content_stack.add_named(&timeline_page.root, Some("timeline"));
 
+    // ── Focus page (shared reading/editing) ──
+
+    let reading_page = build_reading_page(sender);
+    content_stack.add_named(&reading_page.root, Some("reading"));
+
+    // Wire up content change callback on the shared editor
+    let mut editor = reading_page.editor;
+    let sender_content = sender.input_sender().clone();
+    editor.set_on_change(move |markdown| {
+        let _ = sender_content.send(AppMsg::DraftContentChanged(markdown));
+    });
+
+    let editing_overlay = build_editing_overlay(sender);
+
+    // ── Initial page ──
+
     let initial_child = initial_content_child(state);
     content_stack.set_visible_child_name(initial_child);
 
@@ -89,21 +107,19 @@ pub fn build_content_pages(state: &AppState, sender: &ComponentSender<App>) -> C
         content_stack,
         list_box,
         empty_page,
-        workspace_stack,
-        detail_content_label: detail_page.content_label,
-        detail_tags_box: detail_page.tags_box,
-        detail_meta_label: detail_page.meta_label,
-        detail_toolbar: detail_page.toolbar,
-        context_toggle: detail_page.context_toggle,
-        context_panel: detail_page.context_panel,
-        detail_origins_box: detail_page.origins_box,
-        detail_replies_box: detail_page.replies_box,
-        detail_versions_box: detail_page.versions_box,
-        draft_title_label: draft_page.title_label,
-        draft_hint_label: draft_page.hint_label,
-        draft_content_buffer: draft_page.content_buffer,
-        draft_content_view: draft_page.content_view,
-        draft_tags_entry: draft_page.tags_entry,
+
+        reading_context_panel: reading_page.context_panel,
+        reading_editor: editor,
+        reading_tags_box: reading_page.tags_box,
+        reading_meta_label: reading_page.meta_label,
+        reading_origins_box: reading_page.origins_box,
+        reading_replies_box: reading_page.replies_box,
+        reading_versions_box: reading_page.versions_box,
+
+        editing_title_label: editing_overlay.title_label,
+        editing_hint_label: editing_overlay.hint_label,
+        editing_tags_entry: editing_overlay.tags_entry,
+
         theme_dropdown: settings_page.theme_dropdown,
         sync_listener_row: settings_page.sync_listener_row,
         sync_addresses_row: settings_page.sync_addresses_row,
@@ -116,313 +132,153 @@ pub fn build_content_pages(state: &AppState, sender: &ComponentSender<App>) -> C
         sync_connections_box: settings_page.sync_connections_box,
         sync_peers_box: settings_page.sync_peers_box,
         sync_sessions_box: settings_page.sync_sessions_box,
+
         tags_flow_box: tags_page.tags_flow_box,
         timeline_container: timeline_page.timeline_container,
-        layout_stack,
-        flow_box,
     }
 }
 
-fn build_notes_browser(
-    list_box: &gtk::ListBox,
-    sender: &ComponentSender<App>,
-) -> (gtk::Stack, gtk::FlowBox, gtk::ScrolledWindow) {
-    let layout_stack = gtk::Stack::new();
+// ── Notes list (browse mode) ──
 
-    let list_scroller = gtk::ScrolledWindow::new();
-    list_scroller.set_child(Some(list_box));
-    layout_stack.add_named(&list_scroller, Some("list"));
-
-    let waterfall_scroller = gtk::ScrolledWindow::new();
-    waterfall_scroller.set_hscrollbar_policy(gtk::PolicyType::Never);
-    let flow_box = gtk::FlowBox::new();
-    flow_box.set_selection_mode(gtk::SelectionMode::Single);
-    flow_box.set_homogeneous(false);
-    flow_box.set_max_children_per_line(2);
-    flow_box.set_column_spacing(12);
-    flow_box.set_row_spacing(12);
-    flow_box.set_margin_start(12);
-    flow_box.set_margin_end(12);
-    flow_box.set_margin_top(12);
-    flow_box.set_margin_bottom(12);
-    flow_box.set_hexpand(true);
-    waterfall_scroller.set_child(Some(&flow_box));
-    layout_stack.add_named(&waterfall_scroller, Some("waterfall"));
-
-    let notes_scroller = gtk::ScrolledWindow::new();
-    notes_scroller.set_child(Some(&layout_stack));
+fn build_notes_list(list_box: &gtk::ListBox, sender: &ComponentSender<App>) -> gtk::ScrolledWindow {
+    let scroller = gtk::ScrolledWindow::new();
+    smooth_scroller(&scroller);
+    scroller.set_child(Some(list_box));
+    scroller.set_vexpand(true);
 
     let sender_scroll = sender.input_sender().clone();
-    notes_scroller
-        .vadjustment()
-        .connect_value_changed(move |adj| {
-            let upper = adj.upper();
-            let page_size = adj.page_size();
-            let value = adj.value();
+    scroller.vadjustment().connect_value_changed(move |adj| {
+        let upper = adj.upper();
+        let page_size = adj.page_size();
+        let value = adj.value();
 
-            if upper > page_size && value >= upper - page_size - 100.0 {
-                let _ = sender_scroll.send(AppMsg::LoadMoreNotes);
-            }
-        });
+        if upper > page_size && value >= upper - page_size - 100.0 {
+            let _ = sender_scroll.send(AppMsg::LoadMoreNotes);
+        }
+    });
 
-    (layout_stack, flow_box, notes_scroller)
+    scroller
 }
 
-fn build_notes_workbench(
-    notes_browser: &gtk::ScrolledWindow,
-    workspace_stack: &gtk::Stack,
-    context_panel: &gtk::ScrolledWindow,
-) -> gtk::Paned {
-    let root = gtk::Paned::new(gtk::Orientation::Horizontal);
-    root.set_wide_handle(false);
-    root.set_position(340);
-    root.set_shrink_start_child(false);
-    root.set_shrink_end_child(false);
+// ── Reading page (focus mode) ──
 
-    notes_browser.set_min_content_width(280);
-    notes_browser.set_max_content_width(440);
-
-    let writing_area = gtk::Paned::new(gtk::Orientation::Horizontal);
-    writing_area.set_wide_handle(true);
-    writing_area.set_position(760);
-    writing_area.set_shrink_start_child(false);
-    writing_area.set_shrink_end_child(false);
-    writing_area.set_start_child(Some(workspace_stack));
-    writing_area.set_end_child(Some(context_panel));
-
-    root.set_start_child(Some(notes_browser));
-    root.set_end_child(Some(&writing_area));
-    root
-}
-
-struct DetailPage {
-    article_scroller: gtk::ScrolledWindow,
+struct ReadingPage {
+    root: gtk::Paned,
     context_panel: gtk::ScrolledWindow,
-    content_label: gtk::Label,
+    editor: WysiwygEditor,
     tags_box: gtk::Box,
     meta_label: gtk::Label,
-    toolbar: gtk::Box,
-    context_toggle: gtk::ToggleButton,
     origins_box: gtk::Box,
     replies_box: gtk::Box,
     versions_box: gtk::Box,
 }
 
-fn build_detail_page(sender: &ComponentSender<App>) -> DetailPage {
-    let article_scroller = gtk::ScrolledWindow::new();
-    article_scroller.set_hscrollbar_policy(gtk::PolicyType::Never);
+fn build_reading_page(_sender: &ComponentSender<App>) -> ReadingPage {
+    let root = gtk::Paned::new(gtk::Orientation::Horizontal);
+    root.set_wide_handle(true);
+    root.set_resize_start_child(true);
+    root.set_shrink_start_child(false);
+    root.set_shrink_end_child(false);
 
-    let detail_clamp = adw::Clamp::builder()
-        .maximum_size(760)
-        .margin_top(36)
-        .margin_bottom(48)
+    // ── Left: article (WYSIWYG rendered markdown) ──
+
+    let article_scroller = gtk::ScrolledWindow::new();
+    smooth_scroller(&article_scroller);
+    article_scroller.set_hscrollbar_policy(gtk::PolicyType::Never);
+    article_scroller.set_vexpand(true);
+
+    // Overlay: content + floating tags at bottom
+    let overlay = gtk::Overlay::new();
+    overlay.set_child(Some(&article_scroller));
+
+    let clamp = adw::Clamp::builder()
+        .maximum_size(960)
+        .margin_top(32)
+        .margin_bottom(64)
         .margin_start(32)
         .margin_end(32)
+        .tightening_threshold(800)
         .build();
 
-    let article = gtk::Box::new(gtk::Orientation::Vertical, 22);
-    article.set_margin_top(12);
-    article.set_margin_bottom(12);
-    article.set_margin_start(12);
-    article.set_margin_end(12);
+    let article = gtk::Box::new(gtk::Orientation::Vertical, 24);
 
+    // Meta label — moved to header, kept here as hidden field for app.rs
     let meta_label = gtk::Label::new(None);
-    meta_label.add_css_class("caption");
-    meta_label.add_css_class("dim-label");
-    meta_label.set_halign(gtk::Align::Start);
-    meta_label.set_xalign(0.0);
-    meta_label.set_wrap(true);
+    meta_label.set_visible(false);
 
-    let content_label = gtk::Label::new(None);
-    content_label.add_css_class("title-4");
-    content_label.set_halign(gtk::Align::Fill);
-    content_label.set_xalign(0.0);
-    content_label.set_wrap(true);
-    content_label.set_selectable(true);
-    content_label.set_natural_wrap_mode(gtk::NaturalWrapMode::Word);
-    content_label.set_justify(gtk::Justification::Left);
+    let editor = WysiwygEditor::new_read_only();
 
-    let tags_box = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    tags_box.set_halign(gtk::Align::Start);
-    tags_box.set_hexpand(true);
+    article.append(editor.widget());
+    clamp.set_child(Some(&article));
+    article_scroller.set_child(Some(&clamp));
 
-    let toolbar = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-    toolbar.set_halign(gtk::Align::End);
+    // Tags overlay — floating at bottom, semi-transparent
+    let tags_overlay_box = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    tags_overlay_box.add_css_class("synap-reading-tags-overlay");
+    tags_overlay_box.set_halign(gtk::Align::Center);
+    tags_overlay_box.set_valign(gtk::Align::End);
+    tags_overlay_box.set_margin_bottom(16);
+    overlay.add_overlay(&tags_overlay_box);
 
-    let context_toggle = gtk::ToggleButton::new();
-    context_toggle.set_icon_name("view-sidebar-end-symbolic");
-    context_toggle.set_tooltip_text(Some("显示或隐藏上下文"));
-    let sender_context = sender.input_sender().clone();
-    context_toggle.connect_clicked(move |_| {
-        let _ = sender_context.send(AppMsg::ToggleContextPanel);
-    });
-
-    let reply_button = gtk::Button::with_label("回复笔记");
-    reply_button.set_icon_name("mail-reply-sender-symbolic");
-    let sender_reply = sender.input_sender().clone();
-    reply_button.connect_clicked(move |_| {
-        let _ = sender_reply.send(AppMsg::ReplyToNote);
-    });
-
-    let edit_button = gtk::Button::with_label("编辑笔记");
-    edit_button.set_icon_name("document-edit-symbolic");
-    edit_button.add_css_class("suggested-action");
-    let sender_edit = sender.input_sender().clone();
-    edit_button.connect_clicked(move |_| {
-        let _ = sender_edit.send(AppMsg::EditNote);
-    });
-
-    let delete_button = gtk::Button::with_label("删除笔记");
-    delete_button.set_icon_name("user-trash-symbolic");
-    delete_button.add_css_class("destructive-action");
-    let sender_delete = sender.input_sender().clone();
-    delete_button.connect_clicked(move |_| {
-        let _ = sender_delete.send(AppMsg::DeleteNote);
-    });
-
-    toolbar.append(&context_toggle);
-    toolbar.append(&reply_button);
-    toolbar.append(&edit_button);
-    toolbar.append(&delete_button);
-
-    article.append(&meta_label);
-    article.append(&content_label);
-    article.append(&tags_box);
-    article.append(&toolbar);
-    detail_clamp.set_child(Some(&article));
-    article_scroller.set_child(Some(&detail_clamp));
+    // ── Right: context panel ──
 
     let context_scroller = gtk::ScrolledWindow::new();
+    smooth_scroller(&context_scroller);
     context_scroller.set_hscrollbar_policy(gtk::PolicyType::Never);
-    context_scroller.set_min_content_width(300);
-    context_scroller.set_max_content_width(420);
+    context_scroller.set_vexpand(true);
+    context_scroller.set_min_content_width(280);
+    context_scroller.set_max_content_width(380);
 
-    let context_box = gtk::Box::new(gtk::Orientation::Vertical, 18);
-    context_box.set_margin_top(24);
-    context_box.set_margin_bottom(24);
-    context_box.set_margin_start(18);
-    context_box.set_margin_end(18);
-
-    let context_title = gtk::Label::new(Some("Synap 上下文"));
-    context_title.add_css_class("title-4");
-    context_title.set_halign(gtk::Align::Start);
-    context_title.set_xalign(0.0);
-    context_box.append(&context_title);
-
-    let context_desc = gtk::Label::new(Some(
-        "这里展示思路的 DAG 连接、回复延展和版本演化；正文区域只保留沉浸式阅读与书写。",
-    ));
-    context_desc.add_css_class("caption");
-    context_desc.add_css_class("dim-label");
-    context_desc.set_wrap(true);
-    context_desc.set_xalign(0.0);
-    context_box.append(&context_desc);
+    let context_box = gtk::Box::new(gtk::Orientation::Vertical, 24);
+    context_box.set_margin_top(32);
+    context_box.set_margin_bottom(32);
+    context_box.set_margin_start(20);
+    context_box.set_margin_end(20);
 
     let origins_box = build_detail_section("溯源链");
     let replies_box = build_detail_section("回复");
     let versions_box = build_detail_section("版本演化");
+
     context_box.append(&origins_box);
     context_box.append(&replies_box);
     context_box.append(&versions_box);
     context_scroller.set_child(Some(&context_box));
 
-    DetailPage {
-        article_scroller,
+    // ── Assemble: article left, context right ──
+
+    root.set_start_child(Some(&overlay));
+    root.set_end_child(Some(&context_scroller));
+    root.set_position(700);
+
+    ReadingPage {
+        root,
         context_panel: context_scroller,
-        content_label,
-        tags_box,
+        editor,
+        tags_box: tags_overlay_box,
         meta_label,
-        toolbar,
-        context_toggle,
         origins_box,
         replies_box,
         versions_box,
     }
 }
 
-struct DraftPage {
-    root: gtk::ScrolledWindow,
+// ── Editing overlay (hint + tags entry, shown in edit mode) ──
+
+struct EditingOverlay {
     title_label: gtk::Label,
     hint_label: gtk::Label,
-    content_buffer: gtk::TextBuffer,
-    content_view: gtk::TextView,
     tags_entry: gtk::Entry,
 }
 
-fn build_draft_page(sender: &ComponentSender<App>) -> DraftPage {
-    let root = gtk::ScrolledWindow::new();
-    root.set_hscrollbar_policy(gtk::PolicyType::Never);
-
-    let clamp = adw::Clamp::builder()
-        .maximum_size(780)
-        .margin_top(28)
-        .margin_bottom(36)
-        .margin_start(32)
-        .margin_end(32)
-        .build();
-
-    let shell = gtk::Box::new(gtk::Orientation::Vertical, 14);
-    shell.set_margin_top(12);
-    shell.set_margin_bottom(12);
-    shell.set_margin_start(12);
-    shell.set_margin_end(12);
-
-    let header = gtk::Box::new(gtk::Orientation::Horizontal, 12);
-    header.set_hexpand(true);
-
-    let title_box = gtk::Box::new(gtk::Orientation::Vertical, 4);
-    title_box.set_hexpand(true);
+fn build_editing_overlay(sender: &ComponentSender<App>) -> EditingOverlay {
     let title_label = gtk::Label::new(None);
-    title_label.add_css_class("title-3");
-    title_label.set_halign(gtk::Align::Start);
-    title_label.set_xalign(0.0);
+
     let hint_label = gtk::Label::new(None);
     hint_label.add_css_class("caption");
     hint_label.add_css_class("dim-label");
     hint_label.set_halign(gtk::Align::Start);
     hint_label.set_xalign(0.0);
     hint_label.set_wrap(true);
-    title_box.append(&title_label);
-    title_box.append(&hint_label);
-
-    let cancel_button = gtk::Button::with_label("取消");
-    let sender_cancel = sender.input_sender().clone();
-    cancel_button.connect_clicked(move |_| {
-        let _ = sender_cancel.send(AppMsg::CancelDraft);
-    });
-
-    let save_button = gtk::Button::with_label("保存");
-    save_button.add_css_class("suggested-action");
-    let sender_save = sender.input_sender().clone();
-    save_button.connect_clicked(move |_| {
-        let _ = sender_save.send(AppMsg::SaveDraft);
-    });
-
-    header.append(&title_box);
-    header.append(&cancel_button);
-    header.append(&save_button);
-
-    let content_buffer = gtk::TextBuffer::new(None);
-    let content_view = gtk::TextView::with_buffer(&content_buffer);
-    content_view.set_vexpand(true);
-    content_view.set_wrap_mode(gtk::WrapMode::WordChar);
-    content_view.set_top_margin(22);
-    content_view.set_bottom_margin(22);
-    content_view.set_left_margin(22);
-    content_view.set_right_margin(22);
-    content_view.set_monospace(true);
-
-    let sender_content = sender.input_sender().clone();
-    content_buffer.connect_changed(move |buffer| {
-        let (start, end) = buffer.bounds();
-        let text = buffer.text(&start, &end, false).to_string();
-        let _ = sender_content.send(AppMsg::DraftContentChanged(text));
-    });
-
-    let content_frame = gtk::ScrolledWindow::new();
-    content_frame.set_vexpand(true);
-    content_frame.set_min_content_height(420);
-    content_frame.set_child(Some(&content_view));
 
     let tags_entry = gtk::Entry::new();
     tags_entry.set_placeholder_text(Some("标签，例如 rust, idea, diary"));
@@ -431,21 +287,14 @@ fn build_draft_page(sender: &ComponentSender<App>) -> DraftPage {
         let _ = sender_tags.send(AppMsg::DraftTagsChanged(entry.text().to_string()));
     });
 
-    shell.append(&header);
-    shell.append(&content_frame);
-    shell.append(&tags_entry);
-    clamp.set_child(Some(&shell));
-    root.set_child(Some(&clamp));
-
-    DraftPage {
-        root,
+    EditingOverlay {
         title_label,
         hint_label,
-        content_buffer,
-        content_view,
         tags_entry,
     }
 }
+
+// ── Settings page ──
 
 struct SettingsPage {
     root: gtk::ScrolledWindow,
@@ -466,6 +315,7 @@ struct SettingsPage {
 fn build_settings_page(state: &AppState, sender: &ComponentSender<App>) -> SettingsPage {
     let page = adw::PreferencesPage::new();
     let root = gtk::ScrolledWindow::new();
+    smooth_scroller(&root);
     root.set_child(Some(&page));
 
     let sync_group = adw::PreferencesGroup::builder()
@@ -612,6 +462,8 @@ fn build_settings_page(state: &AppState, sender: &ComponentSender<App>) -> Setti
     }
 }
 
+// ── Tags page ──
+
 struct TagsPage {
     root: gtk::ScrolledWindow,
     tags_flow_box: gtk::FlowBox,
@@ -619,14 +471,17 @@ struct TagsPage {
 
 fn build_tags_page() -> TagsPage {
     let root = gtk::ScrolledWindow::new();
-    let tags_box = gtk::Box::new(gtk::Orientation::Vertical, 12);
-    tags_box.set_margin_top(24);
-    tags_box.set_margin_bottom(24);
-    tags_box.set_margin_start(24);
-    tags_box.set_margin_end(24);
+    smooth_scroller(&root);
+    let tags_box = gtk::Box::new(gtk::Orientation::Vertical, 16);
+    tags_box.set_margin_top(32);
+    tags_box.set_margin_bottom(32);
+    tags_box.set_margin_start(28);
+    tags_box.set_margin_end(28);
+    tags_box.add_css_class("synap-tags-page");
 
     let tags_label = gtk::Label::new(Some("所有标签"));
     tags_label.add_css_class("heading");
+    tags_label.add_css_class("synap-section-heading");
     tags_label.set_halign(gtk::Align::Start);
     tags_box.append(&tags_label);
 
@@ -647,6 +502,8 @@ fn build_tags_page() -> TagsPage {
     }
 }
 
+// ── Timeline page ──
+
 struct TimelinePage {
     root: gtk::ScrolledWindow,
     timeline_container: gtk::Box,
@@ -654,11 +511,13 @@ struct TimelinePage {
 
 fn build_timeline_page() -> TimelinePage {
     let root = gtk::ScrolledWindow::new();
+    smooth_scroller(&root);
     let timeline_box = gtk::Box::new(gtk::Orientation::Vertical, 24);
-    timeline_box.set_margin_top(24);
-    timeline_box.set_margin_bottom(24);
-    timeline_box.set_margin_start(24);
-    timeline_box.set_margin_end(24);
+    timeline_box.set_margin_top(32);
+    timeline_box.set_margin_bottom(32);
+    timeline_box.set_margin_start(28);
+    timeline_box.set_margin_end(28);
+    timeline_box.add_css_class("synap-timeline-page");
 
     let timeline_container = gtk::Box::new(gtk::Orientation::Vertical, 24);
     timeline_box.append(&timeline_container);
@@ -671,35 +530,40 @@ fn build_timeline_page() -> TimelinePage {
     }
 }
 
+// ── Helpers ──
+
 fn build_detail_section(title: &str) -> gtk::Box {
     let section = gtk::Box::new(gtk::Orientation::Vertical, 6);
+    section.add_css_class("synap-detail-section");
     let label = gtk::Label::new(Some(title));
     label.add_css_class("heading");
+    label.add_css_class("synap-section-heading");
     label.set_halign(gtk::Align::Start);
     section.append(&label);
     section
 }
 
 fn initial_content_child(state: &AppState) -> &'static str {
-    let is_empty = state.visible_notes().is_empty();
     match state.content_view {
-        ContentView::NoteDetail => "notes",
-        ContentView::Settings => "settings",
-        ContentView::Tags => "tags",
-        ContentView::Timeline => "timeline",
-        ContentView::TagNotes | ContentView::Notes | ContentView::Trash => {
-            if is_empty {
+        ContentView::Notes => {
+            if state.visible_notes().is_empty() {
                 "empty"
             } else {
                 "notes"
             }
         }
+        ContentView::Trash => "notes",
+        ContentView::Tags => "tags",
+        ContentView::TagNotes => "notes",
+        ContentView::Timeline => "timeline",
+        ContentView::Settings => "settings",
     }
 }
 
 fn section_label(text: &str) -> gtk::Label {
     let label = gtk::Label::new(Some(text));
     label.add_css_class("heading");
+    label.add_css_class("synap-section-heading");
     label.set_halign(gtk::Align::Start);
     label.set_margin_top(12);
     label.set_margin_start(12);

@@ -6,7 +6,6 @@ use synap_core::dto::{
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContentView {
     Notes,
-    NoteDetail,
     Trash,
     Tags,
     TagNotes,
@@ -14,17 +13,29 @@ pub enum ContentView {
     Settings,
 }
 
-impl ContentView {
-    pub fn title(self) -> &'static str {
-        match self {
-            Self::Notes => "笔记列表",
-            Self::NoteDetail => "笔记详情",
-            Self::Trash => "回收站",
-            Self::Tags => "标签",
-            Self::TagNotes => "标签笔记",
-            Self::Timeline => "时间线",
-            Self::Settings => "设置",
-        }
+/// 浏览/沉浸模式
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FocusMode {
+    /// 浏览模式：侧边栏 + 列表面板
+    Browse,
+    /// 沉浸阅读
+    Reading(String), // note_id
+    /// 沉浸编辑（新建/编辑/回复）
+    Editing(WorkspaceMode),
+}
+
+impl FocusMode {
+    pub fn is_browse(&self) -> bool {
+        matches!(self, Self::Browse)
+    }
+    pub fn is_editing(&self) -> bool {
+        matches!(self, Self::Editing(_))
+    }
+}
+
+impl Default for FocusMode {
+    fn default() -> Self {
+        Self::Browse
     }
 }
 
@@ -59,52 +70,22 @@ impl Default for Theme {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum NoteLayout {
-    Waterfall,
+    #[default]
     List,
-}
-
-impl NoteLayout {
-    pub fn from_index(index: u32) -> Self {
-        match index {
-            1 => Self::List,
-            _ => Self::Waterfall,
-        }
-    }
-
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Waterfall => "瀑布流",
-            Self::List => "列表",
-        }
-    }
-
-    pub fn index(self) -> u32 {
-        match self {
-            Self::Waterfall => 0,
-            Self::List => 1,
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WorkspaceMode {
-    Read,
     CreateDraft,
     EditDraft(String),
     ReplyDraft(String),
 }
 
-impl WorkspaceMode {
-    pub fn is_draft(&self) -> bool {
-        !matches!(self, Self::Read)
-    }
-}
-
 impl Default for WorkspaceMode {
     fn default() -> Self {
-        Self::Read
+        Self::CreateDraft
     }
 }
 
@@ -116,11 +97,6 @@ pub struct HomeData {
     pub deleted_notes_cursor: Option<String>,
     pub has_more_notes: bool,
     pub has_more_deleted_notes: bool,
-}
-
-#[derive(Debug, Clone)]
-pub struct NoteListItemViewModel {
-    pub preview: String,
 }
 
 #[derive(Debug, Clone)]
@@ -152,14 +128,6 @@ impl NoteDetailData {
     }
 }
 
-impl From<&NoteDTO> for NoteListItemViewModel {
-    fn from(value: &NoteDTO) -> Self {
-        Self {
-            preview: build_preview(&value.content),
-        }
-    }
-}
-
 impl From<&NoteDTO> for NoteDetailViewModel {
     fn from(value: &NoteDTO) -> Self {
         Self {
@@ -178,10 +146,10 @@ pub struct AppState {
     pub search_query: String,
     pub content_view: ContentView,
     pub layout: NoteLayout,
+    pub focus_mode: FocusMode,
     pub selected_note_id: Option<String>,
     pub selected_note_detail: Option<NoteDetailViewModel>,
     pub selected_note_full: Option<NoteDetailData>,
-    pub workspace_mode: WorkspaceMode,
     pub draft_content: String,
     pub draft_tags_text: String,
     pub context_panel_open: bool,
@@ -191,10 +159,7 @@ pub struct AppState {
     pub selected_tag: Option<String>,
     pub tag_notes: Vec<NoteDTO>,
     pub all_tags: Vec<String>,
-    pub tag_suggestions: Vec<String>,
     pub timeline_sessions: Vec<synap_core::dto::TimelineSessionDTO>,
-    pub timeline_cursor: Option<String>,
-    pub has_more_timeline: bool,
     pub sync: SyncState,
 }
 
@@ -204,11 +169,11 @@ impl Default for AppState {
             home: HomeData::default(),
             search_query: String::new(),
             content_view: ContentView::Notes,
-            layout: NoteLayout::Waterfall,
+            layout: NoteLayout::List,
+            focus_mode: FocusMode::Browse,
             selected_note_id: None,
             selected_note_detail: None,
             selected_note_full: None,
-            workspace_mode: WorkspaceMode::Read,
             draft_content: String::new(),
             draft_tags_text: String::new(),
             context_panel_open: false,
@@ -218,10 +183,7 @@ impl Default for AppState {
             selected_tag: None,
             tag_notes: Vec::new(),
             all_tags: Vec::new(),
-            tag_suggestions: Vec::new(),
             timeline_sessions: Vec::new(),
-            timeline_cursor: None,
-            has_more_timeline: false,
             sync: SyncState::default(),
         }
     }
@@ -231,17 +193,6 @@ impl AppState {
     pub fn visible_notes(&self) -> Vec<NoteDTO> {
         match self.content_view {
             ContentView::Notes => self.home.notes.clone(),
-            ContentView::NoteDetail => self
-                .selected_note_detail
-                .as_ref()
-                .map(|detail| {
-                    if detail.deleted {
-                        self.home.deleted_notes.clone()
-                    } else {
-                        self.home.notes.clone()
-                    }
-                })
-                .unwrap_or_else(|| self.home.notes.clone()),
             ContentView::Trash => {
                 filter_deleted_notes(&self.home.deleted_notes, &self.search_query)
             }
@@ -259,23 +210,6 @@ impl AppState {
 
         let visible = self.visible_notes();
 
-        if self.content_view == ContentView::NoteDetail {
-            if let Some(selected_id) = self.selected_note_id.as_ref() {
-                self.selected_note_detail = self
-                    .selected_note_full
-                    .as_ref()
-                    .filter(|full| full.note.id == *selected_id)
-                    .map(NoteDetailData::to_view_model)
-                    .or_else(|| {
-                        visible
-                            .iter()
-                            .find(|note| note.id == *selected_id)
-                            .map(NoteDetailViewModel::from)
-                    });
-            }
-            return;
-        }
-
         let is_selected_visible = self
             .selected_note_id
             .as_ref()
@@ -291,17 +225,11 @@ impl AppState {
             .and_then(|selected_id| visible.iter().find(|note| note.id == *selected_id))
             .map(NoteDetailViewModel::from);
 
-        // If we have full detail data but the note changed, clear it
         if let Some(full) = &self.selected_note_full {
             if self.selected_note_id.as_deref() != Some(&full.note.id) {
                 self.selected_note_full = None;
             }
         }
-    }
-
-    pub fn selected_index_in(&self, notes: &[NoteDTO]) -> Option<usize> {
-        let selected = self.selected_note_id.as_ref()?;
-        notes.iter().position(|note| note.id == *selected)
     }
 }
 
@@ -323,23 +251,6 @@ fn filter_deleted_notes(notes: &[NoteDTO], query: &str) -> Vec<NoteDTO> {
         })
         .cloned()
         .collect()
-}
-
-fn build_preview(content: &str) -> String {
-    let trimmed = content.trim();
-    if trimmed.is_empty() {
-        return "空白笔记".to_string();
-    }
-
-    let normalized = trimmed.split_whitespace().collect::<Vec<_>>().join(" ");
-    const MAX_CHARS: usize = 220;
-
-    if normalized.chars().count() <= MAX_CHARS {
-        normalized
-    } else {
-        let preview: String = normalized.chars().take(MAX_CHARS).collect();
-        format!("{preview}...")
-    }
 }
 
 pub fn format_timestamp(timestamp_ms: u64) -> String {
@@ -366,7 +277,6 @@ pub struct SyncState {
     pub host_input: String,
     pub port_input: String,
     pub peer_note_draft: String,
-    pub active_peer_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -458,14 +368,4 @@ pub fn peer_status_label(status: &PeerTrustStatusDTO) -> &'static str {
         PeerTrustStatusDTO::Retired => "已停用",
         PeerTrustStatusDTO::Revoked => "已撤销",
     }
-}
-
-pub fn sync_session_summary(session: &SyncSessionDTO) -> String {
-    let peer_label = session
-        .peer
-        .note
-        .clone()
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| session.peer.kaomoji_fingerprint.clone());
-    format!("{} · {}", peer_label, sync_status_label(&session.status))
 }
