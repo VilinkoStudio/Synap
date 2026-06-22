@@ -7,10 +7,11 @@ use std::{
 
 use crate::error::FfiError;
 use crate::types::{
-    BuildInfo, FilteredNoteStatus, LocalIdentityDTO, NoteDTO, NoteNeighborsDTO, NoteSegmentDTO,
-    NoteSegmentDirectionDTO, NoteVersionDTO, PeerDTO, RelayFetchStatsDTO, RelayPushStatsDTO,
-    SearchResultDTO, ShareStatsDTO, StarmapPointDTO, SyncSessionDTO, SyncSessionRecordDTO,
-    TimelineDensityPointDTO, TimelineDirection, TimelineNotesPageDTO, TimelineSessionsPageDTO,
+    BuildInfo, FilteredNoteStatus, LocalIdentityDTO, MdnsDiscoverySignatureDTO, NoteDTO,
+    NoteNeighborsDTO, NoteSegmentDTO, NoteSegmentDirectionDTO, NoteVersionDTO, PeerDTO,
+    RelayFetchStatsDTO, RelayPushStatsDTO, SearchResultDTO, ShareStatsDTO, StarmapPointDTO,
+    SyncSessionDTO, SyncSessionRecordDTO, TimelineDensityPointDTO, TimelineDirection,
+    TimelineNotesPageDTO, TimelineSessionsPageDTO,
 };
 use synap_core::dto::{
     NoteDTO as CoreNoteDTO, NoteNeighborsDTO as CoreNoteNeighborsDTO,
@@ -609,6 +610,42 @@ impl SynapService {
                 err.into()
             })
     }
+
+    /// Sign an mDNS discovery broadcast.
+    ///
+    /// Returns the signing public key and signature for TXT record embedding.
+    pub fn sign_mdns_discovery(&self) -> Result<MdnsDiscoverySignatureDTO, FfiError> {
+        let (public_key, signature) = self.inner.sign_mdns_discovery()?;
+        Ok(MdnsDiscoverySignatureDTO {
+            signing_public_key: public_key.to_vec(),
+            signature: signature.to_vec(),
+        })
+    }
+
+}
+
+/// Verify an mDNS discovery broadcast from raw bytes (free function for UDL).
+pub fn verify_mdns_discovery(
+    signing_public_key: Vec<u8>,
+    signature: Vec<u8>,
+) -> Result<bool, FfiError> {
+    verify_mdns_discovery_impl(signing_public_key, signature)
+}
+
+fn verify_mdns_discovery_impl(
+    signing_public_key: Vec<u8>,
+    signature: Vec<u8>,
+) -> Result<bool, FfiError> {
+    let key: [u8; 32] = signing_public_key
+        .try_into()
+        .map_err(|_| FfiError::Other)?;
+    let sig: [u8; 64] = signature
+        .try_into()
+        .map_err(|_| FfiError::Other)?;
+
+    Ok(
+        synap_core::service::discovery::verify_mdns_discovery_signature(&key, &sig).is_ok(),
+    )
 }
 
 /// Open a file-based database.

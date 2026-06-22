@@ -7,15 +7,17 @@ pub trait SyncTransport: Send + Sync {
 }
 
 pub use crate::error::FfiError;
-pub use crate::service::{get_build_info, get_version_string, open, open_memory, SynapService};
+pub use crate::service::{
+    get_build_info, get_version_string, open, open_memory, verify_mdns_discovery, SynapService,
+};
 pub use crate::types::{
-    BuildInfo, FilteredNoteStatus, LocalIdentityDTO, NoteBriefDTO, NoteContentDiffStatsDTO,
-    NoteDTO, NoteNeighborContextDTO, NoteNeighborsDTO, NoteSegmentBranchChoiceDTO, NoteSegmentDTO,
-    NoteSegmentDirectionDTO, NoteSegmentStepDTO, NoteTagDiffDTO, NoteTextChangeDTO,
-    NoteTextChangeKindDTO, NoteVersionDTO, NoteVersionDiffDTO, PeerDTO, PeerTrustStatusDTO,
-    PublicKeyInfoDTO, RelayFetchStatsDTO, RelayPushStatsDTO, SearchResultDTO, SearchSourceDTO,
-    ShareStatsDTO, StarmapPointDTO, SyncSessionDTO, SyncSessionRecordDTO, SyncSessionRoleDTO,
-    SyncStatsDTO, SyncStatusDTO, SyncTransportKindDTO, TimelineDensityPointDTO,
-    TimelineDirection, TimelineGroupDTO, TimelineNotesPageDTO, TimelineSessionDTO,
-    TimelineSessionsPageDTO,
+    BuildInfo, FilteredNoteStatus, LocalIdentityDTO, MdnsDiscoverySignatureDTO, NoteBriefDTO,
+    NoteContentDiffStatsDTO, NoteDTO, NoteNeighborContextDTO, NoteNeighborsDTO,
+    NoteSegmentBranchChoiceDTO, NoteSegmentDTO, NoteSegmentDirectionDTO, NoteSegmentStepDTO,
+    NoteTagDiffDTO, NoteTextChangeDTO, NoteTextChangeKindDTO, NoteVersionDTO, NoteVersionDiffDTO,
+    PeerDTO, PeerTrustStatusDTO, PublicKeyInfoDTO, RelayFetchStatsDTO, RelayPushStatsDTO,
+    SearchResultDTO, SearchSourceDTO, ShareStatsDTO, StarmapPointDTO, SyncSessionDTO,
+    SyncSessionRecordDTO, SyncSessionRoleDTO, SyncStatsDTO, SyncStatusDTO, SyncTransportKindDTO,
+    TimelineDensityPointDTO, TimelineDirection, TimelineGroupDTO, TimelineNotesPageDTO,
+    TimelineSessionDTO, TimelineSessionsPageDTO,
 };

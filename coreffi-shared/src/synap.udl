@@ -3,6 +3,7 @@ namespace synap_coreffi {
     [Throws=FfiError] SynapService open_memory();
     BuildInfo get_build_info();
     string get_version_string();
+    [Throws=FfiError] boolean verify_mdns_discovery(bytes signing_public_key, bytes signature);
 };
 
 enum FfiError {
@@ -288,6 +289,11 @@ dictionary BuildInfo {
     string display_version;
 };
 
+dictionary MdnsDiscoverySignatureDTO {
+    bytes signing_public_key;
+    bytes signature;
+};
+
 interface SynapService {
     [Throws=FfiError] NoteDTO get_note(string id_or_short_id);
     [Throws=FfiError] sequence<NoteDTO> get_replies(string parent_id, string? cursor, u32 limit);
@@ -387,4 +393,5 @@ interface SynapService {
     [Throws=FfiError] RelayPushStatsDTO relay_push_updates(string base_url, string? api_key);
     [Throws=FfiError] SyncSessionDTO initiate_sync(SyncTransport transport);
     [Throws=FfiError] SyncSessionDTO listen_sync(SyncTransport transport);
+    [Throws=FfiError] MdnsDiscoverySignatureDTO sign_mdns_discovery();
 };

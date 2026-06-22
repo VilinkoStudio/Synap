@@ -783,6 +783,13 @@ impl From<CoreBuildInfo> for BuildInfo {
     }
 }
 
+/// mDNS discovery signature for FFI consumers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MdnsDiscoverySignatureDTO {
+    pub signing_public_key: Vec<u8>,
+    pub signature: Vec<u8>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -7,6 +7,8 @@ use std::{
 };
 
 mod convert;
+pub mod discovery;
+pub use discovery::MdnsDiscoveryError;
 mod note_command;
 mod note_query;
 mod peer;
