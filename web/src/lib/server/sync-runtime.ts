@@ -33,6 +33,7 @@ type DiscoveredPeer = {
   host: string;
   port: number;
   lastSeenAtMs: number;
+  signingPublicKey: Uint8Array;
 };
 
 type SyncOverviewRuntime = {
@@ -63,7 +64,7 @@ export async function ensureSyncListenerStarted(
   port = DEFAULT_SYNC_PORT
 ): Promise<SyncOverviewRuntime> {
   if (server?.listening) {
-    await ensureDiscoveryStarted(listenerState.listenPort ?? port);
+    await ensureDiscoveryStarted(listenerState.listenPort ?? port, service);
     return getSyncRuntimeOverview();
   }
 
@@ -78,7 +79,7 @@ export async function ensureSyncListenerStarted(
   }
 
   if (listenerState.listenPort) {
-    await ensureDiscoveryStarted(listenerState.listenPort);
+    await ensureDiscoveryStarted(listenerState.listenPort, service);
   }
   return getSyncRuntimeOverview();
 }
@@ -283,7 +284,7 @@ function summarizeSession(session: any) {
   };
 }
 
-async function ensureDiscoveryStarted(port: number) {
+async function ensureDiscoveryStarted(port: number, service?: any) {
   if (discoveryState.isRunning && discoveryState.listenPort === port) {
     return;
   }
@@ -296,32 +297,85 @@ async function ensureDiscoveryStarted(port: number) {
     browser?.stop?.();
 
     const name = localServiceName();
+
+    // Build TXT record with optional signature.
+    const txt: Record<string, string> = {
+      device_name: name,
+      protocol: 'tcp',
+      version: '1'
+    };
+    if (service) {
+      try {
+        const signFn = pickCallable<any, () => any>(service, ['signMdnsDiscovery', 'sign_mdns_discovery']);
+        const sig = signFn.call(service);
+        txt.key = bytesToHex(new Uint8Array(sig.signingPublicKey));
+        txt.sig = bytesToHex(new Uint8Array(sig.signature));
+      } catch (error) {
+        console.warn('[synap-web] mDNS signing failed, registering without signature', error);
+      }
+    }
+
     publishedService = bonjour.publish({
       name,
       type: SERVICE_TYPE,
       protocol: 'tcp',
       port,
-      txt: {
-        device_name: name,
-        protocol: 'tcp',
-        version: '1'
-      }
+      txt
     });
     browser = bonjour.find({ type: SERVICE_TYPE, protocol: 'tcp' });
-    browser.on('up', (service) => {
-      if (service.name === name) return;
-      const host = firstRoutableAddress(service.addresses ?? []);
-      if (!host || !service.port) return;
-      discoveredPeers.set(service.fqdn || service.name, {
-        serviceName: service.fqdn || service.name,
-        displayName: String(service.txt?.device_name ?? service.name),
+    browser.on('up', (found) => {
+      if (found.name === name) return;
+      const host = firstRoutableAddress(found.addresses ?? []);
+      if (!host || !found.port) return;
+
+      // Verify mDNS signature from TXT record.
+      const keyHex = found.txt?.key;
+      const sigHex = found.txt?.sig;
+
+      let signingPublicKey: Uint8Array;
+      if (keyHex && sigHex) {
+        const keyBytes = hexToBytes(keyHex);
+        const sigBytes = hexToBytes(sigHex);
+        if (!keyBytes || !sigBytes) {
+          console.warn(`[synap-web] mDNS peer ${found.name}: invalid hex in TXT record`);
+          return;
+        }
+
+        try {
+          const module = await getCoreffiModule();
+          const verifyFn = pickCallable<typeof module, (key: Uint8Array, sig: Uint8Array) => boolean>(
+            module,
+            ['verifyMdnsDiscovery', 'verify_mdns_discovery']
+          );
+          if (!verifyFn) {
+            console.warn('[synap-web] verifyMdnsDiscovery not available in module');
+            return;
+          }
+          if (!verifyFn(new Uint8Array(keyBytes), new Uint8Array(sigBytes))) {
+            console.warn(`[synap-web] mDNS peer ${found.name}: signature verification failed`);
+            return;
+          }
+        } catch (error) {
+          console.warn(`[synap-web] mDNS peer ${found.name}: verification error`, error);
+          return;
+        }
+        signingPublicKey = new Uint8Array(keyBytes);
+      } else {
+        console.warn(`[synap-web] mDNS peer ${found.name}: missing signature fields, rejecting`);
+        return;
+      }
+
+      discoveredPeers.set(found.fqdn || found.name, {
+        serviceName: found.fqdn || found.name,
+        displayName: String(found.txt?.device_name ?? found.name),
         host,
-        port: service.port,
-        lastSeenAtMs: Date.now()
+        port: found.port,
+        lastSeenAtMs: Date.now(),
+        signingPublicKey
       });
     });
-    browser.on('down', (service) => {
-      discoveredPeers.delete(service.fqdn || service.name);
+    browser.on('down', (lost) => {
+      discoveredPeers.delete(lost.fqdn || lost.name);
     });
 
     discoveryState = {
@@ -386,3 +440,21 @@ function stoppedDiscoveryState(): DiscoveryState {
     errorMessage: undefined
   };
 }
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function hexToBytes(hex: string): Uint8Array | null {
+  if (hex.length % 2 !== 0) return null;
+  try {
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < hex.length; i += 2) {
+      bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+    }
+    return bytes;
+  } catch {
+    return null;
+  }
+}
+

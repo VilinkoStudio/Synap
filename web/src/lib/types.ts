@@ -107,4 +107,5 @@ export type DiscoveredSyncPeer = {
   host: string;
   port: number;
   lastSeenAtMs: number;
+  signingPublicKey: Uint8Array;
 };

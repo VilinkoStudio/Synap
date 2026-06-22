@@ -10,6 +10,8 @@ type CoreffiModule = {
   openMemory?: () => SynapService;
   open_memory?: () => SynapService;
   FfiErrorIo?: new (message?: string) => Error;
+  verifyMdnsDiscovery?: (signingPublicKey: Uint8Array, signature: Uint8Array) => boolean;
+  verify_mdns_discovery?: (signingPublicKey: Uint8Array, signature: Uint8Array) => boolean;
 };
 
 export type SynapService = {
@@ -25,6 +27,8 @@ export type SynapService = {
   updatePeerNote: (peerId: string, note?: string) => unknown;
   setPeerStatus: (peerId: string, status: string) => unknown;
   deletePeer: (peerId: string) => void;
+  signMdnsDiscovery?: () => { signingPublicKey: Uint8Array; signature: Uint8Array };
+  sign_mdns_discovery?: () => { signingPublicKey: Uint8Array; signature: Uint8Array };
 };
 
 let cachedModule: Promise<CoreffiModule> | undefined;
