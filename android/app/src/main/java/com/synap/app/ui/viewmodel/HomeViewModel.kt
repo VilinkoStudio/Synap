@@ -1,19 +1,21 @@
 package com.synap.app.ui.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.synap.app.data.model.NoteFeedFilter
 import com.synap.app.data.model.NoteFeedStatus
 import com.synap.app.data.model.NoteRecord
+import com.synap.app.data.model.TimelineDensityPointRecord
 import com.synap.app.data.portal.CursorPortal
 import com.synap.app.data.portal.PortalState
 import com.synap.app.data.repository.SynapRepository
+import com.synap.app.ui.model.HomeDisplayPrefs
 import com.synap.app.ui.model.Note
 import com.synap.app.ui.model.SearchResultNote
-import com.synap.app.ui.model.TimelineSessionGroup
 import com.synap.app.ui.model.toUiNote
 import com.synap.app.ui.model.toUiSearchResultNote
-import com.synap.app.ui.model.toUiSessionGroup
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,21 +24,41 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.ZoneId
 
 data class HomeUiState(
     val query: String = "",
     val notes: List<Note> = emptyList(),
     val searchResults: List<SearchResultNote> = emptyList(),
-    val sessionGroups: List<TimelineSessionGroup> = emptyList(),
     val isLoading: Boolean = true,
     val hasMore: Boolean = false,
     val isSearchMode: Boolean = false,
-    val isFilterPanelOpen: Boolean = false,
-    val showSessionFeed: Boolean = true,
+    val showTagBar: Boolean = HomeDisplayPrefs.DEFAULT_SHOW_TAG_BAR,
+    val showTimeGroups: Boolean = true,
+    val showTimelineJumpTool: Boolean = HomeDisplayPrefs.DEFAULT_SHOW_TIMELINE_JUMP_TOOL,
     val availableTags: List<String> = emptyList(),
     val unselectedTags: Set<String> = emptySet(),
     val isUntaggedUnselected: Boolean = false,
     val errorMessage: String? = null,
+    val timelineBrowser: TimelineBrowserUiState = TimelineBrowserUiState(),
+)
+
+data class TimelineBrowserUiState(
+    val selectedDate: LocalDate = LocalDate.now(),
+    val densityPoints: List<TimelineDensityPoint> = emptyList(),
+    val isDensityLoading: Boolean = false,
+    val densityErrorMessage: String? = null,
+)
+
+data class TimelineDensityPoint(
+    val startedAt: Long,
+    val endedAt: Long,
+    val noteCount: Int,
+)
+
+private data class TimelineAnchor(
+    val date: LocalDate,
 )
 
 private data class HomeQueryState(
@@ -50,42 +72,43 @@ private data class HomeFilterState(
     val availableTags: List<String>,
     val unselectedTags: Set<String>,
     val isUntaggedUnselected: Boolean,
-    val isFilterPanelOpen: Boolean,
+    val showTagBar: Boolean,
 ) {
     fun toFeedFilter(): NoteFeedFilter {
         val selectedTags = availableTags.filterNot { it in unselectedTags }
         return NoteFeedFilter(
             selectedTags = selectedTags,
             includeUntagged = !isUntaggedUnselected,
-            tagFilterEnabled = isFilterPanelOpen && (unselectedTags.isNotEmpty() || isUntaggedUnselected),
+            tagFilterEnabled = showTagBar && (unselectedTags.isNotEmpty() || isUntaggedUnselected),
             status = NoteFeedStatus.Normal,
+            groupSessions = true,
         )
     }
-
-    // 核心逻辑：只要筛选面板打开，就显示瀑布流；关闭则显示时间组
-    fun shouldShowSessionFeed(): Boolean = !isFilterPanelOpen
 }
 
 private data class HomeFeedState(
     val notes: List<Note>,
-    val sessionGroups: List<TimelineSessionGroup>,
     val isLoading: Boolean,
     val hasMore: Boolean,
-    val isFilterPanelOpen: Boolean,
-    val showSessionFeed: Boolean,
+    val showTagBar: Boolean,
     val availableTags: List<String>,
     val unselectedTags: Set<String>,
     val isUntaggedUnselected: Boolean,
     val errorMessage: String?,
 )
 
+private data class HomeDisplayState(
+    val showTimeGroups: Boolean,
+    val showTimelineJumpTool: Boolean,
+)
+
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val repository: SynapRepository,
+    @ApplicationContext context: Context,
 ) : ViewModel() {
+    private val prefs = context.getSharedPreferences("synap_prefs", Context.MODE_PRIVATE)
     private val pageLimit = 20u
-    private val recentPortal = repository.openRecentPortal(limit = pageLimit)
-    private val recentSessionsPortal = repository.openRecentSessionsPortal(limit = pageLimit)
     private val query = MutableStateFlow("")
     private val searchResults = MutableStateFlow<List<SearchResultNote>>(emptyList())
     private val isSearchLoading = MutableStateFlow(false)
@@ -94,10 +117,29 @@ class HomeViewModel @Inject constructor(
     private val availableTags = MutableStateFlow<List<String>>(emptyList())
     private val unselectedTags = MutableStateFlow<Set<String>>(emptySet())
     private val isUntaggedUnselected = MutableStateFlow(false)
-    private val isFilterPanelOpen = MutableStateFlow(false)
-    private val filteredPortalState = MutableStateFlow(PortalState<NoteRecord>())
-    private var filteredPortal: CursorPortal<NoteRecord>? = null
-    private var filteredPortalKey: NoteFeedFilter? = null
+    private val showTagBar = MutableStateFlow(
+        prefs.getBoolean(
+            HomeDisplayPrefs.SHOW_TAG_BAR,
+            HomeDisplayPrefs.DEFAULT_SHOW_TAG_BAR,
+        )
+    )
+    private val showTimeGroups = MutableStateFlow(
+        prefs.getBoolean(HomeDisplayPrefs.SHOW_TIME_GROUPS, HomeDisplayPrefs.DEFAULT_SHOW_TIME_GROUPS)
+    )
+    private val showTimelineJumpTool = MutableStateFlow(
+        prefs.getBoolean(
+            HomeDisplayPrefs.SHOW_TIMELINE_JUMP_TOOL,
+            HomeDisplayPrefs.DEFAULT_SHOW_TIMELINE_JUMP_TOOL,
+        )
+    )
+    private val timelinePortalState = MutableStateFlow(PortalState<NoteRecord>())
+    private var timelinePortal: CursorPortal<NoteRecord>? = null
+    private var timelinePortalKey: Pair<NoteFeedFilter, TimelineAnchor?>? = null
+    private val browserSelectedDate = MutableStateFlow(LocalDate.now())
+    private val densityPoints = MutableStateFlow<List<TimelineDensityPointRecord>>(emptyList())
+    private val isDensityLoading = MutableStateFlow(false)
+    private val densityError = MutableStateFlow<String?>(null)
+    private val timelineAnchor = MutableStateFlow<TimelineAnchor?>(null)
 
     private val queryState = combine(
         query,
@@ -117,45 +159,61 @@ class HomeViewModel @Inject constructor(
         availableTags,
         unselectedTags,
         isUntaggedUnselected,
-        isFilterPanelOpen,
-    ) { currentTags, currentUnselectedTags, currentIsUntaggedUnselected, currentIsFilterPanelOpen ->
+        showTagBar,
+    ) { currentTags, currentUnselectedTags, currentIsUntaggedUnselected, currentShowTagBar ->
         HomeFilterState(
             availableTags = currentTags,
             unselectedTags = currentUnselectedTags.intersect(currentTags.toSet()),
             isUntaggedUnselected = currentIsUntaggedUnselected,
-            isFilterPanelOpen = currentIsFilterPanelOpen,
+            showTagBar = currentShowTagBar,
         )
     }
 
     private val homeFeedState = combine(
-        recentPortal.state,
-        recentSessionsPortal.state,
-        filteredPortalState,
+        timelinePortalState,
         filterState,
-    ) { recent, recentSessions, filtered, currentFilterState ->
-        val feedFilter = currentFilterState.toFeedFilter()
-        val useFilteredPortal = shouldUseFilteredPortal(feedFilter)
-        val showSessionFeed = currentFilterState.shouldShowSessionFeed()
-
-        val noteFeed = if (useFilteredPortal) filtered else recent
-        val homeNotes = noteFeed.items.map { record -> record.toUiNote() }
-        val sessionGroups = recentSessions.items.map { session -> session.toUiSessionGroup() }
+    ) { timeline, currentFilterState ->
+        val homeNotes = timeline.items.map { record -> record.toUiNote() }
 
         HomeFeedState(
             notes = homeNotes,
-            sessionGroups = sessionGroups,
-            isLoading = if (showSessionFeed) recentSessions.isLoading else noteFeed.isLoading,
-            hasMore = if (showSessionFeed) recentSessions.hasMore else noteFeed.hasMore,
-            isFilterPanelOpen = currentFilterState.isFilterPanelOpen,
-            showSessionFeed = showSessionFeed,
+            isLoading = timeline.isLoading,
+            hasMore = timeline.hasMore,
+            showTagBar = currentFilterState.showTagBar,
             availableTags = currentFilterState.availableTags,
             unselectedTags = currentFilterState.unselectedTags,
             isUntaggedUnselected = currentFilterState.isUntaggedUnselected,
-            errorMessage = if (showSessionFeed) {
-                recentSessions.error?.message
-            } else {
-                noteFeed.error?.message
+            errorMessage = timeline.error?.message,
+        )
+    }
+
+    private val timelineBrowserState = combine(
+        browserSelectedDate,
+        densityPoints,
+        isDensityLoading,
+        densityError,
+    ) { currentBrowserDate, currentDensityPoints, currentDensityLoading, currentDensityError ->
+        TimelineBrowserUiState(
+            selectedDate = currentBrowserDate,
+            densityPoints = currentDensityPoints.map { point ->
+                TimelineDensityPoint(
+                    startedAt = point.startedAt,
+                    endedAt = point.endedAt,
+                    noteCount = point.noteCount,
+                )
             },
+            isDensityLoading = currentDensityLoading,
+            densityErrorMessage = currentDensityError,
+        )
+    }
+
+    private val homeDisplayState = combine(
+        showTimeGroups,
+        showTimelineJumpTool,
+    ) { currentShowTimeGroups, currentShowTimelineJumpTool ->
+        HomeDisplayState(
+            showTimeGroups = currentShowTimeGroups,
+            showTimelineJumpTool = currentShowTimelineJumpTool,
         )
     }
 
@@ -163,19 +221,21 @@ class HomeViewModel @Inject constructor(
         homeFeedState,
         queryState,
         feedError,
-    ) { currentHomeFeed, currentState, currentFeedError ->
+        timelineBrowserState,
+        homeDisplayState,
+    ) { currentHomeFeed, currentState, currentFeedError, currentTimelineBrowser, currentDisplayState ->
         val searchMode = currentState.query.isNotBlank()
 
         HomeUiState(
             query = currentState.query,
             notes = if (searchMode) currentState.searchResults.map { it.note } else currentHomeFeed.notes,
             searchResults = currentState.searchResults,
-            sessionGroups = if (searchMode) emptyList() else currentHomeFeed.sessionGroups,
             isLoading = if (searchMode) currentState.isSearchLoading else currentHomeFeed.isLoading,
             hasMore = if (searchMode) false else currentHomeFeed.hasMore,
             isSearchMode = searchMode,
-            isFilterPanelOpen = currentHomeFeed.isFilterPanelOpen,
-            showSessionFeed = !searchMode && currentHomeFeed.showSessionFeed,
+            showTagBar = currentHomeFeed.showTagBar,
+            showTimeGroups = currentDisplayState.showTimeGroups && !searchMode,
+            showTimelineJumpTool = currentDisplayState.showTimelineJumpTool && !searchMode,
             availableTags = currentHomeFeed.availableTags,
             unselectedTags = currentHomeFeed.unselectedTags,
             isUntaggedUnselected = currentHomeFeed.isUntaggedUnselected,
@@ -184,6 +244,7 @@ class HomeViewModel @Inject constructor(
             } else {
                 currentHomeFeed.errorMessage ?: currentFeedError
             },
+            timelineBrowser = currentTimelineBrowser,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -241,6 +302,24 @@ class HomeViewModel @Inject constructor(
 
         viewModelScope.launch {
             loadMoreHomeFeed()
+        }
+    }
+
+    fun openTimelineBrowser() {
+        viewModelScope.launch {
+            refreshTimelineDensity()
+        }
+    }
+
+    fun selectTimelineBrowserDate(date: LocalDate) {
+        browserSelectedDate.value = date
+        timelineAnchor.value = TimelineAnchor(date)
+        timelinePortal = null
+        timelinePortalKey = null
+        timelinePortalState.value = PortalState()
+        viewModelScope.launch {
+            refreshHomeFeed()
+            refreshTimelineDensity()
         }
     }
 
@@ -326,20 +405,34 @@ class HomeViewModel @Inject constructor(
 
     // ================================================================
 
-    fun setFilterPanelOpen(isOpen: Boolean) {
-        if (isFilterPanelOpen.value == isOpen) {
+    fun setHomeDisplayOptions(
+        tagBarEnabled: Boolean,
+        timeGroupsEnabled: Boolean,
+        timelineJumpToolEnabled: Boolean,
+    ) {
+        if (
+            showTagBar.value == tagBarEnabled &&
+            showTimeGroups.value == timeGroupsEnabled &&
+            showTimelineJumpTool.value == timelineJumpToolEnabled
+        ) {
             return
         }
 
-        isFilterPanelOpen.value = isOpen
-
-        if (!isOpen) {
-            resetTagSelection()
-        }
+        showTagBar.value = tagBarEnabled
+        showTimeGroups.value = timeGroupsEnabled
+        showTimelineJumpTool.value = timelineJumpToolEnabled
+        prefs.edit()
+            .putBoolean(HomeDisplayPrefs.SHOW_TAG_BAR, tagBarEnabled)
+            .putBoolean(HomeDisplayPrefs.SHOW_TIME_GROUPS, timeGroupsEnabled)
+            .putBoolean(HomeDisplayPrefs.SHOW_TIMELINE_JUMP_TOOL, timelineJumpToolEnabled)
+            .apply()
 
         if (query.value.isBlank()) {
             viewModelScope.launch {
                 refreshHomeFeed()
+                if (timelineJumpToolEnabled) {
+                    refreshTimelineDensity()
+                }
             }
         }
     }
@@ -380,27 +473,32 @@ class HomeViewModel @Inject constructor(
             availableTags = currentTags,
             unselectedTags = effectiveUnselectedTags,
             isUntaggedUnselected = isUntaggedUnselected.value,
-            isFilterPanelOpen = isFilterPanelOpen.value,
+            showTagBar = showTagBar.value,
         ).toFeedFilter()
     }
 
-    private fun shouldUseFilteredPortal(filter: NoteFeedFilter): Boolean =
-        filter.tagFilterEnabled
-
-    private fun ensureFilteredPortal(filter: NoteFeedFilter): CursorPortal<NoteRecord> {
-        if (filteredPortal == null || filteredPortalKey != filter) {
-            filteredPortalKey = filter
-            filteredPortal = repository.openFilteredPortal(filter, limit = pageLimit)
-            filteredPortalState.value = filteredPortal!!.state.value
+    private fun ensureTimelinePortal(filter: NoteFeedFilter): CursorPortal<NoteRecord> {
+        val anchor = timelineAnchor.value
+        val key = filter to anchor
+        if (timelinePortal == null || timelinePortalKey != key) {
+            timelinePortalKey = key
+            timelinePortal = if (anchor == null) {
+                repository.openTimelinePortal(filter, limit = pageLimit)
+            } else {
+                repository.openTimelineAroundPortal(
+                    filter = filter,
+                    timestampMs = dateEndTimestampMs(anchor.date),
+                    limit = pageLimit,
+                )
+            }
+            timelinePortalState.value = timelinePortal!!.state.value
         }
 
-        return filteredPortal!!
+        return timelinePortal!!
     }
 
     private fun invalidateHomePortals() {
-        recentPortal.invalidate()
-        recentSessionsPortal.invalidate()
-        filteredPortal?.invalidate()
+        timelinePortal?.invalidate()
     }
 
     private suspend fun refreshAvailableTags() {
@@ -417,35 +515,48 @@ class HomeViewModel @Inject constructor(
 
     private suspend fun refreshHomeFeed() {
         val filter = currentHomeFilter()
+        val portal = ensureTimelinePortal(filter)
+        portal.refresh()
+        timelinePortalState.value = portal.state.value
+    }
 
-        if (isFilterPanelOpen.value) {
-            if (shouldUseFilteredPortal(filter)) {
-                val portal = ensureFilteredPortal(filter)
-                portal.refresh()
-                filteredPortalState.value = portal.state.value
-            } else {
-                recentPortal.refresh()
-            }
-        } else {
-            recentSessionsPortal.refresh()
-        }
+    private suspend fun refreshTimelineDensity() {
+        val selectedDate = browserSelectedDate.value
+        val startDate = selectedDate.minusDays(6)
+        val endDate = selectedDate.plusDays(8)
+        val zone = ZoneId.systemDefault()
+        val startMs = startDate.atStartOfDay(zone).toInstant().toEpochMilli().toULong()
+        val endMs = endDate.atStartOfDay(zone).toInstant().toEpochMilli().toULong()
+        val dayMs = 24UL * 60UL * 60UL * 1000UL
+
+        isDensityLoading.value = true
+        densityError.value = null
+        runCatching {
+            repository.getTimelineDensity(
+                filter = currentHomeFilter().copy(groupSessions = false),
+                startMs = startMs,
+                endMs = endMs,
+                bucketMs = dayMs,
+            )
+        }.fold(
+            onSuccess = { points ->
+                densityPoints.value = points
+                isDensityLoading.value = false
+            },
+            onFailure = { throwable ->
+                densityPoints.value = emptyList()
+                isDensityLoading.value = false
+                densityError.value = throwable.message ?: "Unable to load timeline density"
+            },
+        )
     }
 
     private suspend fun loadMoreHomeFeed() {
         val filter = currentHomeFilter()
-
-        if (isFilterPanelOpen.value) {
-            if (shouldUseFilteredPortal(filter)) {
-                val portal = ensureFilteredPortal(filter)
-                if (portal.state.value.hasMore) {
-                    portal.loadNext()
-                    filteredPortalState.value = portal.state.value
-                }
-            } else if (recentPortal.state.value.hasMore) {
-                recentPortal.loadNext()
-            }
-        } else if (recentSessionsPortal.state.value.hasMore) {
-            recentSessionsPortal.loadNext()
+        val portal = ensureTimelinePortal(filter)
+        if (portal.state.value.hasMore) {
+            portal.loadNext()
+            timelinePortalState.value = portal.state.value
         }
     }
 
@@ -460,8 +571,22 @@ class HomeViewModel @Inject constructor(
     private fun resetTagSelection() {
         unselectedTags.value = emptySet()
         isUntaggedUnselected.value = false
-        filteredPortal = null
-        filteredPortalKey = null
-        filteredPortalState.value = PortalState()
+        timelinePortal = null
+        timelinePortalKey = null
+        timelinePortalState.value = PortalState()
+    }
+
+    private fun dateEndTimestampMs(date: LocalDate): ULong {
+        val zone = ZoneId.systemDefault()
+        val millis = date
+            .plusDays(1)
+            .atStartOfDay(zone)
+            .toInstant()
+            .toEpochMilli()
+            .saturatingMinus(1L)
+        return millis.toULong()
     }
 }
+
+private fun Long.saturatingMinus(value: Long): Long =
+    if (this < Long.MIN_VALUE + value) Long.MIN_VALUE else this - value

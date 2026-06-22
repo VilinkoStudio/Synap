@@ -17,7 +17,7 @@ import com.synap.app.data.model.StarmapPointRecord
 import com.synap.app.data.model.SyncSession
 import com.synap.app.data.model.SyncSessionRecord
 import com.synap.app.data.model.TimelineDirection
-import com.synap.app.data.model.TimelineSessionRecord
+import com.synap.app.data.model.TimelineDensityPointRecord
 import com.synap.app.data.portal.CursorPage
 import java.io.InputStream
 import java.io.OutputStream
@@ -73,11 +73,6 @@ interface SynapServiceApi {
         limit: UInt?,
     ): Result<CursorPage<NoteRecord>>
 
-    suspend fun getRecentSessionsPage(
-        cursor: String?,
-        limit: UInt?,
-    ): Result<CursorPage<TimelineSessionRecord>>
-
     suspend fun getOrigins(childId: String): Result<List<NoteRecord>>
 
     suspend fun getNoteSegment(
@@ -126,6 +121,27 @@ interface SynapServiceApi {
         direction: TimelineDirection,
         limit: UInt?,
     ): Result<CursorPage<NoteRecord>>
+
+    suspend fun getTimelineNotesPage(
+        filter: NoteFeedFilter,
+        cursor: String?,
+        direction: TimelineDirection,
+        limit: UInt?,
+    ): Result<CursorPage<NoteRecord>>
+
+    suspend fun getTimelineNotesAround(
+        filter: NoteFeedFilter,
+        timestampMs: ULong,
+        direction: TimelineDirection,
+        limit: UInt?,
+    ): Result<CursorPage<NoteRecord>>
+
+    suspend fun getTimelineDensity(
+        filter: NoteFeedFilter,
+        startMs: ULong,
+        endMs: ULong,
+        bucketMs: ULong,
+    ): Result<List<TimelineDensityPointRecord>>
 
     suspend fun createNote(content: String, tags: List<String>): Result<NoteRecord>
 

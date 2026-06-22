@@ -78,10 +78,10 @@
     <string name="home_undo_delete">실행 취소</string>
     <string name="home_filter_all">전체</string>
     <string name="home_filter_untagged">미분류</string>
-    <string name="home_feed_waterfall">워터폴</string>
-    <string name="home_feed_timeline">타임라인</string>
     <string name="setting_show_tag_bar">태그 바</string>
     <string name="setting_show_tag_bar_desc">홈 화면에 태그 필터 바 표시</string>
+    <string name="setting_show_timeline_jump_tool">Timeline Jump Tool</string>
+    <string name="setting_show_timeline_jump_tool_desc">Show time browsing and quick jump controls on home</string>
     <string name="setting_collapse_nav_buttons">내비게이션 버튼 접기</string>
     <string name="setting_collapse_nav_buttons_desc">이 옵션은 휴대폰 레이아웃에만 적용되며 대화면 레이아웃에는 적용되지 않습니다</string>
     <string name="setting_scan_method">스캔 방식</string>
@@ -101,10 +101,10 @@
     <string name="setting_scan_custom_dialog_text">시스템 스캔 앱의 패키지 이름을 입력하세요(WeChat, QQ 등은 입력하지 마세요).</string>
     <string name="setting_scan_custom_package_name">패키지 이름</string>
     <string name="setting_scan_custom_dialog_hint">예: com.example.scanner</string>
+    <string name="setting_home_display_options">Home Composition</string>
     <string name="setting_home_layout">레이아웃</string>
-    <string name="setting_home_layout_mode">레이아웃 모드</string>
-    <string name="setting_home_layout_waterfall_desc">노트를 워터폴 레이아웃으로 표시</string>
-    <string name="setting_home_layout_timeline_desc">노트를 시간순으로 그룹 표시</string>
+    <string name="setting_show_time_groups">Time Groups</string>
+    <string name="setting_show_time_groups_desc">Show time group headers in the home note feed</string>
     <string name="content_desc_search">검색</string>
     <string name="content_desc_settings">설정</string>
     <string name="edit_hint_reply">다음에 대한 답글</string>

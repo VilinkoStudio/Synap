@@ -6,6 +6,13 @@ data class NoteBrief(
     val createdAt: Long,
 )
 
+data class TimelineGroup(
+    val startsGroup: Boolean,
+    val startedAt: Long,
+    val endedAt: Long,
+    val noteCount: Int,
+)
+
 data class Note(
     val id: String,
     val content: String,
@@ -15,6 +22,7 @@ data class Note(
     val isDeleted: Boolean = false,
     val replyTo: NoteBrief? = null,
     val editedFrom: NoteBrief? = null,
+    val timelineGroup: TimelineGroup? = null,
 )
 
 data class NoteVersionDiffStats(

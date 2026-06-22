@@ -21,6 +21,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -61,6 +63,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -75,11 +78,14 @@ import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -90,15 +96,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -109,19 +116,23 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.synap.app.R
 import com.synap.app.ui.components.ShareExportSheet
-import com.synap.app.ui.components.HomeNoteFeed
-import com.synap.app.ui.components.HomeSessionFeed
+import com.synap.app.ui.components.HomeTimelineFeed
 import com.synap.app.ui.model.Note
 import com.synap.app.ui.util.NoteColorUtil
 import com.synap.app.ui.viewmodel.HomeUiState
+import com.synap.app.ui.viewmodel.TimelineBrowserUiState
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.sin
 import androidx.compose.runtime.saveable.rememberSaveable
+import java.time.LocalDate
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import kotlin.math.cos
+import kotlin.math.max
+import kotlin.math.min
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -137,8 +148,9 @@ fun HomeScreen(
     onOpenStarmap: () -> Unit,
     onOpenTrash: () -> Unit,
     onLoadMore: () -> Unit,
+    onOpenTimelineBrowser: () -> Unit,
+    onSelectTimelineDate: (LocalDate) -> Unit,
     onRefresh: () -> Unit,
-    onSetFilterPanelOpen: (Boolean) -> Unit,
     onToggleTagFilter: (String) -> Unit,
     onToggleUntaggedFilter: () -> Unit,
     onToggleAllTags: () -> Unit,
@@ -150,20 +162,14 @@ fun HomeScreen(
     val clipboardManager = LocalClipboardManager.current
     val prefs = remember { context.getSharedPreferences("synap_prefs", Context.MODE_PRIVATE) }
     val isNavCollapsed = remember { prefs.getBoolean("is_nav_collapsed", false) }
-    val showTagBar = remember { prefs.getBoolean("show_tag_bar", true) }
     val widgetAlignment = remember { prefs.getString("widget_alignment", "default") ?: "default" }
 
     val navVisibilityScope = animatedVisibilityScope
 
     val noteGridState = rememberLazyStaggeredGridState()
-    val sessionGridState = rememberLazyStaggeredGridState()
     val scope = rememberCoroutineScope()
 
-    val isFeed = !uiState.showSessionFeed
-
     LaunchedEffect(Unit) {
-        val savedMode = prefs.getBoolean("is_waterfall_mode", true)
-        onSetFilterPanelOpen(savedMode)
         onRefresh()
     }
 
@@ -181,6 +187,8 @@ fun HomeScreen(
     var showNavMenu by remember { mutableStateOf(false) }
 
     var showShareBottomSheet by remember { mutableStateOf(false) }
+    var showTimelineBrowser by remember { mutableStateOf(false) }
+    val timelineBrowserSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
 
     BackHandler(enabled = isSelectionMode) {
         isSelectionMode = false
@@ -233,25 +241,15 @@ fun HomeScreen(
         }
     }
 
-    val isShowingSessionFeed = uiState.showSessionFeed && !uiState.isSearchMode
-
-    val isScrolledDown by remember(noteGridState, sessionGridState, isShowingSessionFeed) {
+    val isScrolledDown by remember(noteGridState) {
         derivedStateOf {
-            if (isShowingSessionFeed) {
-                sessionGridState.firstVisibleItemIndex > 0 || sessionGridState.firstVisibleItemScrollOffset > 100
-            } else {
-                noteGridState.firstVisibleItemIndex > 0 || noteGridState.firstVisibleItemScrollOffset > 100
-            }
+            noteGridState.firstVisibleItemIndex > 0 || noteGridState.firstVisibleItemScrollOffset > 100
         }
     }
 
-    val isAtTop by remember(noteGridState, sessionGridState, isShowingSessionFeed) {
+    val isAtTop by remember(noteGridState) {
         derivedStateOf {
-            if (isShowingSessionFeed) {
-                sessionGridState.firstVisibleItemIndex == 0 && sessionGridState.firstVisibleItemScrollOffset <= 10
-            } else {
-                noteGridState.firstVisibleItemIndex == 0 && noteGridState.firstVisibleItemScrollOffset <= 10
-            }
+            noteGridState.firstVisibleItemIndex == 0 && noteGridState.firstVisibleItemScrollOffset <= 10
         }
     }
 
@@ -261,26 +259,8 @@ fun HomeScreen(
             .filter { it.id !in pendingDeleteNoteIds }
     }
 
-    val displaySessionGroups = remember(uiState.sessionGroups, pendingDeleteNoteIds) {
-        uiState.sessionGroups
-            .mapNotNull { session ->
-                val notes = session.notes
-                    .distinctBy { it.id }
-                    .filter { it.id !in pendingDeleteNoteIds }
-                if (notes.isEmpty()) {
-                    null
-                } else {
-                    session.copy(
-                        noteCount = notes.size,
-                        notes = notes,
-                    )
-                }
-            }
-    }
-
     fun deleteSelectedNotes() {
-        val notesToDelete = displayNotes.filter { it.id in selectedNoteIds } +
-                displaySessionGroups.flatMap { it.notes }.filter { it.id in selectedNoteIds }
+        val notesToDelete = displayNotes.filter { it.id in selectedNoteIds }
 
         notesToDelete.distinctBy { it.id }.forEach { note ->
             onToggleDeleted(note)
@@ -290,49 +270,7 @@ fun HomeScreen(
         selectedNoteIds = emptySet()
     }
 
-    val shouldLoadMore by remember(
-        noteGridState,
-        displayNotes,
-        uiState.hasMore,
-        uiState.isLoading,
-        isShowingSessionFeed,
-    ) {
-        derivedStateOf {
-            if (isShowingSessionFeed) {
-                false
-            } else {
-                val lastVisible = noteGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-                uiState.hasMore &&
-                        !uiState.isLoading &&
-                        displayNotes.isNotEmpty() &&
-                        lastVisible >= displayNotes.lastIndex - 4
-            }
-        }
-    }
-
-    val isActiveFeedEmpty = if (isShowingSessionFeed) {
-        displaySessionGroups.isEmpty()
-    } else {
-        displayNotes.isEmpty()
-    }
-
-    LaunchedEffect(
-        noteGridState,
-        sessionGridState,
-        uiState.hasMore,
-        uiState.isLoading,
-        uiState.isSearchMode,
-        isShowingSessionFeed,
-    ) {
-        snapshotFlow { shouldLoadMore }
-            .map { it && !uiState.isSearchMode }
-            .distinctUntilChanged()
-            .collectLatest { ready ->
-                if (ready) {
-                    onLoadMore()
-                }
-            }
-    }
+    val isActiveFeedEmpty = displayNotes.isEmpty()
 
     val openScanner = {
         val scanPrefs = context.getSharedPreferences("synap_prefs", Context.MODE_PRIVATE)
@@ -469,6 +407,20 @@ fun HomeScreen(
             noteIds = selectedNoteIds.toList(),
             onDismiss = { showShareBottomSheet = false },
             exportShare = onExportShare,
+        )
+    }
+
+    if (showTimelineBrowser) {
+        TimelineBrowserSheet(
+            uiState = uiState.timelineBrowser,
+            onDismiss = { showTimelineBrowser = false },
+            onSelectDate = { date ->
+                onSelectTimelineDate(date)
+                scope.launch {
+                    noteGridState.scrollToItem(0)
+                }
+            },
+            sheetState = timelineBrowserSheetState,
         )
     }
 
@@ -637,44 +589,26 @@ fun HomeScreen(
                 }
             }
             else -> {
-                if (isShowingSessionFeed) {
-                    HomeSessionFeed(
-                        sessions = displaySessionGroups,
-                        state = sessionGridState,
-                        hasMore = uiState.hasMore,
-                        isLoadingMore = uiState.isLoading,
-                        onLoadMore = onLoadMore,
-                        isSelectionMode = isSelectionMode,
-                        selectedNoteIds = selectedNoteIds,
-                        onToggleSelection = ::toggleSelection,
-                        onEnterSelectionMode = { id -> isSelectionMode = true; toggleSelection(id) },
-                        onOpenNote = onOpenNote,
-                        onToggleDeleted = { note ->
-                            if (!note.isDeleted) showUndoForDeletedNote(note) else onToggleDeleted(note)
-                        },
-                        onReplyToNote = onReplyToNote,
-                        bottomInset = bottomInset,
-                        sharedTransitionScope = sharedTransitionScope,
-                        animatedVisibilityScope = navVisibilityScope,
-                    )
-                } else {
-                    HomeNoteFeed(
-                        notes = displayNotes,
-                        state = noteGridState,
-                        bottomInset = bottomInset,
-                        isSelectionMode = isSelectionMode,
-                        selectedNoteIds = selectedNoteIds,
-                        onToggleSelection = ::toggleSelection,
-                        onEnterSelectionMode = { id -> isSelectionMode = true; toggleSelection(id) },
-                        onOpenNote = onOpenNote,
-                        onToggleDeleted = { note ->
-                            if (!note.isDeleted) showUndoForDeletedNote(note) else onToggleDeleted(note)
-                        },
-                        onReplyToNote = onReplyToNote,
-                        sharedTransitionScope = sharedTransitionScope,
-                        animatedVisibilityScope = navVisibilityScope,
-                    )
-                }
+                HomeTimelineFeed(
+                    notes = displayNotes,
+                    showTimeGroups = uiState.showTimeGroups,
+                    state = noteGridState,
+                    bottomInset = bottomInset,
+                    hasMore = uiState.hasMore && !uiState.isSearchMode,
+                    isLoadingMore = uiState.isLoading,
+                    onLoadMore = onLoadMore,
+                    isSelectionMode = isSelectionMode,
+                    selectedNoteIds = selectedNoteIds,
+                    onToggleSelection = ::toggleSelection,
+                    onEnterSelectionMode = { id -> isSelectionMode = true; toggleSelection(id) },
+                    onOpenNote = onOpenNote,
+                    onToggleDeleted = { note ->
+                        if (!note.isDeleted) showUndoForDeletedNote(note) else onToggleDeleted(note)
+                    },
+                    onReplyToNote = onReplyToNote,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedVisibilityScope = navVisibilityScope,
+                )
             }
         }
     }
@@ -748,7 +682,6 @@ fun HomeScreen(
                 onClick = {
                     val noteId = selectedNoteIds.first()
                     val note = displayNotes.find { it.id == noteId }
-                        ?: displaySessionGroups.flatMap { it.notes }.find { it.id == noteId }
 
                     if (note != null) {
                         val hasMarkdown = Regex("(\\*\\*\\*|\\*\\*|\\*|~~|<u>|==|^#{1,6} |^> |^-\\s+\\[[ x]\\]\\s|^-\\s|^\\d+\\.\\s)", RegexOption.MULTILINE).containsMatchIn(note.content)
@@ -858,17 +791,26 @@ fun HomeScreen(
                     FloatingActionButton(
                         onClick = {
                             scope.launch {
-                                if (isShowingSessionFeed) {
-                                    sessionGridState.animateScrollToItem(0)
-                                } else {
-                                    noteGridState.animateScrollToItem(0)
-                                }
+                                noteGridState.animateScrollToItem(0)
                             }
                         },
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                     ) {
-                        Icon(Icons.Filled.VerticalAlignTop, contentDescription = stringResource(R.string.backtop))
+                    Icon(Icons.Filled.VerticalAlignTop, contentDescription = stringResource(R.string.backtop))
+                    }
+                }
+
+                if (uiState.showTimelineJumpTool) {
+                    FloatingActionButton(
+                        onClick = {
+                            showTimelineBrowser = true
+                            onOpenTimelineBrowser()
+                        },
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                    ) {
+                        Icon(Icons.Filled.CalendarMonth, contentDescription = "时间浏览")
                     }
                 }
 
@@ -1017,9 +959,8 @@ fun HomeScreen(
 
                     Spacer(Modifier.height(16.dp))
 
-                    // 5. 瀑布流换行展示的标签区域
                     AnimatedVisibility(
-                        visible = !isShowingSessionFeed && !uiState.isSearchMode && !isSelectionMode && showTagBar
+                        visible = uiState.showTagBar && !uiState.isSearchMode && !isSelectionMode
                     ) {
                         Column {
                             Text("标签", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
@@ -1222,7 +1163,7 @@ fun HomeScreen(
                 ) {
                     Column(modifier = Modifier.fillMaxSize()) {
                         AnimatedVisibility(
-                            visible = !isShowingSessionFeed && !uiState.isSearchMode && !isSelectionMode && showTagBar,
+                            visible = uiState.showTagBar && !uiState.isSearchMode && !isSelectionMode,
                             enter = expandVertically() + fadeIn(),
                             exit = shrinkVertically() + fadeOut()
                         ) {
@@ -1261,6 +1202,296 @@ fun stripMarkdown(text: String): String {
     result = result.replace(Regex("^-\\s+", RegexOption.MULTILINE), "")
     result = result.replace(Regex("^\\d+\\.\\s+", RegexOption.MULTILINE), "")
     return result
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
+@Composable
+private fun TimelineBrowserSheet(
+    uiState: TimelineBrowserUiState,
+    onDismiss: () -> Unit,
+    onSelectDate: (LocalDate) -> Unit,
+    sheetState: SheetState,
+) {
+    val quickDates = remember { buildTimelineQuickDates() }
+    val titleFormatter = remember { DateTimeFormatter.ofPattern("M月d日") }
+    val fullFormatter = remember { DateTimeFormatter.ofPattern("yyyy年M月d日") }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text(
+                text = "时间浏览",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = "主面板已定位到 ${uiState.selectedDate.format(fullFormatter)} 附近",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(vertical = 2.dp),
+            ) {
+                items(quickDates, key = { it.label }) { item ->
+                    FilterChip(
+                        selected = item.date == uiState.selectedDate,
+                        onClick = { onSelectDate(item.date) },
+                        label = { Text(item.label) },
+                    )
+                }
+            }
+            TimelineDensityWheel(
+                uiState = uiState,
+                onSelectDate = onSelectDate,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = { onSelectDate(uiState.selectedDate.minusDays(1)) }) {
+                    Text("前一天")
+                }
+                Text(
+                    text = uiState.selectedDate.format(titleFormatter),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                TextButton(onClick = { onSelectDate(uiState.selectedDate.plusDays(1)) }) {
+                    Text("后一天")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimelineDensityWheel(
+    uiState: TimelineBrowserUiState,
+    onSelectDate: (LocalDate) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val zone = remember { ZoneId.systemDefault() }
+    val points = uiState.densityPoints
+    val selectedDate = uiState.selectedDate
+    val maxCount = points.maxOfOrNull { it.noteCount }?.coerceAtLeast(1) ?: 1
+    val primary = MaterialTheme.colorScheme.primary
+    val tertiary = MaterialTheme.colorScheme.tertiary
+    val outline = MaterialTheme.colorScheme.outlineVariant
+    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(modifier = modifier) {
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(points, selectedDate) {
+                        detectTapGestures { offset ->
+                            val date = nearestTimelinePointDate(
+                                points = points,
+                                offset = offset,
+                                width = size.width.toFloat(),
+                                height = size.height.toFloat(),
+                                zone = zone,
+                                requireCloseHit = true,
+                            )
+                            if (date != null) {
+                                onSelectDate(date)
+                            }
+                        }
+                    }
+                    .pointerInput(points, selectedDate) {
+                        var lastDragDate: LocalDate? = null
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                lastDragDate = nearestTimelinePointDate(
+                                    points = points,
+                                    offset = offset,
+                                    width = size.width.toFloat(),
+                                    height = size.height.toFloat(),
+                                    zone = zone,
+                                    requireCloseHit = false,
+                                )
+                                lastDragDate?.let { date ->
+                                    if (date != selectedDate) {
+                                        onSelectDate(date)
+                                    }
+                                }
+                            },
+                            onDrag = { change, _ ->
+                                val date = nearestTimelinePointDate(
+                                    points = points,
+                                    offset = change.position,
+                                    width = size.width.toFloat(),
+                                    height = size.height.toFloat(),
+                                    zone = zone,
+                                    requireCloseHit = false,
+                                )
+                                if (date != null && date != lastDragDate) {
+                                    lastDragDate = date
+                                    onSelectDate(date)
+                                }
+                            },
+                        )
+                    },
+            ) {
+                val centerX = size.width / 2f
+                val centerY = size.height + 8f
+                val radius = timelineWheelRadius(size.width, size.height)
+                val selectedStart = selectedDate.atStartOfDay(zone).toInstant().toEpochMilli()
+                val selectedEnd = selectedDate.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+
+                drawArc(
+                    color = outline.copy(alpha = 0.55f),
+                    startAngle = 180f,
+                    sweepAngle = 180f,
+                    useCenter = false,
+                    topLeft = Offset(centerX - radius, centerY - radius),
+                    size = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f),
+                    style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round),
+                )
+
+                points.forEachIndexed { index, point ->
+                    val angle = timelineWheelAngle(timelineWheelFraction(index, points.size))
+                    val x = centerX + (cos(angle) * radius).toFloat()
+                    val y = centerY - (kotlin.math.sin(angle) * radius).toFloat()
+                    val normalized = point.noteCount / maxCount.toFloat()
+                    val pointRadius = 4.dp.toPx() + 12.dp.toPx() * normalized
+                    val isSelected = point.startedAt < selectedEnd && point.endedAt >= selectedStart
+                    val color = if (isSelected) primary else if (point.noteCount > 0) tertiary else onSurfaceVariant.copy(alpha = 0.35f)
+
+                    if (point.noteCount > 0) {
+                        val barLength = 10.dp.toPx() + 22.dp.toPx() * normalized
+                        val innerRadius = radius - barLength
+                        val innerX = centerX + (cos(angle) * innerRadius).toFloat()
+                        val innerY = centerY - (kotlin.math.sin(angle) * innerRadius).toFloat()
+                        drawLine(
+                            color = color.copy(alpha = if (isSelected) 0.92f else 0.5f),
+                            start = Offset(innerX, innerY),
+                            end = Offset(x, y),
+                            strokeWidth = if (isSelected) 4.dp.toPx() else 2.dp.toPx(),
+                            cap = StrokeCap.Round,
+                        )
+                    }
+
+                    if (isSelected) {
+                        drawCircle(
+                            color = primary.copy(alpha = 0.14f),
+                            radius = pointRadius + 8.dp.toPx(),
+                            center = Offset(x, y),
+                        )
+                    }
+
+                    drawCircle(
+                        color = color.copy(alpha = if (point.noteCount > 0 || isSelected) 1f else 0.45f),
+                        radius = if (isSelected) pointRadius + 3.dp.toPx() else pointRadius,
+                        center = Offset(x, y),
+                    )
+                }
+            }
+            if (uiState.isDensityLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(28.dp),
+                    strokeWidth = 2.dp,
+                )
+            }
+        }
+        val selectedCount = points.firstOrNull { point ->
+            val selectedStart = selectedDate.atStartOfDay(zone).toInstant().toEpochMilli()
+            val selectedEnd = selectedDate.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+            point.startedAt < selectedEnd && point.endedAt >= selectedStart
+        }?.noteCount ?: 0
+        Text(
+            text = "${selectedDate.format(DateTimeFormatter.ofPattern("M月d日"))} · $selectedCount 条",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+        )
+        uiState.densityErrorMessage?.let { message ->
+            Text(
+                text = message,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
+        }
+    }
+}
+
+private data class TimelineQuickDate(
+    val label: String,
+    val date: LocalDate,
+)
+
+private fun nearestTimelinePointDate(
+    points: List<com.synap.app.ui.viewmodel.TimelineDensityPoint>,
+    offset: Offset,
+    width: Float,
+    height: Float,
+    zone: ZoneId,
+    requireCloseHit: Boolean,
+): LocalDate? {
+    if (points.isEmpty()) {
+        return null
+    }
+
+    val centerX = width / 2f
+    val centerY = height + 8f
+    val radius = timelineWheelRadius(width, height)
+    val hitRadius = 34f
+    val nearest = points
+        .mapIndexed { index, point ->
+            val angle = timelineWheelAngle(timelineWheelFraction(index, points.size))
+            val x = centerX + (cos(angle) * radius).toFloat()
+            val y = centerY - (kotlin.math.sin(angle) * radius).toFloat()
+            val distanceSquared = ((offset.x - x) * (offset.x - x)) + ((offset.y - y) * (offset.y - y))
+            point to distanceSquared
+        }
+        .minByOrNull { it.second }
+        ?: return null
+
+    if (requireCloseHit && nearest.second > hitRadius * hitRadius) {
+        return null
+    }
+
+    return Instant
+        .ofEpochMilli(nearest.first.startedAt)
+        .atZone(zone)
+        .toLocalDate()
+}
+
+private fun timelineWheelRadius(width: Float, height: Float): Float =
+    min(width * 0.44f, height * 0.92f)
+
+private fun timelineWheelFraction(index: Int, count: Int): Float =
+    if (count <= 1) 0.5f else index / (count - 1).toFloat()
+
+private fun timelineWheelAngle(fraction: Float): Double =
+    Math.toRadians(180.0 - (180.0 * fraction))
+
+private fun buildTimelineQuickDates(): List<TimelineQuickDate> {
+    val today = LocalDate.now()
+    return listOf(
+        TimelineQuickDate("今天", today),
+        TimelineQuickDate("昨天", today.minusDays(1)),
+        TimelineQuickDate("前天", today.minusDays(2)),
+        TimelineQuickDate("一周前", today.minusWeeks(1)),
+        TimelineQuickDate("一月前", today.minusMonths(1)),
+    )
 }
 
 @Composable

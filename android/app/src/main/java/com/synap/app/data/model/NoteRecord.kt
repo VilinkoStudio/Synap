@@ -8,6 +8,7 @@ import com.fuwaki.synap.bindings.uniffi.synap_coreffi.NoteTextChangeDto
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.NoteTextChangeKindDto
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.NoteVersionDiffDto
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.NoteVersionDto
+import com.fuwaki.synap.bindings.uniffi.synap_coreffi.TimelineGroupDto
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.TimelineNotesPageDto
 import com.synap.app.data.portal.CursorPage
 
@@ -25,6 +26,22 @@ data class NoteBriefRecord(
     }
 }
 
+data class TimelineGroupRecord(
+    val startsGroup: Boolean,
+    val startedAt: Long,
+    val endedAt: Long,
+    val noteCount: Int,
+) {
+    companion object {
+        fun fromDto(dto: TimelineGroupDto): TimelineGroupRecord = TimelineGroupRecord(
+            startsGroup = dto.startsGroup,
+            startedAt = dto.startedAt,
+            endedAt = dto.endedAt,
+            noteCount = dto.noteCount.toInt(),
+        )
+    }
+}
+
 data class NoteRecord(
     val id: String,
     val content: String,
@@ -33,6 +50,7 @@ data class NoteRecord(
     val deleted: Boolean,
     val replyTo: NoteBriefRecord? = null,
     val editedFrom: NoteBriefRecord? = null,
+    val timelineGroup: TimelineGroupRecord? = null,
 ) {
     companion object {
         fun fromDto(dto: NoteDto): NoteRecord = NoteRecord(
@@ -43,6 +61,7 @@ data class NoteRecord(
             deleted = dto.deleted,
             replyTo = dto.replyTo?.let(NoteBriefRecord::fromDto),
             editedFrom = dto.editedFrom?.let(NoteBriefRecord::fromDto),
+            timelineGroup = dto.timelineGroup?.let(TimelineGroupRecord::fromDto),
         )
     }
 }

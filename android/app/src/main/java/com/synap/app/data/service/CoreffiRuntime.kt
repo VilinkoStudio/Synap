@@ -28,7 +28,7 @@ import com.synap.app.data.model.StarmapPointRecord
 import com.synap.app.data.model.SyncSession
 import com.synap.app.data.model.SyncSessionRecord
 import com.synap.app.data.model.TimelineDirection
-import com.synap.app.data.model.TimelineSessionRecord
+import com.synap.app.data.model.TimelineDensityPointRecord
 import com.synap.app.data.model.toLocalIdentity
 import com.synap.app.data.model.toPeerRecord
 import com.synap.app.data.model.toPeerRecords
@@ -46,7 +46,7 @@ import com.synap.app.data.model.toNoteNeighborsRecord
 import com.synap.app.data.model.toNoteSegmentRecord
 import com.synap.app.data.model.toNoteVersionRecords
 import com.synap.app.data.model.toSearchResultRecords
-import com.synap.app.data.model.toCursorPage as toSessionCursorPage
+import com.synap.app.data.model.toTimelineDensityPointRecords
 import com.synap.app.data.portal.CursorPage
 import com.synap.app.di.IoDispatcher
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -279,14 +279,6 @@ class CoreffiRuntime @Inject constructor(
             service.getRecentNotesPage(cursor, direction.toFfiDirection(), limit).toCursorPage()
         }
 
-    override suspend fun getRecentSessionsPage(
-        cursor: String?,
-        limit: UInt?,
-    ): Result<CursorPage<TimelineSessionRecord>> =
-        withService { service ->
-            service.getRecentSessionsPage(cursor, limit).toSessionCursorPage()
-        }
-
     override suspend fun getOrigins(childId: String): Result<List<NoteRecord>> =
         withService { service -> service.getOrigins(childId).toNoteRecords() }
 
@@ -379,6 +371,62 @@ class CoreffiRuntime @Inject constructor(
                 direction.toFfiDirection(),
                 limit,
             ).toCursorPage()
+        }
+
+    override suspend fun getTimelineNotesPage(
+        filter: NoteFeedFilter,
+        cursor: String?,
+        direction: TimelineDirection,
+        limit: UInt?,
+    ): Result<CursorPage<NoteRecord>> =
+        withService { service ->
+            service.getTimelineNotesPage(
+                filter.selectedTags,
+                filter.includeUntagged,
+                filter.tagFilterEnabled,
+                filter.status.toFfiStatus(),
+                filter.groupSessions,
+                cursor,
+                direction.toFfiDirection(),
+                limit,
+            ).toCursorPage()
+        }
+
+    override suspend fun getTimelineNotesAround(
+        filter: NoteFeedFilter,
+        timestampMs: ULong,
+        direction: TimelineDirection,
+        limit: UInt?,
+    ): Result<CursorPage<NoteRecord>> =
+        withService { service ->
+            service.getTimelineNotesAround(
+                filter.selectedTags,
+                filter.includeUntagged,
+                filter.tagFilterEnabled,
+                filter.status.toFfiStatus(),
+                filter.groupSessions,
+                timestampMs,
+                direction.toFfiDirection(),
+                limit,
+            ).toCursorPage()
+        }
+
+    override suspend fun getTimelineDensity(
+        filter: NoteFeedFilter,
+        startMs: ULong,
+        endMs: ULong,
+        bucketMs: ULong,
+    ): Result<List<TimelineDensityPointRecord>> =
+        withService { service ->
+            service.getTimelineDensity(
+                filter.selectedTags,
+                filter.includeUntagged,
+                filter.tagFilterEnabled,
+                filter.status.toFfiStatus(),
+                startMs,
+                endMs,
+                bucketMs,
+            ).toTimelineDensityPointRecords()
         }
 
     override suspend fun createNote(content: String, tags: List<String>): Result<NoteRecord> =

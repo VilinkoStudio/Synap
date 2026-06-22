@@ -16,4 +16,5 @@ data class NoteFeedFilter(
     val includeUntagged: Boolean = true,
     val tagFilterEnabled: Boolean = false,
     val status: NoteFeedStatus = NoteFeedStatus.All,
+    val groupSessions: Boolean = false,
 )

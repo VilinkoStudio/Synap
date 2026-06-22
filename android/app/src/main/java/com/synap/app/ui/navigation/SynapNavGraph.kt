@@ -124,8 +124,9 @@ fun SynapNavGraph(
                         onOpenStarmap = { navController.navigate("starmap") },
                         onOpenTrash = { navController.navigate("trash") },
                         onLoadMore = viewModel::loadMore,
+                        onOpenTimelineBrowser = viewModel::openTimelineBrowser,
+                        onSelectTimelineDate = viewModel::selectTimelineBrowserDate,
                         onRefresh = viewModel::refresh,
-                        onSetFilterPanelOpen = viewModel::setFilterPanelOpen,
                         onToggleTagFilter = viewModel::toggleTag,
                         onToggleUntaggedFilter = viewModel::toggleUntagged,
                         onToggleAllTags = viewModel::toggleAllTags,
@@ -288,8 +289,12 @@ fun SynapNavGraph(
 
                 composable("setting_home_layout") {
                     val homeViewModel: HomeViewModel = hiltViewModel(navController.getBackStackEntry("home"))
+                    val homeUiState by homeViewModel.uiState.collectAsState()
                     SettingHomeScreen(
-                        onSetFilterPanelOpen = homeViewModel::setFilterPanelOpen,
+                        showTagBar = homeUiState.showTagBar,
+                        showTimeGroups = homeUiState.showTimeGroups,
+                        showTimelineJumpTool = homeUiState.showTimelineJumpTool,
+                        onSetHomeDisplayOptions = homeViewModel::setHomeDisplayOptions,
                         onRefresh = homeViewModel::refresh,
                         onNavigateBack = { navController.popBackStack() }
                     )

@@ -79,10 +79,10 @@
     <string name="home_undo_delete">復原刪除</string>
     <string name="home_filter_all">全部</string>
     <string name="home_filter_untagged">未分類</string>
-    <string name="home_feed_waterfall">瀑布流</string>
-    <string name="home_feed_timeline">時間組</string>
     <string name="setting_show_tag_bar">標籤欄</string>
     <string name="setting_show_tag_bar_desc">在首頁顯示標籤篩選欄</string>
+    <string name="setting_show_timeline_jump_tool">Timeline Jump Tool</string>
+    <string name="setting_show_timeline_jump_tool_desc">Show time browsing and quick jump controls on home</string>
     <string name="setting_collapse_nav_buttons">摺疊首頁導航欄的按鈕</string>
     <string name="setting_collapse_nav_buttons_desc">此選項僅適用於手機佈局，不適用於大螢幕佈局</string>
     <string name="setting_scan_method">掃碼方式</string>
@@ -102,10 +102,10 @@
     <string name="setting_scan_custom_dialog_text">請在下方填寫您手機上的系統掃碼APP包名（請不要填寫微信、QQ等APP包名）。</string>
     <string name="setting_scan_custom_package_name">包名</string>
     <string name="setting_scan_custom_dialog_hint">例如：com.example.scanner</string>
+    <string name="setting_home_display_options">Home Composition</string>
     <string name="setting_home_layout">佈局</string>
-    <string name="setting_home_layout_mode">佈局模式</string>
-    <string name="setting_home_layout_waterfall_desc">筆記以瀑布流形式展示</string>
-    <string name="setting_home_layout_timeline_desc">筆記按時間分組展示</string>
+    <string name="setting_show_time_groups">Time Groups</string>
+    <string name="setting_show_time_groups_desc">Show time group headers in the home note feed</string>
     <string name="content_desc_search">搜尋</string>
     <string name="content_desc_settings">設定</string>
     <string name="edit_hint_reply">回覆自</string>

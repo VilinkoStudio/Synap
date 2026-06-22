@@ -78,10 +78,10 @@
     <string name="home_undo_delete">元に戻す</string>
     <string name="home_filter_all">すべて</string>
     <string name="home_filter_untagged">未分類</string>
-    <string name="home_feed_waterfall">ウォーターフォール</string>
-    <string name="home_feed_timeline">タイムライン</string>
     <string name="setting_show_tag_bar">タグバー</string>
     <string name="setting_show_tag_bar_desc">ホーム画面にタグフィルターバーを表示</string>
+    <string name="setting_show_timeline_jump_tool">Timeline Jump Tool</string>
+    <string name="setting_show_timeline_jump_tool_desc">Show time browsing and quick jump controls on home</string>
     <string name="setting_collapse_nav_buttons">ナビゲーションボタンを折りたたむ</string>
     <string name="setting_collapse_nav_buttons_desc">このオプションはスマホレイアウトのみ適用され、大画面レイアウトには適用されません</string>
     <string name="setting_scan_method">スキャン方法</string>
@@ -101,10 +101,10 @@
     <string name="setting_scan_custom_dialog_text">システムスキャンアプリのパッケージ名を入力してください（WeChat、QQなどは入力しないでください）。</string>
     <string name="setting_scan_custom_package_name">パッケージ名</string>
     <string name="setting_scan_custom_dialog_hint">例：com.example.scanner</string>
+    <string name="setting_home_display_options">Home Composition</string>
     <string name="setting_home_layout">レイアウト</string>
-    <string name="setting_home_layout_mode">レイアウトモード</string>
-    <string name="setting_home_layout_waterfall_desc">ノートをウォーターフォール形式で表示</string>
-    <string name="setting_home_layout_timeline_desc">ノートを時間順にグループ表示</string>
+    <string name="setting_show_time_groups">Time Groups</string>
+    <string name="setting_show_time_groups_desc">Show time group headers in the home note feed</string>
     <string name="content_desc_search">検索</string>
     <string name="content_desc_settings">設定</string>
     <string name="edit_hint_reply">返信先</string>

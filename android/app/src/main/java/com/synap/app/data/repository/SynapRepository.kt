@@ -10,7 +10,7 @@ import com.synap.app.data.model.ReplyItem
 import com.synap.app.data.model.SearchResultRecord
 import com.synap.app.data.model.ShareImportStats
 import com.synap.app.data.model.TimelineDirection
-import com.synap.app.data.model.TimelineSessionRecord
+import com.synap.app.data.model.TimelineDensityPointRecord
 import com.synap.app.data.portal.CursorPortal
 import com.synap.app.data.service.SynapServiceApi
 import javax.inject.Inject
@@ -35,8 +35,6 @@ interface SynapRepository {
 
     fun openRecentPortal(limit: UInt = 20u): CursorPortal<NoteRecord>
 
-    fun openRecentSessionsPortal(limit: UInt = 20u): CursorPortal<TimelineSessionRecord>
-
     fun openRepliesPortal(parentId: String, limit: UInt = 20u): CursorPortal<ReplyItem>
 
     fun openDeletedPortal(limit: UInt = 20u): CursorPortal<NoteRecord>
@@ -47,6 +45,25 @@ interface SynapRepository {
         filter: NoteFeedFilter,
         limit: UInt = 20u,
     ): CursorPortal<NoteRecord>
+
+    fun openTimelinePortal(
+        filter: NoteFeedFilter,
+        limit: UInt = 20u,
+    ): CursorPortal<NoteRecord>
+
+    fun openTimelineAroundPortal(
+        filter: NoteFeedFilter,
+        timestampMs: ULong,
+        direction: TimelineDirection = TimelineDirection.Older,
+        limit: UInt = 20u,
+    ): CursorPortal<NoteRecord>
+
+    suspend fun getTimelineDensity(
+        filter: NoteFeedFilter,
+        startMs: ULong,
+        endMs: ULong,
+        bucketMs: ULong,
+    ): List<TimelineDensityPointRecord>
 
     suspend fun getNote(idOrShortId: String): NoteRecord
 
@@ -130,17 +147,6 @@ class SynapRepositoryImpl @Inject constructor(
             },
         )
 
-    override fun openRecentSessionsPortal(limit: UInt): CursorPortal<TimelineSessionRecord> =
-        CursorPortal(
-            limit = limit,
-            fetchPage = { cursor, pageLimit ->
-                service.getRecentSessionsPage(
-                    cursor = cursor,
-                    limit = pageLimit.takeIf { it > 0u },
-                ).unwrap()
-            },
-        )
-
     override fun openRepliesPortal(parentId: String, limit: UInt): CursorPortal<ReplyItem> =
         CursorPortal(
             limit = limit,
@@ -182,6 +188,54 @@ class SynapRepositoryImpl @Inject constructor(
                 ).unwrap()
             },
         )
+
+    override fun openTimelinePortal(filter: NoteFeedFilter, limit: UInt): CursorPortal<NoteRecord> =
+        CursorPortal(
+            limit = limit,
+            fetchPage = { cursor, pageLimit ->
+                service.getTimelineNotesPage(
+                    filter = filter,
+                    cursor = cursor,
+                    direction = TimelineDirection.Older,
+                    limit = pageLimit.takeIf { it > 0u },
+                ).unwrap()
+            },
+        )
+
+    override fun openTimelineAroundPortal(
+        filter: NoteFeedFilter,
+        timestampMs: ULong,
+        direction: TimelineDirection,
+        limit: UInt,
+    ): CursorPortal<NoteRecord> =
+        CursorPortal(
+            limit = limit,
+            fetchPage = { cursor, pageLimit ->
+                if (cursor == null) {
+                    service.getTimelineNotesAround(
+                        filter = filter,
+                        timestampMs = timestampMs,
+                        direction = direction,
+                        limit = pageLimit.takeIf { it > 0u },
+                    ).unwrap()
+                } else {
+                    service.getTimelineNotesPage(
+                        filter = filter,
+                        cursor = cursor,
+                        direction = direction,
+                        limit = pageLimit.takeIf { it > 0u },
+                    ).unwrap()
+                }
+            },
+        )
+
+    override suspend fun getTimelineDensity(
+        filter: NoteFeedFilter,
+        startMs: ULong,
+        endMs: ULong,
+        bucketMs: ULong,
+    ): List<TimelineDensityPointRecord> =
+        service.getTimelineDensity(filter, startMs, endMs, bucketMs).unwrap()
 
     override suspend fun getNote(idOrShortId: String): NoteRecord =
         service.getNote(idOrShortId).unwrap()
