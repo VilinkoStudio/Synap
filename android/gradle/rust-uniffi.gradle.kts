@@ -11,7 +11,12 @@ val coreffiUdlFile = coreffiSharedDir.resolve("src/synap.udl")
 val coreffiTomlFile = coreffiDir.resolve("uniffi.toml")
 val xtaskManifestFile = repoRootDir.resolve("xtask/Cargo.toml")
 val generatedCoreffiBindingsDir = layout.buildDirectory.dir("generated/source/uniffi/coreffi/kotlin").get().asFile
-val cargoPluginTargets = listOf("arm", "arm64", "x86", "x86_64")
+val isReleaseTask = gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
+val cargoPluginTargets = if (isReleaseTask) {
+    listOf("arm", "arm64", "x86", "x86_64")
+} else {
+    listOf("arm64")
+}
 
 val androidLocalProperties = Properties().apply {
     rootDir.resolve("local.properties").takeIf { it.isFile }?.inputStream()?.use(::load)
@@ -146,7 +151,7 @@ val rustToolBinDirs = listOfNotNull(
     rustup?.parentFile,
 ).distinct()
 
-val cargoProfile = if (gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }) {
+val cargoProfile = if (isReleaseTask) {
     "release"
 } else {
     "debug"

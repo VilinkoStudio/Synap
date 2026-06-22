@@ -61,6 +61,7 @@ val gitBranch = runGitCommand(repoRootDir, "rev-parse", "--abbrev-ref", "HEAD")
     ?: "unknown"
 val gitTag = runGitCommand(repoRootDir, "describe", "--tags", "--exact-match", "HEAD")
 val resolvedVersionName = gitTag?.let { "$it ($gitShortCommit)" } ?: "$gitBranch ($gitShortCommit)"
+val isReleaseTask = gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
 
 fun resolveAndroidSdkDir(): File? {
     val configured = androidLocalProperties.getProperty("sdk.dir")
@@ -120,7 +121,13 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
-            abiFilters.addAll(listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64"))
+            abiFilters.addAll(
+                if (isReleaseTask) {
+                    listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+                } else {
+                    listOf("arm64-v8a")
+                }
+            )
         }
     }
 
