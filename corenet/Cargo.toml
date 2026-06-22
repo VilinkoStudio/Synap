@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 crossbeam-channel = "0.5.15"
+hex = "0.4.3"
 mdns-sd = "0.19.1"
 synap-core = { path = "../core" }
 thiserror = "2.0.17"

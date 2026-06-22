@@ -270,9 +270,16 @@ impl DesktopCore for SynapCoreAdapter {
             if runtime.discovery.is_none() {
                 let display_name = build_discovery_name();
                 if let Some(port) = state.listen_port {
+                    let sign_service = Arc::clone(&self.service);
+                    let sign_cb: corenet::MdnsSignCallback = Box::new(move || {
+                        sign_service
+                            .sign_mdns_discovery()
+                            .map_err(|e| e.to_string())
+                    });
                     runtime.discovery = SyncDiscoveryRuntime::start(DiscoveryConfig {
                         display_name,
                         listen_port: port,
+                        sign: Some(Arc::new(sign_cb)),
                     })
                     .ok();
                 }

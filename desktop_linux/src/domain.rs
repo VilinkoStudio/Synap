@@ -330,6 +330,7 @@ pub struct DiscoveredSyncPeer {
     pub host: String,
     pub port: u16,
     pub last_seen_at_ms: u64,
+    pub signing_public_key: [u8; 32],
 }
 
 impl From<corenet::DiscoveredPeer> for DiscoveredSyncPeer {
@@ -340,6 +341,7 @@ impl From<corenet::DiscoveredPeer> for DiscoveredSyncPeer {
             host: value.host,
             port: value.port,
             last_seen_at_ms: value.last_seen_at_ms,
+            signing_public_key: value.signing_public_key,
         }
     }
 }
