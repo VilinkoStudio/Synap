@@ -2,6 +2,7 @@ package com.synap.app.data.service
 
 import com.synap.app.data.model.NoteFeedFilter
 import com.synap.app.data.model.LocalIdentity
+import com.synap.app.data.model.MdnsDiscoverySignature
 import com.synap.app.data.model.NoteRecord
 import com.synap.app.data.model.NoteNeighborsRecord
 import com.synap.app.data.model.NoteSegmentDirection
@@ -60,6 +61,13 @@ interface SynapServiceApi {
     suspend fun initiateSync(transport: SyncTransportChannel): Result<SyncSession>
 
     suspend fun listenSync(transport: SyncTransportChannel): Result<SyncSession>
+
+    suspend fun signMdnsDiscovery(): Result<MdnsDiscoverySignature>
+
+    suspend fun verifyMdnsDiscovery(
+        signingPublicKey: ByteArray,
+        signature: ByteArray,
+    ): Result<Boolean>
 
     suspend fun getNote(idOrShortId: String): Result<NoteRecord>
 

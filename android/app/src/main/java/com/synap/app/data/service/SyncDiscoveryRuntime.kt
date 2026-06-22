@@ -6,6 +6,7 @@ import android.net.nsd.NsdServiceInfo
 import android.os.Build
 import android.util.Log
 import com.synap.app.data.model.DiscoveredSyncPeer
+import dagger.Lazy
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.nio.charset.StandardCharsets
 import javax.inject.Inject
@@ -28,6 +29,7 @@ interface SyncDiscoveryRuntime {
 @Singleton
 class AndroidSyncDiscoveryRuntime @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val synapServiceProvider: Lazy<SynapServiceApi>,
 ) : SyncDiscoveryRuntime {
     private val mutex = Mutex()
     private val nsdManager = context.getSystemService(Context.NSD_SERVICE) as NsdManager
@@ -53,7 +55,7 @@ class AndroidSyncDiscoveryRuntime @Inject constructor(
         }
     }
 
-    private fun registerLocked(listenPort: Int) {
+    private suspend fun registerLocked(listenPort: Int) {
         val requestedName = buildLocalServiceName()
         val serviceInfo = NsdServiceInfo().apply {
             serviceName = requestedName
@@ -62,6 +64,16 @@ class AndroidSyncDiscoveryRuntime @Inject constructor(
             setAttribute("device_name", requestedName)
             setAttribute("protocol", "tcp")
             setAttribute("version", "1")
+
+            // Sign the mDNS broadcast.
+            runCatching { synapServiceProvider.get().signMdnsDiscovery().getOrThrow() }
+                .onSuccess { sig ->
+                    setAttribute("key", sig.signingPublicKey.toHexString())
+                    setAttribute("sig", sig.signature.toHexString())
+                }
+                .onFailure { error ->
+                    Log.w(TAG, "mDNS signing failed, registering without signature", error)
+                }
         }
 
         val listener = object : NsdManager.RegistrationListener {
@@ -163,6 +175,41 @@ class AndroidSyncDiscoveryRuntime @Inject constructor(
                 if (info.serviceName == localServiceName) {
                     return
                 }
+
+                // Verify mDNS signature from TXT record.
+                val keyHex = info.attributeValue("key")
+                val sigHex = info.attributeValue("sig")
+
+                val signingPublicKey: ByteArray =
+                    if (keyHex != null && sigHex != null) {
+                        val keyBytes = hexDecode(keyHex)
+                        val sigBytes = hexDecode(sigHex)
+                        if (keyBytes == null || sigBytes == null) {
+                            Log.w(TAG, "mDNS peer ${info.serviceName}: invalid hex in TXT record")
+                            return
+                        }
+
+                        val valid = try {
+                            kotlinx.coroutines.runBlocking {
+                                synapServiceProvider.get()
+                                    .verifyMdnsDiscovery(keyBytes, sigBytes)
+                                    .getOrDefault(false)
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "mDNS peer ${info.serviceName}: verification failed", e)
+                            false
+                        }
+
+                        if (!valid) {
+                            Log.w(TAG, "mDNS peer ${info.serviceName}: signature verification failed")
+                            return
+                        }
+                        keyBytes
+                    } else {
+                        Log.w(TAG, "mDNS peer ${info.serviceName}: missing signature fields, rejecting")
+                        return
+                    }
+
                 val host = info.host?.hostAddress ?: return
                 synchronized(resolvedPeers) {
                     resolvedPeers[info.serviceName] = DiscoveredSyncPeer(
@@ -171,6 +218,7 @@ class AndroidSyncDiscoveryRuntime @Inject constructor(
                         host = host,
                         port = info.port,
                         lastSeenAtMs = System.currentTimeMillis(),
+                        signingPublicKey = signingPublicKey,
                     )
                     publishPeersLocked()
                 }
@@ -217,4 +265,17 @@ class AndroidSyncDiscoveryRuntime @Inject constructor(
     }
 
     private fun String.normalizeServiceType(): String = trimEnd('.')
+
+    private fun ByteArray.toHexString(): String = joinToString("") { "%02x".format(it) }
+
+    private fun hexDecode(hex: String): ByteArray? {
+        if (hex.length % 2 != 0) return null
+        return try {
+            ByteArray(hex.length / 2) { i ->
+                hex.substring(i * 2, i * 2 + 2).toInt(16).toByte()
+            }
+        } catch (_: NumberFormatException) {
+            null
+        }
+    }
 }

@@ -10,6 +10,8 @@ import com.synap.app.data.model.SyncConnectionRecord
 import com.synap.app.data.model.SyncListenerState
 import com.synap.app.data.model.SyncSessionRecord
 import com.synap.app.data.model.SyncStatus
+import com.synap.app.data.model.UnifiedDevice
+import com.synap.app.data.model.UnifiedDeviceStatus
 import com.synap.app.data.repository.SyncRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -36,7 +38,66 @@ data class SyncUiState(
     val pendingTrustPeer: PeerRecord? = null,
     val recentSyncSessions: List<SyncSessionRecord> = emptyList(),
     val errorMessage: String? = null,
-)
+) {
+    val unifiedDevices: List<UnifiedDevice>
+        get() {
+            // ByteArray 的 equals 是引用相等，不能直接做 map key。
+            // 用 hex 字符串做 key，确保内容相等匹配。
+            val discoveredByHex = discoveredPeers
+                .filter { it.signingPublicKey.isNotEmpty() }
+                .associateBy { it.signingPublicKey.toHexString() }
+            val result = mutableListOf<UnifiedDevice>()
+
+            // 1. 已知设备（信任数据库）
+            for (peer in peers) {
+                val peerHex = peer.publicKey.toHexString()
+                val online = discoveredByHex[peerHex]
+                val isPending = pendingTrustPeer?.id == peer.id
+                result.add(
+                    UnifiedDevice(
+                        peer = peer,
+                        discovered = online,
+                        displayName = peer.note
+                            ?: online?.displayName
+                            ?: "未命名设备",
+                        status = when {
+                            isPending || peer.status == PeerTrustStatus.Pending ->
+                                UnifiedDeviceStatus.Pending
+                            peer.status == PeerTrustStatus.Revoked ->
+                                UnifiedDeviceStatus.Revoked
+                            online != null ->
+                                UnifiedDeviceStatus.TrustedOnline
+                            else ->
+                                UnifiedDeviceStatus.TrustedOffline
+                        },
+                    ),
+                )
+            }
+
+            // 2. 新设备（mDNS 有，信任列表无）
+            val knownHexKeys = peers.map { it.publicKey.toHexString() }.toSet()
+            for ((hex, disc) in discoveredByHex) {
+                if (hex !in knownHexKeys) {
+                    result.add(
+                        UnifiedDevice(
+                            peer = null,
+                            discovered = disc,
+                            displayName = disc.displayName,
+                            status = UnifiedDeviceStatus.NewOnline,
+                        ),
+                    )
+                }
+            }
+
+            return result.sortedWith(
+                compareBy<UnifiedDevice> { it.status.ordinal }
+                    .thenBy { it.displayName.lowercase() },
+            )
+        }
+}
+
+private fun ByteArray.toHexString(): String =
+    joinToString("") { "%02x".format(it) }
 
 @HiltViewModel
 class SyncViewModel @Inject constructor(

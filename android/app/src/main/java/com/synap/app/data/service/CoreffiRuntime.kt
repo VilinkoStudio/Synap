@@ -10,8 +10,10 @@ import com.fuwaki.synap.bindings.uniffi.synap_coreffi.SyncTransport as FfiSyncTr
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.TimelineDirection as FfiTimelineDirection
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.open
 import com.fuwaki.synap.bindings.uniffi.synap_coreffi.openMemory
+import com.fuwaki.synap.bindings.uniffi.synap_coreffi.verifyMdnsDiscovery as ffiVerifyMdnsDiscovery
 import com.synap.app.data.error.SynapError
 import com.synap.app.data.model.LocalIdentity
+import com.synap.app.data.model.MdnsDiscoverySignature
 import com.synap.app.data.model.NoteFeedFilter
 import com.synap.app.data.model.NoteFeedStatus
 import com.synap.app.data.model.NoteNeighborsRecord
@@ -255,6 +257,23 @@ class CoreffiRuntime @Inject constructor(
     override suspend fun listenSync(transport: SyncTransportChannel): Result<SyncSession> =
         withService { service ->
             service.listenSync(FfiSyncTransportAdapter(transport)).toSyncSession()
+        }
+
+    override suspend fun signMdnsDiscovery(): Result<MdnsDiscoverySignature> =
+        withService { service ->
+            val dto = service.signMdnsDiscovery()
+            MdnsDiscoverySignature(
+                signingPublicKey = dto.signingPublicKey,
+                signature = dto.signature,
+            )
+        }
+
+    override suspend fun verifyMdnsDiscovery(
+        signingPublicKey: ByteArray,
+        signature: ByteArray,
+    ): Result<Boolean> =
+        withService { _ ->
+            ffiVerifyMdnsDiscovery(signingPublicKey, signature)
         }
 
     override suspend fun getNote(idOrShortId: String): Result<NoteRecord> =

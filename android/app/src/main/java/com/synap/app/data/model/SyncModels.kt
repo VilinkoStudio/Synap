@@ -70,7 +70,31 @@ data class DiscoveredSyncPeer(
     val host: String,
     val port: Int,
     val lastSeenAtMs: Long,
+    val signingPublicKey: ByteArray = ByteArray(0),
 )
+
+data class MdnsDiscoverySignature(
+    val signingPublicKey: ByteArray,
+    val signature: ByteArray,
+)
+
+enum class UnifiedDeviceStatus {
+    Pending,       // 刚配对，等待信任确认
+    NewOnline,     // mDNS 在线，不在信任列表
+    TrustedOnline, // 已信任 + mDNS 在线
+    TrustedOffline,// 已信任 + mDNS 离线
+    Revoked,       // 已吊销
+}
+
+data class UnifiedDevice(
+    val peer: PeerRecord?,
+    val discovered: DiscoveredSyncPeer?,
+    val displayName: String,
+    val status: UnifiedDeviceStatus,
+) {
+    val signingPublicKey: ByteArray
+        get() = peer?.publicKey ?: discovered?.signingPublicKey ?: ByteArray(0)
+}
 
 data class SyncListenerState(
     val protocol: String = "TCP",

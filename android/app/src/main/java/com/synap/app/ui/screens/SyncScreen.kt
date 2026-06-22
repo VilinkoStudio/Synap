@@ -82,6 +82,8 @@ import com.synap.app.data.model.SyncConnectionStatus
 import com.synap.app.data.model.DiscoveredSyncPeer
 import com.synap.app.data.model.PeerRecord
 import com.synap.app.data.model.PeerTrustStatus
+import com.synap.app.data.model.UnifiedDevice
+import com.synap.app.data.model.UnifiedDeviceStatus
 import com.synap.app.data.model.SyncSessionRecord
 import com.synap.app.data.model.SyncSessionRole
 import com.synap.app.data.model.SyncStatus
@@ -125,18 +127,30 @@ fun SyncScreen(
 
     val localPublicKeyBase64 = uiState.localIdentity?.identity?.displayPublicKeyBase64
     val localSigningBase64 = uiState.localIdentity?.signing?.displayPublicKeyBase64
-    val filteredPeers = uiState.peers.filter { peer ->
-        peer.displayPublicKeyBase64 != localPublicKeyBase64 && peer.displayPublicKeyBase64 != localSigningBase64
-    }
+    val localSigningPublicKey = uiState.localIdentity?.signing?.publicKey
     val localAddresses = uiState.listenerState.localAddresses.map { it.lowercase().trim() }.toSet()
     val localPort = uiState.listenerState.listenPort
     val localFingerprint = uiState.localIdentity?.signing?.kaomojiFingerprint
-    val filteredDiscovered = uiState.discoveredPeers.filter { peer ->
-        val isSameHost = localPort != null && localAddresses.any { addr ->
-            peer.host.lowercase().trim() == addr
-        } && peer.port == localPort
-        val isSameFingerprint = localFingerprint != null && peer.serviceName.contains(localFingerprint)
-        !isSameHost && !isSameFingerprint
+
+    // 过滤掉本机设备
+    val filteredUnifiedDevices = uiState.unifiedDevices.filter { device ->
+        val isSelfPeer = device.peer?.let { peer ->
+            peer.displayPublicKeyBase64 == localPublicKeyBase64 ||
+                peer.displayPublicKeyBase64 == localSigningBase64
+        } ?: false
+        val isSelfDiscovered = device.discovered?.let { peer ->
+            val isSameHost = localPort != null && localAddresses.any { addr ->
+                peer.host.lowercase().trim() == addr
+            } && peer.port == localPort
+            val isSameFingerprint = localFingerprint != null &&
+                peer.serviceName.contains(localFingerprint)
+            isSameHost || isSameFingerprint
+        } ?: false
+        !isSelfPeer && !isSelfDiscovered
+    }
+    // 保留手动连接过滤
+    val filteredPeers = uiState.peers.filter { peer ->
+        peer.displayPublicKeyBase64 != localPublicKeyBase64 && peer.displayPublicKeyBase64 != localSigningBase64
     }
 
     PredictiveBackHandler { progressFlow ->
@@ -250,25 +264,30 @@ fun SyncScreen(
                     when (page) {
                         0 -> {
                             IdentitySection(identity = uiState.localIdentity)
-                            ConnectionSection(
-                                discoveredPeers = filteredDiscovered,
-                                connections = uiState.connections,
+                            DeviceSection(
+                                devices = filteredUnifiedDevices,
                                 isPairing = uiState.isPairing,
-                                onAddConnection = { showAddConnectionDialog = true },
-                                onDeleteConnection = onDeleteConnection,
-                                onPairConnection = onPairConnection,
-                                onPairDiscoveredPeer = onPairDiscoveredPeer,
-                            )
-                            PeerSection(
-                                peers = filteredPeers,
                                 isManagingPeer = uiState.isManagingPeer,
-                                pendingTrustPeerId = uiState.pendingTrustPeer?.id,
+                                onAddConnection = { showAddConnectionDialog = true },
+                                onPair = { host, port -> onPairDiscoveredPeer(host, port) },
                                 onTrustPeer = onTrustPeer,
                                 onUpdatePeerNote = onUpdatePeerNote,
                                 onDeletePeer = onDeletePeer,
                                 onSetPeerStatus = onSetPeerStatus,
                                 onDismissPendingTrustPrompt = onDismissPendingTrustPrompt,
                             )
+                            // 保留手动连接列表
+                            if (uiState.connections.isNotEmpty()) {
+                                ConnectionSection(
+                                    discoveredPeers = emptyList(),
+                                    connections = uiState.connections,
+                                    isPairing = uiState.isPairing,
+                                    onAddConnection = { showAddConnectionDialog = true },
+                                    onDeleteConnection = onDeleteConnection,
+                                    onPairConnection = onPairConnection,
+                                    onPairDiscoveredPeer = onPairDiscoveredPeer,
+                                )
+                            }
                         }
                         1 -> {
                             RelaySection(
@@ -547,6 +566,366 @@ private fun ConnectionSection(
 }
 
 @Composable
+private fun DeviceSection(
+    devices: List<UnifiedDevice>,
+    isPairing: Boolean,
+    isManagingPeer: Boolean,
+    onAddConnection: () -> Unit,
+    onPair: (String, Int) -> Unit,
+    onTrustPeer: (ByteArray, String?) -> Unit,
+    onUpdatePeerNote: (String, String?) -> Unit,
+    onDeletePeer: (String) -> Unit,
+    onSetPeerStatus: (String, PeerTrustStatus) -> Unit,
+    onDismissPendingTrustPrompt: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "设备列表",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.weight(1f),
+        )
+        FilledTonalButton(
+            onClick = onAddConnection,
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("手动添加")
+        }
+    }
+
+    if (devices.isEmpty()) {
+        EmptySectionCard("暂未发现设备。请确保设备在同一局域网下，或点击“手动添加”输入地址。")
+        return
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp)),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Column {
+            devices.forEachIndexed { index, device ->
+                if (index > 0) {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
+                DeviceRow(
+                    device = device,
+                    isPairing = isPairing,
+                    isManagingPeer = isManagingPeer,
+                    onPair = { onPair(device.discovered!!.host, device.discovered.port) },
+                    onTrustPeer = { onTrustPeer(device.peer!!.publicKey, it) },
+                    onUpdatePeerNote = { note -> onUpdatePeerNote(device.peer!!.id, note) },
+                    onDeletePeer = { onDeletePeer(device.peer!!.id) },
+                    onSetPeerStatus = { status -> onSetPeerStatus(device.peer!!.id, status) },
+                    onDismissPendingTrustPrompt = onDismissPendingTrustPrompt,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeviceRow(
+    device: UnifiedDevice,
+    isPairing: Boolean,
+    isManagingPeer: Boolean,
+    onPair: () -> Unit,
+    onTrustPeer: (String?) -> Unit,
+    onUpdatePeerNote: (String?) -> Unit,
+    onDeletePeer: () -> Unit,
+    onSetPeerStatus: (PeerTrustStatus) -> Unit,
+    onDismissPendingTrustPrompt: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(device.status == UnifiedDeviceStatus.Pending) }
+    var noteDraft by remember(device.peer?.note) { mutableStateOf(device.peer?.note.orEmpty()) }
+    var isEditingNote by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("删除设备") },
+            text = { Text("确定要删除该设备吗？删除后需要重新配对才能同步。") },
+            confirmButton = {
+                Button(onClick = {
+                    showDeleteConfirm = false
+                    onDeletePeer()
+                }) { Text("删除") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
+            },
+        )
+    }
+
+    val avatarBitmap = remember(device.peer?.avatarPng) {
+        device.peer?.avatarPng?.let {
+            BitmapFactory.decodeByteArray(it, 0, it.size)
+        }
+    }
+
+    val statusLabel = when (device.status) {
+        UnifiedDeviceStatus.Pending -> "待信任"
+        UnifiedDeviceStatus.NewOnline -> "新设备"
+        UnifiedDeviceStatus.TrustedOnline -> "在线"
+        UnifiedDeviceStatus.TrustedOffline -> "离线"
+        UnifiedDeviceStatus.Revoked -> "已撤销"
+    }
+    val statusColor = when (device.status) {
+        UnifiedDeviceStatus.Pending -> MaterialTheme.colorScheme.tertiary
+        UnifiedDeviceStatus.NewOnline -> MaterialTheme.colorScheme.primary
+        UnifiedDeviceStatus.TrustedOnline -> MaterialTheme.colorScheme.primary
+        UnifiedDeviceStatus.TrustedOffline -> MaterialTheme.colorScheme.onSurfaceVariant
+        UnifiedDeviceStatus.Revoked -> MaterialTheme.colorScheme.error
+    }
+    val isOnline = device.status == UnifiedDeviceStatus.TrustedOnline ||
+        device.status == UnifiedDeviceStatus.NewOnline
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // 主行
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = device.peer != null) { expanded = !expanded }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // 头像 / 在线指示
+            if (avatarBitmap != null) {
+                Box {
+                    PublicKeyAvatar(
+                        bitmap = avatarBitmap,
+                        contentDescription = "设备头像",
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(14.dp)),
+                    )
+                    if (isOnline) {
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .align(Alignment.BottomEnd)
+                                .background(
+                                    MaterialTheme.colorScheme.primary,
+                                    shape = RoundedCornerShape(6.dp),
+                                ),
+                        )
+                    }
+                }
+            } else {
+                Box(contentAlignment = Alignment.BottomEnd) {
+                    Icon(
+                        imageVector = Icons.Filled.Sync,
+                        contentDescription = null,
+                        tint = statusColor,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .padding(8.dp),
+                    )
+                    if (isOnline) {
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .align(Alignment.BottomEnd)
+                                .background(
+                                    MaterialTheme.colorScheme.primary,
+                                    shape = RoundedCornerShape(6.dp),
+                                ),
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // 名称 + 详情
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = device.displayName.removePrefix("Synap·").removePrefix("Synap-"),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                if (device.peer != null) {
+                    Text(
+                        text = device.peer.displayPublicKeyBase64,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else if (device.discovered != null) {
+                    Text(
+                        text = "${device.discovered.host}:${device.discovered.port}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            // 状态标签
+            Text(
+                text = statusLabel,
+                style = MaterialTheme.typography.labelLarge,
+                color = statusColor,
+            )
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // 操作按钮
+            when (device.status) {
+                UnifiedDeviceStatus.NewOnline -> {
+                    FilledTonalButton(
+                        onClick = onPair,
+                        enabled = !isPairing,
+                    ) { Text("配对") }
+                }
+                UnifiedDeviceStatus.Pending -> {
+                    // 按钮在展开区域
+                    Icon(
+                        imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                UnifiedDeviceStatus.TrustedOnline -> {
+                    FilledTonalButton(
+                        onClick = onPair,
+                        enabled = !isPairing,
+                    ) { Text("同步") }
+                }
+                UnifiedDeviceStatus.TrustedOffline -> {
+                    Icon(
+                        imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                UnifiedDeviceStatus.Revoked -> {
+                    Icon(
+                        imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
+        // 展开区域（仅已信任设备）
+        if (device.peer != null) {
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(),
+                exit = shrinkVertically(),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (device.status == UnifiedDeviceStatus.Pending) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Button(
+                                onClick = {
+                                    onTrustPeer(noteDraft.ifBlank { null })
+                                    onDismissPendingTrustPrompt()
+                                },
+                                enabled = !isManagingPeer,
+                                modifier = Modifier.weight(1f),
+                            ) { Text("信任") }
+                            FilledTonalButton(
+                                onClick = {
+                                    onSetPeerStatus(PeerTrustStatus.Revoked)
+                                    onDismissPendingTrustPrompt()
+                                },
+                                enabled = !isManagingPeer,
+                                modifier = Modifier.weight(1f),
+                            ) { Text("拒绝") }
+                        }
+                    } else {
+                        // 备注编辑
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (isEditingNote) {
+                                OutlinedTextField(
+                                    value = noteDraft,
+                                    onValueChange = { noteDraft = it },
+                                    label = { Text("备注") },
+                                    modifier = Modifier.weight(1f),
+                                    singleLine = true,
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(onClick = {
+                                    onUpdatePeerNote(noteDraft)
+                                    isEditingNote = false
+                                }) { Text("保存") }
+                            } else {
+                                Text(
+                                    text = device.peer.note ?: "未设置备注",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                TextButton(onClick = { isEditingNote = true }) {
+                                    Text("编辑")
+                                }
+                            }
+                        }
+
+                        // 信任状态切换
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            if (device.peer.status == PeerTrustStatus.Trusted) {
+                                OutlinedButton(
+                                    onClick = { onSetPeerStatus(PeerTrustStatus.Revoked) },
+                                    enabled = !isManagingPeer,
+                                    modifier = Modifier.weight(1f),
+                                ) { Text("撤销信任") }
+                            } else if (device.peer.status == PeerTrustStatus.Revoked) {
+                                Button(
+                                    onClick = { onSetPeerStatus(PeerTrustStatus.Trusted) },
+                                    enabled = !isManagingPeer,
+                                    modifier = Modifier.weight(1f),
+                                ) { Text("恢复信任") }
+                            }
+                            OutlinedButton(
+                                onClick = { showDeleteConfirm = true },
+                                enabled = !isManagingPeer,
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error,
+                                ),
+                                modifier = Modifier.weight(1f),
+                            ) { Text("删除") }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun RelaySection(
     baseUrl: String,
     apiKey: String,
@@ -780,272 +1159,6 @@ private fun DiscoveredConnectionRow(
             Text("配对")
         }
     }
-}
-
-@Composable
-private fun PeerSection(
-    peers: List<PeerRecord>,
-    isManagingPeer: Boolean,
-    pendingTrustPeerId: String?,
-    onTrustPeer: (ByteArray, String?) -> Unit,
-    onUpdatePeerNote: (String, String?) -> Unit,
-    onDeletePeer: (String) -> Unit,
-    onSetPeerStatus: (String, PeerTrustStatus) -> Unit,
-    onDismissPendingTrustPrompt: () -> Unit,
-) {
-    SectionTitle(title = "设备列表", subtitle = "包含已信任、待确认和已撤销的设备")
-
-    if (peers.isEmpty()) {
-        EmptySectionCard("还没有发现任何局域网内的设备")
-        return
-    }
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp)),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Column {
-            peers.forEachIndexed { index, peer ->
-                if (index > 0) {
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                }
-                PeerRow(
-                    peer = peer,
-                    isManagingPeer = isManagingPeer,
-                    isPendingTrust = peer.id == pendingTrustPeerId,
-                    onTrustPeer = { onTrustPeer(peer.publicKey, it) },
-                    onUpdatePeerNote = { note -> onUpdatePeerNote(peer.id, note) },
-                    onDeletePeer = { onDeletePeer(peer.id) },
-                    onSetPeerStatus = { status -> onSetPeerStatus(peer.id, status) },
-                    onDismissPendingTrustPrompt = onDismissPendingTrustPrompt,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PeerRow(
-    peer: PeerRecord,
-    isManagingPeer: Boolean,
-    isPendingTrust: Boolean,
-    onTrustPeer: (String?) -> Unit,
-    onUpdatePeerNote: (String?) -> Unit,
-    onDeletePeer: () -> Unit,
-    onSetPeerStatus: (PeerTrustStatus) -> Unit,
-    onDismissPendingTrustPrompt: () -> Unit,
-) {
-    var expanded by remember { mutableStateOf(peer.status == PeerTrustStatus.Pending) }
-    var noteDraft by remember { mutableStateOf(peer.note.orEmpty()) }
-    var isEditingNote by remember { mutableStateOf(false) }
-    var showDeleteConfirm by remember { mutableStateOf(false) }
-
-    if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("删除设备") },
-            text = { Text("确定要删除该设备吗？删除后需要重新配对才能同步。") },
-            confirmButton = {
-                Button(onClick = {
-                    showDeleteConfirm = false
-                    onDeletePeer()
-                }) { Text("删除") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
-            }
-        )
-    }
-
-    val avatarBitmap = remember(peer.avatarPng) {
-        BitmapFactory.decodeByteArray(peer.avatarPng, 0, peer.avatarPng.size)
-    }
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = !expanded }
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            PublicKeyAvatar(
-                bitmap = avatarBitmap,
-                contentDescription = "设备头像",
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(14.dp)),
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = peer.note ?: "未命名设备",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = peer.displayPublicKeyBase64,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            StatusChip(status = peer.status)
-            Spacer(modifier = Modifier.width(4.dp))
-            Icon(
-                imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                contentDescription = if (expanded) "收起" else "展开",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        AnimatedVisibility(
-            visible = expanded,
-            enter = expandVertically(),
-            exit = shrinkVertically(),
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (peer.status == PeerTrustStatus.Pending) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Button(
-                            onClick = {
-                                onTrustPeer(noteDraft.ifBlank { null })
-                                onDismissPendingTrustPrompt()
-                            },
-                            enabled = !isManagingPeer,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text("信任")
-                        }
-                        FilledTonalButton(
-                            onClick = {
-                                onSetPeerStatus(PeerTrustStatus.Revoked)
-                                onDismissPendingTrustPrompt()
-                            },
-                            enabled = !isManagingPeer,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text("拒绝")
-                        }
-                    }
-                } else {
-                    if (isEditingNote) {
-                        OutlinedTextField(
-                            value = noteDraft,
-                            onValueChange = { noteDraft = it },
-                            label = { Text("备注") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            OutlinedButton(
-                                onClick = {
-                                    noteDraft = peer.note.orEmpty()
-                                    isEditingNote = false
-                                },
-                                enabled = !isManagingPeer,
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Text("取消")
-                            }
-                            Button(
-                                onClick = {
-                                    onUpdatePeerNote(noteDraft.ifBlank { null })
-                                    isEditingNote = false
-                                },
-                                enabled = !isManagingPeer,
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Text("保存")
-                            }
-                        }
-                    } else {
-                        FilledTonalButton(
-                            onClick = { isEditingNote = true },
-                            enabled = !isManagingPeer,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text("修改备注")
-                        }
-                    }
-                    val targetStatus = if (peer.status == PeerTrustStatus.Trusted) {
-                        PeerTrustStatus.Revoked
-                    } else {
-                        PeerTrustStatus.Trusted
-                    }
-                    val actionLabel = if (peer.status == PeerTrustStatus.Trusted) "撤销信任" else "设为可信"
-                    FilledTonalButton(
-                        onClick = { onSetPeerStatus(targetStatus) },
-                        enabled = !isManagingPeer,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(actionLabel)
-                    }
-                    Button(
-                        onClick = { showDeleteConfirm = true },
-                        enabled = !isManagingPeer,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                        ),
-                    ) {
-                        Text("删除")
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun StatusChip(status: PeerTrustStatus) {
-    val (label, containerColor, contentColor) = when (status) {
-        PeerTrustStatus.Pending -> Triple(
-            "待确认",
-            MaterialTheme.colorScheme.primaryContainer,
-            MaterialTheme.colorScheme.onPrimaryContainer,
-        )
-        PeerTrustStatus.Trusted -> Triple(
-            "已信任",
-            MaterialTheme.colorScheme.tertiaryContainer,
-            MaterialTheme.colorScheme.onTertiaryContainer,
-        )
-        PeerTrustStatus.Retired -> Triple(
-            "已停用",
-            MaterialTheme.colorScheme.secondaryContainer,
-            MaterialTheme.colorScheme.onSecondaryContainer,
-        )
-        PeerTrustStatus.Revoked -> Triple(
-            "已撤销",
-            MaterialTheme.colorScheme.errorContainer,
-            MaterialTheme.colorScheme.onErrorContainer,
-        )
-    }
-    Text(
-        text = label,
-        style = MaterialTheme.typography.labelSmall,
-        color = contentColor,
-        modifier = Modifier
-            .background(containerColor, RoundedCornerShape(6.dp))
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-    )
 }
 
 @Composable
