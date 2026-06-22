@@ -351,6 +351,7 @@ impl<'a, 'b> NoteView<'a, 'b> {
             deleted: self.note.is_deleted(),
             reply_to: self.reply_to_brief()?,
             edited_from: self.edited_from_brief()?,
+            timeline_group: None,
         })
     }
 

@@ -42,6 +42,13 @@ dictionary NoteBriefDTO {
     i64 created_at;
 };
 
+dictionary TimelineGroupDTO {
+    boolean starts_group;
+    i64 started_at;
+    i64 ended_at;
+    u32 note_count;
+};
+
 dictionary NoteDTO {
     string id;
     string content;
@@ -50,6 +57,7 @@ dictionary NoteDTO {
     boolean deleted;
     NoteBriefDTO? reply_to;
     NoteBriefDTO? edited_from;
+    TimelineGroupDTO? timeline_group;
 };
 
 dictionary NoteSegmentBranchChoiceDTO {
@@ -134,6 +142,12 @@ dictionary SearchResultDTO {
 dictionary TimelineNotesPageDTO {
     sequence<NoteDTO> notes;
     string? next_cursor;
+};
+
+dictionary TimelineDensityPointDTO {
+    i64 started_at;
+    i64 ended_at;
+    u32 note_count;
 };
 
 dictionary TimelineSessionDTO {
@@ -325,6 +339,35 @@ interface SynapService {
         string? cursor,
         TimelineDirection direction,
         u32? limit
+    );
+    [Throws=FfiError] TimelineNotesPageDTO get_timeline_notes_page(
+        sequence<string> selected_tags,
+        boolean include_untagged,
+        boolean tag_filter_enabled,
+        FilteredNoteStatus status,
+        boolean group_sessions,
+        string? cursor,
+        TimelineDirection direction,
+        u32? limit
+    );
+    [Throws=FfiError] TimelineNotesPageDTO get_timeline_notes_around(
+        sequence<string> selected_tags,
+        boolean include_untagged,
+        boolean tag_filter_enabled,
+        FilteredNoteStatus status,
+        boolean group_sessions,
+        u64 timestamp_ms,
+        TimelineDirection direction,
+        u32? limit
+    );
+    [Throws=FfiError] sequence<TimelineDensityPointDTO> get_timeline_density(
+        sequence<string> selected_tags,
+        boolean include_untagged,
+        boolean tag_filter_enabled,
+        FilteredNoteStatus status,
+        u64 start_ms,
+        u64 end_ms,
+        u64 bucket_ms
     );
     [Throws=FfiError] NoteDTO create_note(string content, sequence<string> tags);
     [Throws=FfiError] NoteDTO reply_note(string parent_id, string content, sequence<string> tags);

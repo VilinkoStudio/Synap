@@ -385,8 +385,18 @@ fn test_get_filtered_notes_keeps_global_time_order() {
     service.delete_note(&fourth.id).unwrap();
 
     let filtered = service
-        .get_filtered_notes(vec![], true, false, FilteredNoteStatus::All, None, Some(10))
-        .unwrap();
+        .get_timeline_notes_page(
+            vec![],
+            true,
+            false,
+            FilteredNoteStatus::All,
+            false,
+            None,
+            TimelineDirection::Older,
+            Some(10),
+        )
+        .unwrap()
+        .notes;
 
     assert_eq!(
         filtered
@@ -413,15 +423,18 @@ fn test_get_filtered_notes_supports_mixed_tags_and_untagged() {
         .unwrap();
 
     let filtered = service
-        .get_filtered_notes(
+        .get_timeline_notes_page(
             vec!["rust".into(), "travel".into()],
             true,
             true,
             FilteredNoteStatus::Normal,
+            false,
             None,
+            TimelineDirection::Older,
             Some(10),
         )
-        .unwrap();
+        .unwrap()
+        .notes;
 
     assert_eq!(
         filtered
@@ -448,29 +461,35 @@ fn test_get_filtered_notes_uses_cursor_after_filtering() {
         .unwrap();
 
     let page_one = service
-        .get_filtered_notes(
+        .get_timeline_notes_page(
             vec!["rust".into(), "travel".into()],
             true,
             true,
             FilteredNoteStatus::Normal,
+            false,
             None,
+            TimelineDirection::Older,
             Some(2),
         )
-        .unwrap();
+        .unwrap()
+        .notes;
     assert_eq!(page_one.len(), 2);
     assert_eq!(page_one[0].id, rust_work.id);
     assert_eq!(page_one[1].id, travel.id);
 
     let page_two = service
-        .get_filtered_notes(
+        .get_timeline_notes_page(
             vec!["rust".into(), "travel".into()],
             true,
             true,
             FilteredNoteStatus::Normal,
+            false,
             Some(&page_one[1].id),
+            TimelineDirection::Older,
             Some(2),
         )
-        .unwrap();
+        .unwrap()
+        .notes;
     assert_eq!(page_two.len(), 2);
     assert_eq!(page_two[0].id, untagged.id);
     assert_eq!(page_two[1].id, rust.id);
@@ -603,11 +622,13 @@ fn test_get_recent_note_uses_cursor_pagination() {
     let second = service.create_note("second".to_string(), vec![]).unwrap();
     let third = service.create_note("third".to_string(), vec![]).unwrap();
 
+    #[allow(deprecated)]
     let page_one = service.get_recent_note(None, Some(2)).unwrap();
     assert_eq!(page_one.len(), 2);
     assert_eq!(page_one[0].id, third.id);
     assert_eq!(page_one[1].id, second.id);
 
+    #[allow(deprecated)]
     let page_two = service
         .get_recent_note(Some(&page_one[1].id), Some(2))
         .unwrap();
@@ -623,6 +644,7 @@ fn test_get_recent_notes_page_returns_service_cursor() {
     let second = service.create_note("second".to_string(), vec![]).unwrap();
     let third = service.create_note("third".to_string(), vec![]).unwrap();
 
+    #[allow(deprecated)]
     let page_one = service
         .get_recent_notes_page(None, TimelineDirection::Older, Some(2))
         .unwrap();
@@ -637,6 +659,7 @@ fn test_get_recent_notes_page_returns_service_cursor() {
     );
     assert_eq!(page_one.next_cursor.as_deref(), Some(second.id.as_str()));
 
+    #[allow(deprecated)]
     let page_two = service
         .get_recent_notes_page(
             page_one.next_cursor.as_deref(),
@@ -665,6 +688,7 @@ fn test_get_filtered_notes_page_uses_service_cursor_after_filtering() {
         .create_note("rust work".to_string(), vec!["rust".into(), "work".into()])
         .unwrap();
 
+    #[allow(deprecated)]
     let page_one = service
         .get_filtered_notes_page(
             vec!["rust".into(), "travel".into()],
@@ -687,6 +711,7 @@ fn test_get_filtered_notes_page_uses_service_cursor_after_filtering() {
     );
     assert_eq!(page_one.next_cursor.as_deref(), Some(travel.id.as_str()));
 
+    #[allow(deprecated)]
     let page_two = service
         .get_filtered_notes_page(
             vec!["rust".into(), "travel".into()],
@@ -711,6 +736,115 @@ fn test_get_filtered_notes_page_uses_service_cursor_after_filtering() {
 }
 
 #[test]
+fn test_get_timeline_notes_page_unifies_filtering_and_cursor() {
+    let service = SynapService::new(None).unwrap();
+
+    let rust = service
+        .create_note("rust".to_string(), vec!["rust".into()])
+        .unwrap();
+    let untagged = service.create_note("untagged".to_string(), vec![]).unwrap();
+    let travel = service
+        .create_note("travel".to_string(), vec!["travel".into()])
+        .unwrap();
+    let rust_work = service
+        .create_note("rust work".to_string(), vec!["rust".into(), "work".into()])
+        .unwrap();
+
+    let page_one = service
+        .get_timeline_notes_page(
+            vec!["rust".into(), "travel".into()],
+            true,
+            true,
+            FilteredNoteStatus::Normal,
+            false,
+            None,
+            TimelineDirection::Older,
+            Some(2),
+        )
+        .unwrap();
+
+    assert_eq!(
+        page_one
+            .notes
+            .iter()
+            .map(|note| note.id.clone())
+            .collect::<Vec<_>>(),
+        vec![rust_work.id.clone(), travel.id.clone()]
+    );
+    assert_eq!(page_one.next_cursor.as_deref(), Some(travel.id.as_str()));
+    assert!(page_one
+        .notes
+        .iter()
+        .all(|note| note.timeline_group.is_none()));
+
+    let page_two = service
+        .get_timeline_notes_page(
+            vec!["rust".into(), "travel".into()],
+            true,
+            true,
+            FilteredNoteStatus::Normal,
+            false,
+            page_one.next_cursor.as_deref(),
+            TimelineDirection::Older,
+            Some(2),
+        )
+        .unwrap();
+
+    assert_eq!(
+        page_two
+            .notes
+            .iter()
+            .map(|note| note.id.clone())
+            .collect::<Vec<_>>(),
+        vec![untagged.id, rust.id]
+    );
+    assert!(page_two.next_cursor.is_none());
+}
+
+#[test]
+fn test_get_timeline_notes_page_can_attach_session_metadata() {
+    let service = SynapService::new(None).unwrap();
+
+    let first = service.create_note("first".to_string(), vec![]).unwrap();
+    let second = service.create_note("second".to_string(), vec![]).unwrap();
+    let third = service.create_note("third".to_string(), vec![]).unwrap();
+
+    let page = service
+        .get_timeline_notes_page(
+            Vec::new(),
+            true,
+            false,
+            FilteredNoteStatus::Normal,
+            true,
+            None,
+            TimelineDirection::Older,
+            Some(10),
+        )
+        .unwrap();
+
+    assert_eq!(
+        page.notes
+            .iter()
+            .map(|note| note.id.clone())
+            .collect::<Vec<_>>(),
+        vec![third.id, second.id, first.id]
+    );
+    assert!(page.next_cursor.is_none());
+
+    let groups = page
+        .notes
+        .iter()
+        .map(|note| note.timeline_group.as_ref().expect("timeline group"))
+        .collect::<Vec<_>>();
+    assert!(groups[0].starts_group);
+    assert!(!groups[1].starts_group);
+    assert!(!groups[2].starts_group);
+    assert_eq!(groups[0].note_count, 3);
+    assert_eq!(groups[1].started_at, groups[0].started_at);
+    assert_eq!(groups[2].ended_at, groups[0].ended_at);
+}
+
+#[test]
 fn test_get_recent_sessions_returns_hydrated_notes() {
     let service = SynapService::new(None).unwrap();
 
@@ -718,6 +852,7 @@ fn test_get_recent_sessions_returns_hydrated_notes() {
     let second = service.create_note("second".to_string(), vec![]).unwrap();
     let third = service.create_note("third".to_string(), vec![]).unwrap();
 
+    #[allow(deprecated)]
     let page = service.get_recent_sessions(None, Some(10)).unwrap();
 
     assert!(page.next_cursor.is_none());
@@ -745,6 +880,7 @@ fn test_get_recent_sessions_filters_deleted_and_superseded_notes() {
     service.delete_note(&deleted.id).unwrap();
     let live = service.create_note("live".to_string(), vec![]).unwrap();
 
+    #[allow(deprecated)]
     let page = service.get_recent_sessions(None, Some(10)).unwrap();
     let notes = &page.sessions[0].notes;
 
@@ -926,6 +1062,7 @@ fn test_recent_and_search_filter_superseded_versions_and_markdown_media() {
         )
         .unwrap();
 
+    #[allow(deprecated)]
     let recent = service.get_recent_note(None, Some(10)).unwrap();
     assert!(recent.iter().any(|note| note.id == edited.id));
     assert!(!recent.iter().any(|note| note.id == original.id));

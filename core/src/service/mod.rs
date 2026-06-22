@@ -26,8 +26,8 @@ use crate::{
         NoteVersionDTO, PeerDTO, PeerSyncStatsDTO, PeerTrustStatusDTO, PublicKeyInfoDTO,
         RelayFetchStatsDTO, RelayPushStatsDTO, SearchResultDTO, SearchSourceDTO, ShareStatsDTO,
         StarmapPointDTO, SyncSessionDTO, SyncSessionRecordDTO, SyncSessionRoleDTO, SyncStatsDTO,
-        SyncStatusDTO, SyncTransportKindDTO, TimelineNotesPageDTO, TimelineSessionDTO,
-        TimelineSessionsPageDTO,
+        SyncStatusDTO, SyncTransportKindDTO, TimelineDensityPointDTO, TimelineGroupDTO,
+        TimelineNotesPageDTO, TimelineSessionDTO, TimelineSessionsPageDTO,
     },
     error::ServiceError,
     models::{
@@ -48,14 +48,14 @@ use crate::{
         note_version_view::NoteVersionView,
         note_view::NoteView,
         starmap::StarmapView,
-        timeline_view::{SessionDetectionConfig, SessionSpan, TimelinePoint, TimelineView},
+        timeline_view::{SessionDetectionConfig, SessionSpan, TimelineView},
     },
 };
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use redb::{Database, ReadTransaction, ReadableDatabase, WriteTransaction};
 use std::ops::Bound;
 use tempfile::NamedTempFile;
-use uuid::Uuid;
+use uuid::{Builder, Uuid};
 
 #[derive(Debug, Default)]
 struct ServiceTagRecommender {

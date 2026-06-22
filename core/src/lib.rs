@@ -35,7 +35,8 @@ pub use dto::{
     PeerDTO, PeerSyncStatsDTO, PeerTrustStatusDTO, PublicKeyInfoDTO, RelayFetchStatsDTO,
     RelayPushStatsDTO, SearchResultDTO, SearchSourceDTO, ShareStatsDTO, StarmapPointDTO,
     SyncSessionDTO, SyncSessionRecordDTO, SyncSessionRoleDTO, SyncStatsDTO, SyncStatusDTO,
-    SyncTransportKindDTO, TimelineNotesPageDTO, TimelineSessionDTO, TimelineSessionsPageDTO,
+    SyncTransportKindDTO, TimelineGroupDTO, TimelineNotesPageDTO, TimelineSessionDTO,
+    TimelineSessionsPageDTO,
 };
 #[cfg(not(target_arch = "wasm32"))]
 pub use error::{NoteError, ServiceError};

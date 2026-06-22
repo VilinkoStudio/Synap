@@ -17,8 +17,9 @@ use synap_core::dto::{
     SyncSessionRecordDTO as CoreSyncSessionRecordDto, SyncSessionRoleDTO as CoreSyncSessionRoleDto,
     SyncStatsDTO as CoreSyncStatsDto, SyncStatusDTO as CoreSyncStatusDto,
     SyncTransportKindDTO as CoreSyncTransportKindDto,
-    TimelineNotesPageDTO as CoreTimelineNotesPageDto, TimelineSessionDTO as CoreTimelineSessionDto,
-    TimelineSessionsPageDTO as CoreTimelineSessionsPageDto,
+    TimelineDensityPointDTO as CoreTimelineDensityPointDto,
+    TimelineGroupDTO as CoreTimelineGroupDto, TimelineNotesPageDTO as CoreTimelineNotesPageDto,
+    TimelineSessionDTO as CoreTimelineSessionDto, TimelineSessionsPageDTO as CoreTimelineSessionsPageDto,
 };
 use synap_core::service::FilteredNoteStatus as CoreFilteredNoteStatus;
 use synap_core::service::TimelineDirection as CoreTimelineDirection;
@@ -43,6 +44,42 @@ impl From<CoreNoteBriefDto> for NoteBriefDTO {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TimelineGroupDTO {
+    pub starts_group: bool,
+    pub started_at: i64,
+    pub ended_at: i64,
+    pub note_count: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TimelineDensityPointDTO {
+    pub started_at: i64,
+    pub ended_at: i64,
+    pub note_count: u32,
+}
+
+impl From<CoreTimelineDensityPointDto> for TimelineDensityPointDTO {
+    fn from(point: CoreTimelineDensityPointDto) -> Self {
+        Self {
+            started_at: point.started_at as i64,
+            ended_at: point.ended_at as i64,
+            note_count: point.note_count,
+        }
+    }
+}
+
+impl From<CoreTimelineGroupDto> for TimelineGroupDTO {
+    fn from(group: CoreTimelineGroupDto) -> Self {
+        Self {
+            starts_group: group.starts_group,
+            started_at: group.started_at as i64,
+            ended_at: group.ended_at as i64,
+            note_count: group.note_count,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NoteDTO {
     pub id: String,
     pub content: String,
@@ -51,6 +88,7 @@ pub struct NoteDTO {
     pub deleted: bool,
     pub reply_to: Option<NoteBriefDTO>,
     pub edited_from: Option<NoteBriefDTO>,
+    pub timeline_group: Option<TimelineGroupDTO>,
 }
 
 impl From<CoreNoteDto> for NoteDTO {
@@ -63,6 +101,7 @@ impl From<CoreNoteDto> for NoteDTO {
             deleted: note.deleted,
             reply_to: note.reply_to.map(Into::into),
             edited_from: note.edited_from.map(Into::into),
+            timeline_group: note.timeline_group.map(Into::into),
         }
     }
 }
@@ -762,6 +801,7 @@ mod tests {
                 created_at: 1_742_165_100_000,
             }),
             edited_from: None,
+            timeline_group: None,
         };
 
         let ffi_note: NoteDTO = core_note.into();
@@ -778,6 +818,7 @@ mod tests {
             Some("Parent preview")
         );
         assert!(ffi_note.edited_from.is_none());
+        assert!(ffi_note.timeline_group.is_none());
     }
 
     #[test]

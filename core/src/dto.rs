@@ -10,6 +10,15 @@ pub struct NoteBriefDTO {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TimelineGroupDTO {
+    pub starts_group: bool,
+    pub started_at: u64,
+    pub ended_at: u64,
+    pub note_count: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")] // 照顾 TS 和 Kotlin 的命名习惯
 pub struct NoteDTO {
     pub id: String, // Uuid 转成标准的 36 位字符串
@@ -20,6 +29,7 @@ pub struct NoteDTO {
     pub deleted: bool,
     pub reply_to: Option<NoteBriefDTO>,
     pub edited_from: Option<NoteBriefDTO>,
+    pub timeline_group: Option<TimelineGroupDTO>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -89,6 +99,14 @@ pub struct SearchResultDTO {
 pub struct TimelineNotesPageDTO {
     pub notes: Vec<NoteDTO>,
     pub next_cursor: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TimelineDensityPointDTO {
+    pub started_at: u64,
+    pub ended_at: u64,
+    pub note_count: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]

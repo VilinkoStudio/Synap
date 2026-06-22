@@ -10,7 +10,7 @@ use crate::types::{
     BuildInfo, FilteredNoteStatus, LocalIdentityDTO, NoteDTO, NoteNeighborsDTO, NoteSegmentDTO,
     NoteSegmentDirectionDTO, NoteVersionDTO, PeerDTO, RelayFetchStatsDTO, RelayPushStatsDTO,
     SearchResultDTO, ShareStatsDTO, StarmapPointDTO, SyncSessionDTO, SyncSessionRecordDTO,
-    TimelineDirection, TimelineNotesPageDTO, TimelineSessionsPageDTO,
+    TimelineDensityPointDTO, TimelineDirection, TimelineNotesPageDTO, TimelineSessionsPageDTO,
 };
 use synap_core::dto::{
     NoteDTO as CoreNoteDTO, NoteNeighborsDTO as CoreNoteNeighborsDTO,
@@ -168,6 +168,7 @@ impl SynapService {
         cursor: Option<String>,
         limit: Option<u32>,
     ) -> Result<Vec<NoteDTO>, FfiError> {
+        #[allow(deprecated)]
         self.inner
             .get_recent_note(cursor.as_deref(), limit.map(|value| value as usize))
             .map(Self::map_notes)
@@ -180,6 +181,7 @@ impl SynapService {
         direction: TimelineDirection,
         limit: Option<u32>,
     ) -> Result<TimelineNotesPageDTO, FfiError> {
+        #[allow(deprecated)]
         self.inner
             .get_recent_notes_page(
                 cursor.as_deref(),
@@ -195,6 +197,7 @@ impl SynapService {
         cursor: Option<String>,
         limit: Option<u32>,
     ) -> Result<TimelineSessionsPageDTO, FfiError> {
+        #[allow(deprecated)]
         self.inner
             .get_recent_sessions(cursor.as_deref(), limit.map(|value| value as usize))
             .map(Self::map_session_page)
@@ -333,6 +336,7 @@ impl SynapService {
         cursor: Option<String>,
         limit: Option<u32>,
     ) -> Result<Vec<NoteDTO>, FfiError> {
+        #[allow(deprecated)]
         self.inner
             .get_filtered_notes(
                 selected_tags,
@@ -356,6 +360,7 @@ impl SynapService {
         direction: TimelineDirection,
         limit: Option<u32>,
     ) -> Result<TimelineNotesPageDTO, FfiError> {
+        #[allow(deprecated)]
         self.inner
             .get_filtered_notes_page(
                 selected_tags,
@@ -367,6 +372,82 @@ impl SynapService {
                 limit.map(|value| value as usize),
             )
             .map(Self::map_note_page)
+            .map_err(Into::into)
+    }
+
+    pub fn get_timeline_notes_page(
+        &self,
+        selected_tags: Vec<String>,
+        include_untagged: bool,
+        tag_filter_enabled: bool,
+        status: FilteredNoteStatus,
+        group_sessions: bool,
+        cursor: Option<String>,
+        direction: TimelineDirection,
+        limit: Option<u32>,
+    ) -> Result<TimelineNotesPageDTO, FfiError> {
+        self.inner
+            .get_timeline_notes_page(
+                selected_tags,
+                include_untagged,
+                tag_filter_enabled,
+                status.into(),
+                group_sessions,
+                cursor.as_deref(),
+                direction.into(),
+                limit.map(|value| value as usize),
+            )
+            .map(Self::map_note_page)
+            .map_err(Into::into)
+    }
+
+    pub fn get_timeline_notes_around(
+        &self,
+        selected_tags: Vec<String>,
+        include_untagged: bool,
+        tag_filter_enabled: bool,
+        status: FilteredNoteStatus,
+        group_sessions: bool,
+        timestamp_ms: u64,
+        direction: TimelineDirection,
+        limit: Option<u32>,
+    ) -> Result<TimelineNotesPageDTO, FfiError> {
+        self.inner
+            .get_timeline_notes_around(
+                selected_tags,
+                include_untagged,
+                tag_filter_enabled,
+                status.into(),
+                group_sessions,
+                timestamp_ms,
+                direction.into(),
+                limit.map(|value| value as usize),
+            )
+            .map(Self::map_note_page)
+            .map_err(Into::into)
+    }
+
+    pub fn get_timeline_density(
+        &self,
+        selected_tags: Vec<String>,
+        include_untagged: bool,
+        tag_filter_enabled: bool,
+        status: FilteredNoteStatus,
+        start_ms: u64,
+        end_ms: u64,
+        bucket_ms: u64,
+    ) -> Result<Vec<TimelineDensityPointDTO>, FfiError> {
+        self.inner
+            .get_timeline_density(
+                selected_tags,
+                include_untagged,
+                tag_filter_enabled,
+                status.into(),
+                start_ms,
+                end_ms,
+                bucket_ms,
+            )
+            .map(|points| points.into_iter().map(Into::into).collect())
             .map_err(Into::into)
     }
 

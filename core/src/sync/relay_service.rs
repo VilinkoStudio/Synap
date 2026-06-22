@@ -858,6 +858,7 @@ mod tests {
             }
         );
 
+        #[allow(deprecated)]
         let notes = recipient.get_recent_note(None, Some(20)).unwrap();
         assert!(notes.iter().any(|item| item.id == note.id));
 
