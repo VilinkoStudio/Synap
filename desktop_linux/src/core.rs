@@ -10,7 +10,7 @@ use corenet::{
 };
 use synap_core::{
     dto::{
-        LocalIdentityDTO, NoteDTO, NoteVersionDTO, PeerDTO, PeerTrustStatusDTO, SyncSessionDTO,
+        LocalIdentityDTO, NoteDTO, NoteVersionDTO, PeerDTO, SyncSessionDTO,
         SyncSessionRecordDTO, TimelineNotesPageDTO, TimelineSessionsPageDTO,
     },
     error::ServiceError,
@@ -21,7 +21,6 @@ use crate::domain::SyncConnectionRecord;
 
 pub type CoreResult<T> = Result<T, ServiceError>;
 
-#[allow(dead_code)]
 pub trait DesktopCore {
     fn recent_notes_page(
         &self,
@@ -69,7 +68,6 @@ pub trait DesktopCore {
     fn get_peers(&self) -> CoreResult<Vec<PeerDTO>>;
     fn trust_peer(&self, public_key: &[u8], note: Option<String>) -> CoreResult<PeerDTO>;
     fn update_peer_note(&self, peer_id: &str, note: Option<String>) -> CoreResult<PeerDTO>;
-    fn set_peer_status(&self, peer_id: &str, status: PeerTrustStatusDTO) -> CoreResult<PeerDTO>;
     fn delete_peer(&self, peer_id: &str) -> CoreResult<()>;
     fn get_recent_sync_sessions(
         &self,
@@ -229,10 +227,6 @@ impl DesktopCore for SynapCoreAdapter {
 
     fn update_peer_note(&self, peer_id: &str, note: Option<String>) -> CoreResult<PeerDTO> {
         self.service.update_peer_note(peer_id, note)
-    }
-
-    fn set_peer_status(&self, peer_id: &str, status: PeerTrustStatusDTO) -> CoreResult<PeerDTO> {
-        self.service.set_peer_status(peer_id, status)
     }
 
     fn delete_peer(&self, peer_id: &str) -> CoreResult<()> {

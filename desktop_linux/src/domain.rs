@@ -152,6 +152,7 @@ pub struct AppState {
     pub selected_tag: Option<String>,
     pub tag_notes: Vec<NoteDTO>,
     pub all_tags: Vec<String>,
+    pub recommended_tags: Vec<String>,
     pub timeline_sessions: Vec<synap_core::dto::TimelineSessionDTO>,
     pub sync: SyncState,
 }
@@ -175,6 +176,7 @@ impl Default for AppState {
             selected_tag: None,
             tag_notes: Vec::new(),
             all_tags: Vec::new(),
+            recommended_tags: Vec::new(),
             timeline_sessions: Vec::new(),
             sync: SyncState::default(),
         }

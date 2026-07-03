@@ -260,19 +260,52 @@ fn enter_edit_mode(self_ref: &Rc<RefCell<EditorInner>>, index: usize) {
     });
     text_view.add_controller(focus_ctrl);
 
-    // Connect Escape to commit
+    // Connect Escape to commit, Tab to indent
     let key_ctrl = gtk::EventControllerKey::new();
     let inner_ref2 = self_ref.clone();
-    key_ctrl.connect_key_pressed(move |_, key, _, _| {
+    let tv_for_tab = text_view.clone();
+    key_ctrl.connect_key_pressed(move |_, key, _, modifier| {
         if key == gtk::gdk::Key::Escape {
             let mut inner = inner_ref2.borrow_mut();
             if let Some(idx) = inner.active_edit {
                 commit_edit_inner(&mut inner, idx);
             }
-            gtk::glib::Propagation::Stop
-        } else {
-            gtk::glib::Propagation::Proceed
+            return gtk::glib::Propagation::Stop;
         }
+        // Tab → insert 2 spaces at cursor
+        if key == gtk::gdk::Key::Tab && !modifier.contains(gtk::gdk::ModifierType::SHIFT_MASK) {
+            let buffer = tv_for_tab.buffer();
+            let (start, end) = buffer.selection_bounds().unwrap_or_else(|| {
+                let mark = buffer.mark("insert").unwrap();
+                let iter = buffer.iter_at_mark(&mark);
+                (iter.clone(), iter)
+            });
+            // If there's a selection, indent all selected lines
+            if start != end {
+                indent_selection(&buffer, &start, &end);
+            } else {
+                let mark = buffer.mark("insert").unwrap();
+                let mut cursor = buffer.iter_at_mark(&mark);
+                buffer.insert(&mut cursor, "  ");
+            }
+            return gtk::glib::Propagation::Stop;
+        }
+        // Shift+Tab → remove leading 2 spaces from current line
+        if key == gtk::gdk::Key::Tab && modifier.contains(gtk::gdk::ModifierType::SHIFT_MASK) {
+            let buffer = tv_for_tab.buffer();
+            let mark = buffer.mark("insert").unwrap();
+            let mut iter = buffer.iter_at_mark(&mark);
+            iter.set_line_offset(0);
+            let line_start = iter;
+            let mut line_end = line_start;
+            line_end.forward_chars(2);
+            let text = buffer.text(&line_start, &line_end, false);
+            if text.as_str() == "  " {
+                buffer.delete(&mut line_start.clone(), &mut line_end);
+            }
+            return gtk::glib::Propagation::Stop;
+        }
+        gtk::glib::Propagation::Proceed
     });
     text_view.add_controller(key_ctrl);
 }
@@ -325,5 +358,17 @@ fn commit_edit_inner(inner: &mut EditorInner, index: usize) {
     // Fire change callback
     if let Some(ref f) = inner.on_change {
         f(inner.source.clone());
+    }
+}
+
+/// Indent all lines in a selection by inserting 2 spaces at the start of each line.
+fn indent_selection(buffer: &gtk::TextBuffer, start: &gtk::TextIter, end: &gtk::TextIter) {
+    let mut line = start.line();
+    let last_line = end.line();
+    while line <= last_line {
+        if let Some(mut iter) = buffer.iter_at_line(line) {
+            buffer.insert(&mut iter, "  ");
+        }
+        line += 1;
     }
 }

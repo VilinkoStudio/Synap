@@ -262,16 +262,6 @@ mod tests {
             )))
         }
 
-        fn set_peer_status(
-            &self,
-            _peer_id: &str,
-            _status: synap_core::dto::PeerTrustStatusDTO,
-        ) -> CoreResult<synap_core::dto::PeerDTO> {
-            Err(synap_core::error::ServiceError::Other(anyhow::anyhow!(
-                "not implemented"
-            )))
-        }
-
         fn delete_peer(&self, _peer_id: &str) -> CoreResult<()> {
             Ok(())
         }

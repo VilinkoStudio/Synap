@@ -207,6 +207,25 @@ button.flat {
     padding: 16px;
 }
 
+/* ── Recommend Tags ── */
+
+.synap-recommend-tags {
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+
+.synap-recommend-tags button.pill.flat {
+    font-size: 11px;
+    opacity: 0.6;
+    padding: 2px 8px;
+    border-radius: 12px;
+    transition: opacity 150ms ease;
+}
+
+.synap-recommend-tags button.pill.flat:hover {
+    opacity: 1;
+}
+
 /* ── Detail Section ── */
 
 .synap-detail-section {

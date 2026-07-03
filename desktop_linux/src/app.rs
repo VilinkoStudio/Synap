@@ -48,6 +48,7 @@ pub struct App {
     editing_title_label: gtk::Label,
     editing_hint_label: gtk::Label,
     editing_tags_entry: gtk::Entry,
+    recommend_tags_box: gtk::Box,
 
     // settings
     theme_dropdown: gtk::DropDown,
@@ -464,6 +465,7 @@ impl SimpleComponent for App {
             editing_title_label: pages.editing_title_label,
             editing_hint_label: pages.editing_hint_label,
             editing_tags_entry: pages.editing_tags_entry,
+            recommend_tags_box: pages.recommend_tags_box,
 
             theme_dropdown: pages.theme_dropdown,
             sync_listener_row: pages.sync_listener_row,
@@ -562,7 +564,19 @@ impl SimpleComponent for App {
 
             // ── Editing ──
             AppMsg::StartCreateNote => self.start_create_note(),
-            AppMsg::DraftContentChanged(value) => self.state.draft_content = value,
+            AppMsg::DraftContentChanged(value) => {
+                self.state.draft_content = value;
+                // Trigger tag recommendations when content changes
+                if self.state.focus_mode.is_editing() && self.state.draft_content.len() > 20 {
+                    let core = self.core.clone();
+                    let content = self.state.draft_content.clone();
+                    let sender = sender.clone();
+                    gtk::glib::spawn_future_local(async move {
+                        let result = core.recommend_tags(&content, 5);
+                        let _ = sender.input_sender().send(AppMsg::TagRecommendationsLoaded(result));
+                    });
+                }
+            }
             AppMsg::DraftTagsChanged(value) => self.state.draft_tags_text = value,
             AppMsg::SaveDraft => self.save_draft(&sender),
             AppMsg::CancelDraft => self.cancel_draft(&sender),
@@ -601,6 +615,12 @@ impl SimpleComponent for App {
                     self.state.status = None;
                 }
                 Err(error) => self.state.status = Some(format!("加载标签笔记失败: {error}")),
+            },
+            AppMsg::TagRecommendationsLoaded(result) => match result {
+                Ok(tags) => {
+                    self.state.recommended_tags = tags;
+                }
+                Err(_) => { /* silently ignore recommendation failures */ }
             },
 
             // ── Timeline ──

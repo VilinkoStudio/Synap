@@ -32,6 +32,7 @@ pub struct ContentPages {
     pub editing_title_label: gtk::Label,
     pub editing_hint_label: gtk::Label,
     pub editing_tags_entry: gtk::Entry,
+    pub recommend_tags_box: gtk::Box,
 
     // settings
     pub theme_dropdown: gtk::DropDown,
@@ -120,6 +121,7 @@ pub fn build_content_pages(state: &AppState, sender: &ComponentSender<App>) -> C
         editing_title_label: editing_overlay.title_label,
         editing_hint_label: editing_overlay.hint_label,
         editing_tags_entry: editing_overlay.tags_entry,
+        recommend_tags_box: editing_overlay.recommend_tags_box,
 
         theme_dropdown: settings_page.theme_dropdown,
         sync_listener_row: settings_page.sync_listener_row,
@@ -269,6 +271,7 @@ struct EditingOverlay {
     title_label: gtk::Label,
     hint_label: gtk::Label,
     tags_entry: gtk::Entry,
+    recommend_tags_box: gtk::Box,
 }
 
 fn build_editing_overlay(sender: &ComponentSender<App>) -> EditingOverlay {
@@ -288,10 +291,15 @@ fn build_editing_overlay(sender: &ComponentSender<App>) -> EditingOverlay {
         let _ = sender_tags.send(AppMsg::DraftTagsChanged(entry.text().to_string()));
     });
 
+    let recommend_tags_box = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    recommend_tags_box.add_css_class("synap-recommend-tags");
+    recommend_tags_box.set_halign(gtk::Align::Start);
+
     EditingOverlay {
         title_label,
         hint_label,
         tags_entry,
+        recommend_tags_box,
     }
 }
 

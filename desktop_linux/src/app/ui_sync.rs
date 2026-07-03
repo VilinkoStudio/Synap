@@ -145,6 +145,39 @@ impl App {
         if self.editing_tags_entry.text().as_str() != self.state.draft_tags_text {
             self.editing_tags_entry.set_text(&self.state.draft_tags_text);
         }
+
+        // Sync recommended tags (only visible in editing mode)
+        clear_box(&self.recommend_tags_box);
+        if self.state.focus_mode.is_editing() && !self.state.recommended_tags.is_empty() {
+            let existing_tags: Vec<String> = self.state.draft_tags_text
+                .split([',', '，'])
+                .map(|t| t.trim().to_lowercase())
+                .filter(|t| !t.is_empty())
+                .collect();
+            for tag in &self.state.recommended_tags {
+                if existing_tags.contains(&tag.to_lowercase()) {
+                    continue;
+                }
+                let btn = gtk::Button::with_label(&format!("+{tag}"));
+                btn.add_css_class("pill");
+                btn.add_css_class("flat");
+                btn.set_tooltip_text(Some("点击添加此标签"));
+                let tag_clone = tag.clone();
+                let current = self.editing_tags_entry.text().to_string();
+                // We can't directly modify state here, but the button click
+                // will trigger DraftTagsChanged via the entry's connect_changed
+                let entry = self.editing_tags_entry.clone();
+                btn.connect_clicked(move |_| {
+                    let mut tags = entry.text().to_string();
+                    if !tags.is_empty() && !tags.ends_with(',') && !tags.ends_with('，') {
+                        tags.push_str(", ");
+                    }
+                    tags.push_str(&tag_clone);
+                    entry.set_text(&tags);
+                });
+                self.recommend_tags_box.append(&btn);
+            }
+        }
     }
 
     fn sync_theme_dropdown(&self) {

@@ -49,6 +49,7 @@ pub enum AppMsg {
     TagSelected(String),
     TagsLoaded(Result<Vec<String>, ServiceError>),
     TagNotesLoaded(Result<Vec<NoteDTO>, ServiceError>),
+    TagRecommendationsLoaded(Result<Vec<String>, ServiceError>),
 
     // ── Timeline ──
     TimelineLoaded(Result<Vec<synap_core::dto::TimelineSessionDTO>, ServiceError>),
