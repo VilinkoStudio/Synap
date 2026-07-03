@@ -382,3 +382,176 @@ pub fn peer_status_label(status: &PeerTrustStatusDTO) -> &'static str {
         PeerTrustStatusDTO::Revoked => "已撤销",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_note(id: &str, content: &str, tags: Vec<&str>, deleted: bool) -> NoteDTO {
+        NoteDTO {
+            id: id.to_string(),
+            content: content.to_string(),
+            tags: tags.into_iter().map(String::from).collect(),
+            created_at: 1700000000000,
+            deleted,
+            reply_to: None,
+            edited_from: None,
+            timeline_group: None,
+        }
+    }
+
+    #[test]
+    fn filter_deleted_notes_empty_query() {
+        let notes = vec![make_note("1", "hello", vec![], false)];
+        let result = filter_deleted_notes(&notes, "");
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn filter_deleted_notes_by_content() {
+        let notes = vec![
+            make_note("1", "rust programming", vec![], false),
+            make_note("2", "python scripting", vec![], false),
+        ];
+        let result = filter_deleted_notes(&notes, "rust");
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].id, "1");
+    }
+
+    #[test]
+    fn filter_deleted_notes_by_tag() {
+        let notes = vec![
+            make_note("1", "hello", vec!["rust"], false),
+            make_note("2", "world", vec!["python"], false),
+        ];
+        let result = filter_deleted_notes(&notes, "rust");
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].id, "1");
+    }
+
+    #[test]
+    fn filter_deleted_notes_case_insensitive() {
+        let notes = vec![make_note("1", "Rust Programming", vec![], false)];
+        let result = filter_deleted_notes(&notes, "rust");
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn format_timestamp_returns_formatted_date() {
+        let result = format_timestamp(1700000000000);
+        // Should contain date parts
+        assert!(result.contains("-"));
+        assert!(result.contains(":"));
+    }
+
+    #[test]
+    fn theme_index_roundtrip() {
+        for i in 0..3 {
+            let theme = Theme::from_index(i);
+            assert_eq!(theme.index(), i);
+        }
+    }
+
+    #[test]
+    fn theme_default_is_auto() {
+        assert_eq!(Theme::default(), Theme::Auto);
+    }
+
+    #[test]
+    fn visible_notes_returns_notes_for_notes_view() {
+        let mut state = AppState::default();
+        state.home.notes = vec![make_note("1", "hello", vec![], false)];
+        state.content_view = ContentView::Notes;
+        assert_eq!(state.visible_notes().len(), 1);
+    }
+
+    #[test]
+    fn visible_notes_returns_empty_for_timeline() {
+        let state = AppState::default();
+        assert!(state.visible_notes().is_empty());
+    }
+
+    #[test]
+    fn visible_notes_filters_trash_by_query() {
+        let mut state = AppState::default();
+        state.home.deleted_notes = vec![
+            make_note("1", "rust note", vec![], true),
+            make_note("2", "python note", vec![], true),
+        ];
+        state.content_view = ContentView::Trash;
+        state.search_query = "rust".to_string();
+        assert_eq!(state.visible_notes().len(), 1);
+        assert_eq!(state.visible_notes()[0].id, "1");
+    }
+
+    #[test]
+    fn sync_selection_auto_selects_first_note() {
+        let mut state = AppState::default();
+        state.home.notes = vec![make_note("1", "hello", vec![], false)];
+        state.content_view = ContentView::Notes;
+        state.sync_selection();
+        assert_eq!(state.selected_note_id.as_deref(), Some("1"));
+    }
+
+    #[test]
+    fn sync_selection_preserves_valid_selection() {
+        let mut state = AppState::default();
+        state.home.notes = vec![
+            make_note("1", "first", vec![], false),
+            make_note("2", "second", vec![], false),
+        ];
+        state.content_view = ContentView::Notes;
+        state.selected_note_id = Some("2".to_string());
+        state.sync_selection();
+        assert_eq!(state.selected_note_id.as_deref(), Some("2"));
+    }
+
+    #[test]
+    fn sync_selection_clears_invalid_selection() {
+        let mut state = AppState::default();
+        state.home.notes = vec![make_note("1", "hello", vec![], false)];
+        state.content_view = ContentView::Notes;
+        state.selected_note_id = Some("nonexistent".to_string());
+        state.sync_selection();
+        assert_eq!(state.selected_note_id.as_deref(), Some("1"));
+    }
+
+    #[test]
+    fn sync_selection_skips_settings() {
+        let mut state = AppState::default();
+        state.content_view = ContentView::Settings;
+        state.selected_note_id = Some("old".to_string());
+        state.sync_selection();
+        assert_eq!(state.selected_note_id.as_deref(), Some("old"));
+    }
+
+    #[test]
+    fn note_detail_data_to_view_model() {
+        let data = NoteDetailData {
+            note: make_note("1", "hello", vec!["tag1"], false),
+            replies: vec![],
+            origins: vec![],
+            other_versions: vec![],
+        };
+        let vm = data.to_view_model();
+        assert_eq!(vm.id, "1");
+        assert_eq!(vm.content, "hello");
+        assert_eq!(vm.tags, vec!["tag1"]);
+        assert!(!vm.deleted);
+    }
+
+    #[test]
+    fn focus_mode_default_is_browse() {
+        assert_eq!(FocusMode::default(), FocusMode::Browse);
+        assert!(FocusMode::Browse.is_browse());
+        assert!(!FocusMode::Browse.is_editing());
+    }
+
+    #[test]
+    fn focus_mode_editing() {
+        let mode = FocusMode::Editing(WorkspaceMode::CreateDraft);
+        assert!(!mode.is_browse());
+        assert!(mode.is_editing());
+    }
+}
+
