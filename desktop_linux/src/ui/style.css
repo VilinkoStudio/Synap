@@ -212,3 +212,16 @@ button.flat {
 .synap-detail-section {
     margin-bottom: 4px;
 }
+
+/* ── Restore Button (trash view) ── */
+
+.synap-restore-btn {
+    font-size: 12px;
+    padding: 2px 8px;
+    opacity: 0.7;
+    transition: opacity 150ms ease;
+}
+
+.synap-restore-btn:hover {
+    opacity: 1;
+}

@@ -8,11 +8,18 @@ use crate::{
 };
 
 /// 笔记列表行（浏览模式）— 点击进入沉浸阅读
-pub fn build_note_row(note: &NoteDTO, sender: &ComponentSender<App>) -> gtk::ListBoxRow {
+///
+/// When `show_restore` is true (trash view), a restore button is appended to the card footer.
+pub fn build_note_row(note: &NoteDTO, sender: &ComponentSender<App>, show_restore: bool) -> gtk::ListBoxRow {
     let row = gtk::ListBoxRow::new();
     row.set_activatable(true);
 
     let body = build_note_card_body(note);
+
+    if show_restore {
+        append_restore_button(&body, &note.id, sender);
+    }
+
     row.set_child(Some(&body));
 
     let note_id = note.id.clone();
@@ -41,6 +48,24 @@ pub fn build_clickable_note_row(
     card.add_controller(gesture);
 
     card
+}
+
+fn append_restore_button(card: &gtk::Box, note_id: &str, sender: &ComponentSender<App>) {
+    let restore_box = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+    restore_box.set_halign(gtk::Align::End);
+
+    let restore_btn = gtk::Button::with_label("恢复");
+    restore_btn.add_css_class("flat");
+    restore_btn.add_css_class("synap-restore-btn");
+    let s = sender.input_sender().clone();
+    let id = note_id.to_string();
+    restore_btn.connect_clicked(move |btn| {
+        // Prevent the row activate (which opens focus mode)
+        btn.activate_action("listboxrow.deselect", None);
+        let _ = s.send(AppMsg::RestoreNote(id.clone()));
+    });
+    restore_box.append(&restore_btn);
+    card.append(&restore_box);
 }
 
 fn build_note_card_body(note: &NoteDTO) -> gtk::Box {

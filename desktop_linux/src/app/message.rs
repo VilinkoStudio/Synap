@@ -33,6 +33,7 @@ pub enum AppMsg {
     // ── Note operations ──
     DeleteNote,
     ConfirmDeleteNote,
+    RestoreNote(String),
     EditNote,
     ReplyToNote,
 

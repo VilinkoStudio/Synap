@@ -553,6 +553,7 @@ impl SimpleComponent for App {
             AppMsg::ReplyToNote => self.start_reply_to_note(),
             AppMsg::DeleteNote => self.confirm_delete_note(&sender),
             AppMsg::ConfirmDeleteNote => self.delete_selected_note(&sender),
+            AppMsg::RestoreNote(id) => self.restore_note(&id, &sender),
 
             // ── Theme ──
             AppMsg::ThemeChanged(theme) => {
@@ -851,6 +852,18 @@ impl App {
             }
         }
     }
+
+    fn restore_note(&mut self, id: &str, sender: &ComponentSender<Self>) {
+        match self.core.restore_note(id) {
+            Ok(()) => {
+                self.toast_overlay.add_toast(adw::Toast::new("已恢复笔记"));
+                self.refresh_home(sender);
+            }
+            Err(error) => {
+                self.state.status = Some(format!("恢复失败: {error}"));
+            }
+        }
+    }
 }
 
 // ── Browse mode logic ──
@@ -913,8 +926,9 @@ impl App {
         }
 
         let visible = self.state.visible_notes();
+        let show_restore = self.state.content_view == ContentView::Trash;
         for note in &visible {
-            self.list_box.append(&build_note_row(note, sender));
+            self.list_box.append(&build_note_row(note, sender, show_restore));
         }
 
         if self.state.is_loading_more {
