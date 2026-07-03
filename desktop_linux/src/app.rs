@@ -480,6 +480,27 @@ impl SimpleComponent for App {
         model.rebuild_list(&sender);
         model.sync_ui(&sender);
 
+        // ── Global keyboard shortcuts ──
+        let key_ctrl = gtk::EventControllerKey::new();
+        let sender_keys = sender.input_sender().clone();
+        key_ctrl.connect_key_pressed(move |_, key, _, modifiers| {
+            let ctrl = modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK);
+            match (ctrl, key) {
+                // Ctrl+N → new note
+                (true, gtk::gdk::Key::n) => {
+                    let _ = sender_keys.send(AppMsg::StartCreateNote);
+                    gtk::glib::Propagation::Stop
+                }
+                // Escape → exit focus mode
+                (false, gtk::gdk::Key::Escape) => {
+                    let _ = sender_keys.send(AppMsg::ExitFocus);
+                    gtk::glib::Propagation::Stop
+                }
+                _ => gtk::glib::Propagation::Proceed,
+            }
+        });
+        model.toast_overlay.add_controller(key_ctrl);
+
         ComponentParts { model, widgets }
     }
 
