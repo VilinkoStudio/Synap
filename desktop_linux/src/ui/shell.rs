@@ -72,7 +72,8 @@ pub fn build_content_pages(state: &AppState, sender: &ComponentSender<App>) -> C
     content_stack.add_named(&notes_scroller, Some("notes"));
 
     let empty_page = adw::StatusPage::new();
-    empty_page.set_icon_name(Some("network-workgroup-symbolic"));
+    empty_page.set_icon_name(Some("document-new-symbolic"));
+    empty_page.add_css_class("compact");
     content_stack.add_named(&empty_page, Some("empty"));
 
     let settings_page = build_settings_page(state, sender);
