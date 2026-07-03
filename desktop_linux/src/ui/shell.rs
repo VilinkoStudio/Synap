@@ -318,6 +318,29 @@ fn build_settings_page(state: &AppState, sender: &ComponentSender<App>) -> Setti
     smooth_scroller(&root);
     root.set_child(Some(&page));
 
+    // ── 外观 ──
+
+    let appearance_group = adw::PreferencesGroup::builder()
+        .title("外观")
+        .build();
+
+    let theme_row = adw::ActionRow::builder()
+        .title("主题")
+        .subtitle("选择应用的颜色主题")
+        .build();
+
+    let theme_dropdown = gtk::DropDown::from_strings(&["跟随系统", "浅色", "深色"]);
+    theme_dropdown.set_selected(state.theme.index());
+    let sender_theme = sender.input_sender().clone();
+    theme_dropdown.connect_selected_notify(move |dropdown| {
+        let _ = sender_theme.send(AppMsg::ThemeChanged(Theme::from_index(dropdown.selected())));
+    });
+    theme_row.add_suffix(&theme_dropdown);
+    appearance_group.add(&theme_row);
+    page.add(&appearance_group);
+
+    // ── 同步与信任 ──
+
     let sync_group = adw::PreferencesGroup::builder()
         .title("同步与信任")
         .description("桌面端监听、局域网发现、手动连接、设备信任和同步历史")
@@ -361,6 +384,8 @@ fn build_settings_page(state: &AppState, sender: &ComponentSender<App>) -> Setti
     sync_error_label.set_margin_end(12);
     sync_group.add(&sync_error_label);
     page.add(&sync_group);
+
+    // ── 连接目标 ──
 
     let connections_group = adw::PreferencesGroup::builder()
         .title("连接目标")
@@ -412,6 +437,8 @@ fn build_settings_page(state: &AppState, sender: &ComponentSender<App>) -> Setti
     connections_group.add(&sync_connections_box);
     page.add(&connections_group);
 
+    // ── 设备列表 ──
+
     let peers_group = adw::PreferencesGroup::builder()
         .title("设备列表")
         .description("管理待信任、已信任和已撤销的对端公钥")
@@ -420,30 +447,15 @@ fn build_settings_page(state: &AppState, sender: &ComponentSender<App>) -> Setti
     peers_group.add(&sync_peers_box);
     page.add(&peers_group);
 
+    // ── 同步统计 ──
+
     let sessions_group = adw::PreferencesGroup::builder()
         .title("同步统计")
         .description("最近同步结果和角色信息")
         .build();
     let sync_sessions_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
     sessions_group.add(&sync_sessions_box);
-
-    let settings_group = adw::PreferencesGroup::builder().title("外观").build();
-
-    let theme_row = adw::ActionRow::builder()
-        .title("主题")
-        .subtitle("选择应用的颜色主题")
-        .build();
-
-    let theme_dropdown = gtk::DropDown::from_strings(&["跟随系统", "浅色", "深色"]);
-    theme_dropdown.set_selected(state.theme.index());
-    let sender_theme = sender.input_sender().clone();
-    theme_dropdown.connect_selected_notify(move |dropdown| {
-        let _ = sender_theme.send(AppMsg::ThemeChanged(Theme::from_index(dropdown.selected())));
-    });
-    theme_row.add_suffix(&theme_dropdown);
-    settings_group.add(&theme_row);
     page.add(&sessions_group);
-    page.add(&settings_group);
 
     SettingsPage {
         root,
