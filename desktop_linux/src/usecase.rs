@@ -2,7 +2,7 @@ use crate::{
     core::{CoreResult, DesktopCore},
     domain::{HomeData, NoteDetailData},
 };
-use synap_core::dto::{NoteDTO, TimelineNotesPageDTO};
+use synap_core::dto::NoteDTO;
 
 const PAGE_SIZE: usize = 50;
 

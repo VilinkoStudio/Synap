@@ -61,7 +61,7 @@ fn append_restore_button(card: &gtk::Box, note_id: &str, sender: &ComponentSende
     let id = note_id.to_string();
     restore_btn.connect_clicked(move |btn| {
         // Prevent the row activate (which opens focus mode)
-        btn.activate_action("listboxrow.deselect", None);
+        let _ = btn.activate_action("listboxrow.deselect", None);
         let _ = s.send(AppMsg::RestoreNote(id.clone()));
     });
     restore_box.append(&restore_btn);
