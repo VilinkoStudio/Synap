@@ -551,7 +551,8 @@ impl SimpleComponent for App {
             // ── Note operations (from reading toolbar) ──
             AppMsg::EditNote => self.start_edit_note(),
             AppMsg::ReplyToNote => self.start_reply_to_note(),
-            AppMsg::DeleteNote => self.delete_selected_note(&sender),
+            AppMsg::DeleteNote => self.confirm_delete_note(&sender),
+            AppMsg::ConfirmDeleteNote => self.delete_selected_note(&sender),
 
             // ── Theme ──
             AppMsg::ThemeChanged(theme) => {
@@ -805,6 +806,33 @@ impl App {
             }
             Err(error) => self.state.status = Some(format!("保存失败: {error}")),
         }
+    }
+
+    fn confirm_delete_note(&self, sender: &ComponentSender<Self>) {
+        if self.state.selected_note_id.is_none() {
+            return;
+        }
+
+        let dialog = adw::MessageDialog::builder()
+            .heading("删除笔记")
+            .body("确定要删除这条笔记吗？删除后可在回收站中恢复。")
+            .modal(true)
+            .build();
+
+        dialog.add_response("cancel", "取消");
+        dialog.add_response("delete", "删除");
+        dialog.set_response_appearance("delete", adw::ResponseAppearance::Destructive);
+        dialog.set_default_response(Some("cancel"));
+        dialog.set_close_response("cancel");
+
+        let s = sender.input_sender().clone();
+        dialog.connect_response(None, move |_, response| {
+            if response == "delete" {
+                let _ = s.send(AppMsg::ConfirmDeleteNote);
+            }
+        });
+
+        dialog.present();
     }
 
     fn delete_selected_note(&mut self, sender: &ComponentSender<Self>) {
