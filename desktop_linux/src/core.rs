@@ -21,6 +21,7 @@ use crate::domain::SyncConnectionRecord;
 
 pub type CoreResult<T> = Result<T, ServiceError>;
 
+#[allow(dead_code)]
 pub trait DesktopCore {
     fn recent_notes(&self, cursor: Option<&str>, limit: Option<usize>) -> CoreResult<Vec<NoteDTO>>;
     fn recent_notes_page(
@@ -108,10 +109,12 @@ impl SynapCoreAdapter {
 }
 
 impl DesktopCore for SynapCoreAdapter {
+    #[allow(deprecated)]
     fn recent_notes(&self, cursor: Option<&str>, limit: Option<usize>) -> CoreResult<Vec<NoteDTO>> {
         self.service.get_recent_note(cursor, limit)
     }
 
+    #[allow(deprecated)]
     fn recent_notes_page(
         &self,
         cursor: Option<&str>,
@@ -129,6 +132,7 @@ impl DesktopCore for SynapCoreAdapter {
         self.service.get_deleted_notes(cursor, limit)
     }
 
+    #[allow(deprecated)]
     fn deleted_notes_page(
         &self,
         cursor: Option<&str>,
@@ -211,6 +215,7 @@ impl DesktopCore for SynapCoreAdapter {
         self.service.get_notes_by_tag(tag, None, Some(limit))
     }
 
+    #[allow(deprecated)]
     fn get_recent_sessions(
         &self,
         cursor: Option<&str>,

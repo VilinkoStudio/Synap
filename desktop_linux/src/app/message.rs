@@ -1,7 +1,7 @@
-use crate::domain::{ContentView, NoteDetailData, NoteLayout, Theme};
+use crate::domain::{ContentView, NoteDetailData, Theme};
 use synap_core::{
     dto::{
-        LocalIdentityDTO, NoteDTO, PeerDTO, PeerTrustStatusDTO, SyncSessionDTO,
+        LocalIdentityDTO, NoteDTO, PeerDTO, SyncSessionDTO,
         SyncSessionRecordDTO,
     },
     error::ServiceError,
@@ -12,7 +12,6 @@ pub enum AppMsg {
     // ── Browse navigation ──
     Navigate(ContentView),
     SearchChanged(String),
-    LayoutChanged(NoteLayout),
     ClearFilters,
 
     // ── Focus mode ──
@@ -26,8 +25,6 @@ pub enum AppMsg {
 
     // ── Editing ──
     StartCreateNote,
-    StartEditNote,
-    StartReplyToNote,
     DraftContentChanged(String),
     DraftTagsChanged(String),
     SaveDraft,
@@ -79,10 +76,6 @@ pub enum AppMsg {
     UpdatePeerNote {
         peer_id: String,
         note: Option<String>,
-    },
-    SetPeerStatus {
-        peer_id: String,
-        status: PeerTrustStatusDTO,
     },
     DeletePeer(String),
     SyncSessionCompleted(Result<SyncSessionDTO, ServiceError>),

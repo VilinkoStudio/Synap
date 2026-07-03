@@ -1,5 +1,5 @@
 use synap_core::dto::{
-    LocalIdentityDTO, NoteDTO, NoteVersionDTO, PeerDTO, PeerTrustStatusDTO, SyncSessionDTO,
+    LocalIdentityDTO, NoteDTO, NoteVersionDTO, PeerDTO, PeerTrustStatusDTO,
     SyncSessionRecordDTO, SyncSessionRoleDTO, SyncStatusDTO,
 };
 
@@ -71,6 +71,7 @@ impl Default for Theme {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[allow(dead_code)]
 pub enum NoteLayout {
     #[default]
     List,
@@ -145,6 +146,7 @@ pub struct AppState {
     pub home: HomeData,
     pub search_query: String,
     pub content_view: ContentView,
+    #[allow(dead_code)]
     pub layout: NoteLayout,
     pub focus_mode: FocusMode,
     pub selected_note_id: Option<String>,
@@ -281,12 +283,16 @@ pub struct SyncState {
 
 #[derive(Debug, Clone, Default)]
 pub struct SyncListenerState {
+    #[allow(dead_code)]
     pub protocol: String,
+    #[allow(dead_code)]
     pub backend: String,
+    #[allow(dead_code)]
     pub is_listening: bool,
     pub listen_port: Option<u16>,
     pub local_addresses: Vec<String>,
     pub status: String,
+    #[allow(dead_code)]
     pub error_message: Option<String>,
 }
 
@@ -305,6 +311,7 @@ impl From<corenet::ListenerState> for SyncListenerState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum SyncConnectionStatus {
     Idle,
     Connecting,
@@ -319,17 +326,21 @@ pub struct SyncConnectionRecord {
     pub name: String,
     pub host: String,
     pub port: u16,
+    #[allow(dead_code)]
     pub status: SyncConnectionStatus,
     pub status_message: String,
 }
 
 #[derive(Debug, Clone)]
 pub struct DiscoveredSyncPeer {
+    #[allow(dead_code)]
     pub service_name: String,
     pub display_name: String,
     pub host: String,
     pub port: u16,
+    #[allow(dead_code)]
     pub last_seen_at_ms: u64,
+    #[allow(dead_code)]
     pub signing_public_key: [u8; 32],
 }
 

@@ -10,12 +10,13 @@ use relm4::prelude::*;
 use crate::{
     app::message::AppMsg,
     core::DesktopCore,
-    domain::{AppState, ContentView, FocusMode, NoteLayout, Theme, WorkspaceMode},
+    domain::{AppState, ContentView, FocusMode, Theme, WorkspaceMode},
     ui::{
         editor::WysiwygEditor,
         note_widgets::{build_clickable_note_row, build_note_row, tag_chip},
         shell::build_content_pages,
         theme::apply_theme,
+        util::{compact_single_line, parse_tags, render_reading_text},
     },
     usecase::load_home,
 };
@@ -490,10 +491,6 @@ impl SimpleComponent for App {
                 self.state.search_query = query;
                 self.refresh_home(&sender);
             }
-            AppMsg::LayoutChanged(layout) => {
-                self.state.layout = layout;
-                self.rebuild_list(&sender);
-            }
             AppMsg::ClearFilters => self.clear_filters(&sender),
 
             // ── Focus mode ──
@@ -525,8 +522,6 @@ impl SimpleComponent for App {
 
             // ── Editing ──
             AppMsg::StartCreateNote => self.start_create_note(),
-            AppMsg::StartEditNote => self.start_edit_note(),
-            AppMsg::StartReplyToNote => self.start_reply_to_note(),
             AppMsg::DraftContentChanged(value) => self.state.draft_content = value,
             AppMsg::DraftTagsChanged(value) => self.state.draft_tags_text = value,
             AppMsg::SaveDraft => self.save_draft(&sender),
@@ -611,7 +606,6 @@ impl SimpleComponent for App {
             AppMsg::PairDiscoveredPeer { host, port } => self.start_sync_pair(host, port, &sender),
             AppMsg::TrustPeer { public_key, note } => self.trust_peer(public_key, note),
             AppMsg::UpdatePeerNote { peer_id, note } => self.update_peer_note(peer_id, note),
-            AppMsg::SetPeerStatus { peer_id, status } => self.set_peer_status(peer_id, status),
             AppMsg::DeletePeer(peer_id) => self.delete_peer(peer_id),
             AppMsg::SyncSessionCompleted(result) => self.finish_sync_pair(result),
         }
@@ -1575,22 +1569,6 @@ impl App {
         }
     }
 
-    fn set_peer_status(&mut self, peer_id: String, status: synap_core::dto::PeerTrustStatusDTO) {
-        self.state.sync.is_managing_peer = true;
-        match self.core.set_peer_status(&peer_id, status) {
-            Ok(peer) => {
-                self.state.sync.is_managing_peer = false;
-                self.state.sync.peers.retain(|p| p.id != peer.id);
-                self.state.sync.peers.push(peer);
-                self.state.sync.error_message = None;
-            }
-            Err(e) => {
-                self.state.sync.is_managing_peer = false;
-                self.state.sync.error_message = Some(format!("更新设备状态失败: {e}"));
-            }
-        }
-    }
-
     fn delete_peer(&mut self, peer_id: String) {
         self.state.sync.is_managing_peer = true;
         match self.core.delete_peer(&peer_id) {
@@ -1607,85 +1585,7 @@ impl App {
     }
 }
 
-// ── Utility functions ──
-
-fn render_reading_text(content: &str) -> String {
-    let rendered = content
-        .lines()
-        .map(render_reading_line)
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    if rendered.trim().is_empty() {
-        "空白笔记".to_string()
-    } else {
-        rendered
-    }
-}
-
-fn parse_tags(raw: &str) -> Vec<String> {
-    let mut tags = Vec::new();
-    for tag in raw.split([',', '，']) {
-        let trimmed = tag.trim();
-        if trimmed.is_empty() || tags.iter().any(|existing: &String| existing == trimmed) {
-            continue;
-        }
-        tags.push(trimmed.to_string());
-    }
-    tags
-}
-
-fn compact_single_line(content: &str, max_chars: usize) -> String {
-    let normalized = content.split_whitespace().collect::<Vec<_>>().join(" ");
-    if normalized.is_empty() {
-        return "空白笔记".to_string();
-    }
-    if normalized.chars().count() <= max_chars {
-        normalized
-    } else {
-        let preview: String = normalized.chars().take(max_chars).collect();
-        format!("{preview}...")
-    }
-}
-
-fn render_reading_line(line: &str) -> String {
-    let trimmed = line.trim_start();
-    let indent = &line[..line.len() - trimmed.len()];
-
-    if trimmed.is_empty() {
-        return String::new();
-    }
-
-    let (prefix, mut text) = if let Some(rest) = trimmed.strip_prefix("> ") {
-        ("│ ", rest)
-    } else if let Some(rest) = trimmed.strip_prefix("- [ ] ") {
-        ("☐ ", rest)
-    } else if let Some(rest) = trimmed.strip_prefix("- [x] ") {
-        ("☑ ", rest)
-    } else if let Some(rest) = trimmed.strip_prefix("- ") {
-        ("• ", rest)
-    } else if let Some(rest) = trimmed.strip_prefix("* ") {
-        ("• ", rest)
-    } else {
-        ("", trimmed)
-    };
-
-    while let Some(rest) = text.strip_prefix('#') {
-        text = rest.trim_start();
-    }
-
-    format!("{indent}{prefix}{}", strip_inline_markdown(text))
-}
-
-fn strip_inline_markdown(text: &str) -> String {
-    text.replace("***", "")
-        .replace("**", "")
-        .replace('*', "")
-        .replace("~~", "")
-        .replace("==", "")
-        .replace("<u>", "")
-        .replace("</u>", "")
-}
+// ── GTK helpers ──
 
 fn clear_box(container: &gtk::Box) {
     while let Some(child) = container.first_child() {

@@ -9,6 +9,7 @@ use super::markdown::inline_to_pango;
 use super::model::{BlockKind, MdBlock};
 
 /// Render a list of blocks into a vertical box of widgets.
+#[allow(dead_code)]
 pub fn render_blocks(blocks: &[MdBlock], container: &gtk::Box) {
     // Remove existing children
     while let Some(child) = container.first_child() {
