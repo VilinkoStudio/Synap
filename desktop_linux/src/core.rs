@@ -23,14 +23,11 @@ pub type CoreResult<T> = Result<T, ServiceError>;
 
 #[allow(dead_code)]
 pub trait DesktopCore {
-    fn recent_notes(&self, cursor: Option<&str>, limit: Option<usize>) -> CoreResult<Vec<NoteDTO>>;
     fn recent_notes_page(
         &self,
         cursor: Option<&str>,
         limit: Option<usize>,
     ) -> CoreResult<TimelineNotesPageDTO>;
-    fn deleted_notes(&self, cursor: Option<&str>, limit: Option<usize>)
-    -> CoreResult<Vec<NoteDTO>>;
     fn deleted_notes_page(
         &self,
         cursor: Option<&str>,
@@ -109,40 +106,34 @@ impl SynapCoreAdapter {
 }
 
 impl DesktopCore for SynapCoreAdapter {
-    #[allow(deprecated)]
-    fn recent_notes(&self, cursor: Option<&str>, limit: Option<usize>) -> CoreResult<Vec<NoteDTO>> {
-        self.service.get_recent_note(cursor, limit)
-    }
-
-    #[allow(deprecated)]
     fn recent_notes_page(
         &self,
         cursor: Option<&str>,
         limit: Option<usize>,
     ) -> CoreResult<TimelineNotesPageDTO> {
-        self.service
-            .get_recent_notes_page(cursor, TimelineDirection::Older, limit)
+        self.service.get_timeline_notes_page(
+            vec![],
+            true,
+            false,
+            synap_core::service::FilteredNoteStatus::Normal,
+            false,
+            cursor,
+            TimelineDirection::Older,
+            limit,
+        )
     }
 
-    fn deleted_notes(
-        &self,
-        cursor: Option<&str>,
-        limit: Option<usize>,
-    ) -> CoreResult<Vec<NoteDTO>> {
-        self.service.get_deleted_notes(cursor, limit)
-    }
-
-    #[allow(deprecated)]
     fn deleted_notes_page(
         &self,
         cursor: Option<&str>,
         limit: Option<usize>,
     ) -> CoreResult<TimelineNotesPageDTO> {
-        self.service.get_filtered_notes_page(
+        self.service.get_timeline_notes_page(
             vec![],
-            false,
+            true,
             false,
             synap_core::service::FilteredNoteStatus::Deleted,
+            false,
             cursor,
             TimelineDirection::Older,
             limit,
