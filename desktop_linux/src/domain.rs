@@ -70,13 +70,6 @@ impl Default for Theme {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-#[allow(dead_code)]
-pub enum NoteLayout {
-    #[default]
-    List,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WorkspaceMode {
     CreateDraft,
@@ -146,8 +139,6 @@ pub struct AppState {
     pub home: HomeData,
     pub search_query: String,
     pub content_view: ContentView,
-    #[allow(dead_code)]
-    pub layout: NoteLayout,
     pub focus_mode: FocusMode,
     pub selected_note_id: Option<String>,
     pub selected_note_detail: Option<NoteDetailViewModel>,
@@ -171,7 +162,6 @@ impl Default for AppState {
             home: HomeData::default(),
             search_query: String::new(),
             content_view: ContentView::Notes,
-            layout: NoteLayout::List,
             focus_mode: FocusMode::Browse,
             selected_note_id: None,
             selected_note_detail: None,
@@ -283,41 +273,19 @@ pub struct SyncState {
 
 #[derive(Debug, Clone, Default)]
 pub struct SyncListenerState {
-    #[allow(dead_code)]
-    pub protocol: String,
-    #[allow(dead_code)]
-    pub backend: String,
-    #[allow(dead_code)]
-    pub is_listening: bool,
     pub listen_port: Option<u16>,
     pub local_addresses: Vec<String>,
     pub status: String,
-    #[allow(dead_code)]
-    pub error_message: Option<String>,
 }
 
 impl From<corenet::ListenerState> for SyncListenerState {
     fn from(value: corenet::ListenerState) -> Self {
         Self {
-            protocol: value.protocol,
-            backend: value.backend,
-            is_listening: value.is_listening,
             listen_port: value.listen_port,
             local_addresses: value.local_addresses,
             status: value.status,
-            error_message: value.error_message,
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[allow(dead_code)]
-pub enum SyncConnectionStatus {
-    Idle,
-    Connecting,
-    AwaitingTrust,
-    Connected,
-    Failed,
 }
 
 #[derive(Debug, Clone)]
@@ -326,33 +294,22 @@ pub struct SyncConnectionRecord {
     pub name: String,
     pub host: String,
     pub port: u16,
-    #[allow(dead_code)]
-    pub status: SyncConnectionStatus,
     pub status_message: String,
 }
 
 #[derive(Debug, Clone)]
 pub struct DiscoveredSyncPeer {
-    #[allow(dead_code)]
-    pub service_name: String,
     pub display_name: String,
     pub host: String,
     pub port: u16,
-    #[allow(dead_code)]
-    pub last_seen_at_ms: u64,
-    #[allow(dead_code)]
-    pub signing_public_key: [u8; 32],
 }
 
 impl From<corenet::DiscoveredPeer> for DiscoveredSyncPeer {
     fn from(value: corenet::DiscoveredPeer) -> Self {
         Self {
-            service_name: value.service_name,
             display_name: value.display_name,
             host: value.host,
             port: value.port,
-            last_seen_at_ms: value.last_seen_at_ms,
-            signing_public_key: value.signing_public_key,
         }
     }
 }

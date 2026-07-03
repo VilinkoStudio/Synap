@@ -331,7 +331,6 @@ impl DesktopCore for SynapCoreAdapter {
             name: format!("{host}:{port}"),
             host: host.to_string(),
             port,
-            status: crate::domain::SyncConnectionStatus::Idle,
             status_message: "已保存，尚未配对".to_string(),
         };
 
@@ -398,7 +397,6 @@ fn load_connections() -> Vec<SyncConnectionRecord> {
                 name: id,
                 host,
                 port,
-                status: crate::domain::SyncConnectionStatus::Idle,
                 status_message: "已保存，尚未配对".to_string(),
             })
         })

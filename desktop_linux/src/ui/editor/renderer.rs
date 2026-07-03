@@ -8,20 +8,6 @@ use gtk::prelude::*;
 use super::markdown::inline_to_pango;
 use super::model::{BlockKind, MdBlock};
 
-/// Render a list of blocks into a vertical box of widgets.
-#[allow(dead_code)]
-pub fn render_blocks(blocks: &[MdBlock], container: &gtk::Box) {
-    // Remove existing children
-    while let Some(child) = container.first_child() {
-        container.remove(&child);
-    }
-
-    for block in blocks {
-        let widget = render_block(block);
-        container.append(&widget);
-    }
-}
-
 /// Render a single block into a display widget.
 pub fn render_block(block: &MdBlock) -> gtk::Widget {
     match &block.kind {

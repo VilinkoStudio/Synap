@@ -133,17 +133,6 @@ impl WysiwygEditor {
         self.inner.borrow().source.clone()
     }
 
-    /// Commit all active edits and return the current source.
-    #[allow(dead_code)]
-    pub fn commit_all(&self) -> String {
-        let mut inner = self.inner.borrow_mut();
-        if let Some(idx) = inner.active_edit {
-            commit_edit_inner(&mut inner, idx);
-        }
-        let blocks = parse_markdown(&inner.source);
-        rebuild_blocks(&mut inner, &blocks, &self.inner);
-        inner.source.clone()
-    }
 }
 
 /// Rebuild all block widgets from a fresh parse.
