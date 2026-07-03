@@ -25,6 +25,47 @@ use crate::{
     usecase::load_home,
 };
 
+/// 阅读视图的 widget 引用
+pub struct ReadingWidgets {
+    pub context_panel: gtk::ScrolledWindow,
+    pub editor: RefCell<WysiwygEditor>,
+    pub tags_box: gtk::Box,
+    pub meta_label: gtk::Label,
+    pub origins_box: gtk::Box,
+    pub replies_box: gtk::Box,
+    pub versions_box: gtk::Box,
+}
+
+/// 编辑模式的 widget 引用
+pub struct EditingWidgets {
+    pub title_label: gtk::Label,
+    pub hint_label: gtk::Label,
+    pub tags_entry: gtk::Entry,
+    pub recommend_tags_box: gtk::Box,
+}
+
+/// 笔记列表的 widget 引用
+pub struct ListWidgets {
+    pub list_box: gtk::ListBox,
+    pub empty_page: adw::StatusPage,
+}
+
+/// 设置页的 widget 引用
+pub struct SettingsWidgets {
+    pub theme_dropdown: gtk::DropDown,
+    pub listener_row: adw::ActionRow,
+    pub addresses_row: adw::ActionRow,
+    pub identity_row: adw::ActionRow,
+    pub signing_row: adw::ActionRow,
+    pub error_label: gtk::Label,
+    pub host_entry: gtk::Entry,
+    pub port_entry: gtk::Entry,
+    pub discovered_box: gtk::Box,
+    pub connections_box: gtk::Box,
+    pub peers_box: gtk::Box,
+    pub sessions_box: gtk::Box,
+}
+
 pub struct App {
     core: Rc<dyn DesktopCore>,
     state: AppState,
@@ -32,42 +73,13 @@ pub struct App {
     toast_overlay: adw::ToastOverlay,
     overlay_split_view: adw::OverlaySplitView,
     content_stack: gtk::Stack,
-    list_box: gtk::ListBox,
-    empty_page: adw::StatusPage,
 
-    // reading
-    reading_context_panel: gtk::ScrolledWindow,
-    reading_editor: RefCell<WysiwygEditor>,
-    reading_tags_box: gtk::Box,
-    reading_meta_label: gtk::Label,
-    reading_origins_box: gtk::Box,
-    reading_replies_box: gtk::Box,
-    reading_versions_box: gtk::Box,
-
-    // editing (shares reading_editor, toggles read_only)
-    editing_title_label: gtk::Label,
-    editing_hint_label: gtk::Label,
-    editing_tags_entry: gtk::Entry,
-    recommend_tags_box: gtk::Box,
-
-    // settings
-    theme_dropdown: gtk::DropDown,
-    sync_listener_row: adw::ActionRow,
-    sync_addresses_row: adw::ActionRow,
-    sync_identity_row: adw::ActionRow,
-    sync_signing_row: adw::ActionRow,
-    sync_error_label: gtk::Label,
-    sync_host_entry: gtk::Entry,
-    sync_port_entry: gtk::Entry,
-    sync_discovered_box: gtk::Box,
-    sync_connections_box: gtk::Box,
-    sync_peers_box: gtk::Box,
-    sync_sessions_box: gtk::Box,
-
-    // tags
+    // 分组的 widget 引用
+    list: ListWidgets,
+    reading: ReadingWidgets,
+    editing: EditingWidgets,
+    settings: SettingsWidgets,
     tags_flow_box: gtk::FlowBox,
-
-    // timeline
     timeline_container: gtk::Box,
 }
 
@@ -316,7 +328,7 @@ impl SimpleComponent for App {
                                 add_named[Some("editing")] = &gtk::Label {
                                     add_css_class: "title",
                                     #[watch]
-                                    set_text: model.editing_title_label.text().as_str(),
+                                    set_text: model.editing.title_label.text().as_str(),
                                 },
                             },
 
@@ -441,7 +453,7 @@ impl SimpleComponent for App {
         apply_theme(state.theme);
         let toast_overlay = adw::ToastOverlay::new();
         let overlay_split_view = adw::OverlaySplitView::new();
-        let pages = build_content_pages(&state, &sender);
+        let pages = build_content_pages(&state, sender.input_sender());
         let content_stack = pages.content_stack.clone();
 
         let model = App {
@@ -450,35 +462,41 @@ impl SimpleComponent for App {
             search_debounce: None,
             toast_overlay: toast_overlay.clone(),
             overlay_split_view: overlay_split_view.clone(),
-            list_box: pages.list_box.clone(),
             content_stack: pages.content_stack,
-            empty_page: pages.empty_page,
 
-            reading_context_panel: pages.reading_context_panel,
-            reading_editor: RefCell::new(pages.reading_editor),
-            reading_tags_box: pages.reading_tags_box,
-            reading_meta_label: pages.reading_meta_label,
-            reading_origins_box: pages.reading_origins_box,
-            reading_replies_box: pages.reading_replies_box,
-            reading_versions_box: pages.reading_versions_box,
-
-            editing_title_label: pages.editing_title_label,
-            editing_hint_label: pages.editing_hint_label,
-            editing_tags_entry: pages.editing_tags_entry,
-            recommend_tags_box: pages.recommend_tags_box,
-
-            theme_dropdown: pages.theme_dropdown,
-            sync_listener_row: pages.sync_listener_row,
-            sync_addresses_row: pages.sync_addresses_row,
-            sync_identity_row: pages.sync_identity_row,
-            sync_signing_row: pages.sync_signing_row,
-            sync_error_label: pages.sync_error_label,
-            sync_host_entry: pages.sync_host_entry,
-            sync_port_entry: pages.sync_port_entry,
-            sync_discovered_box: pages.sync_discovered_box,
-            sync_connections_box: pages.sync_connections_box,
-            sync_peers_box: pages.sync_peers_box,
-            sync_sessions_box: pages.sync_sessions_box,
+            list: ListWidgets {
+                list_box: pages.list_box.clone(),
+                empty_page: pages.empty_page,
+            },
+            reading: ReadingWidgets {
+                context_panel: pages.reading_context_panel,
+                editor: RefCell::new(pages.reading_editor),
+                tags_box: pages.reading_tags_box,
+                meta_label: pages.reading_meta_label,
+                origins_box: pages.reading_origins_box,
+                replies_box: pages.reading_replies_box,
+                versions_box: pages.reading_versions_box,
+            },
+            editing: EditingWidgets {
+                title_label: pages.editing_title_label,
+                hint_label: pages.editing_hint_label,
+                tags_entry: pages.editing_tags_entry,
+                recommend_tags_box: pages.recommend_tags_box,
+            },
+            settings: SettingsWidgets {
+                theme_dropdown: pages.theme_dropdown,
+                listener_row: pages.sync_listener_row,
+                addresses_row: pages.sync_addresses_row,
+                identity_row: pages.sync_identity_row,
+                signing_row: pages.sync_signing_row,
+                error_label: pages.sync_error_label,
+                host_entry: pages.sync_host_entry,
+                port_entry: pages.sync_port_entry,
+                discovered_box: pages.sync_discovered_box,
+                connections_box: pages.sync_connections_box,
+                peers_box: pages.sync_peers_box,
+                sessions_box: pages.sync_sessions_box,
+            },
             tags_flow_box: pages.tags_flow_box,
             timeline_container: pages.timeline_container,
         };
@@ -651,8 +669,8 @@ impl SimpleComponent for App {
             ),
             AppMsg::UpdateSyncHost(value) => self.state.sync.host_input = value,
             AppMsg::UpdateSyncPort(value) => self.state.sync.port_input = value,
-            AppMsg::AddSyncConnection => self.add_sync_connection(),
-            AppMsg::DeleteSyncConnection(id) => self.delete_sync_connection(&id),
+            AppMsg::AddSyncConnection => self.add_sync_connection(&sender),
+            AppMsg::DeleteSyncConnection(id) => self.delete_sync_connection(&id, &sender),
             AppMsg::PairSyncConnection(id) => {
                 if let Some(conn) = self
                     .state
@@ -666,10 +684,135 @@ impl SimpleComponent for App {
                 }
             }
             AppMsg::PairDiscoveredPeer { host, port } => self.start_sync_pair(host, port, &sender),
-            AppMsg::TrustPeer { public_key, note } => self.trust_peer(public_key, note),
-            AppMsg::UpdatePeerNote { peer_id, note } => self.update_peer_note(peer_id, note),
-            AppMsg::DeletePeer(peer_id) => self.delete_peer(peer_id),
+            AppMsg::TrustPeer { public_key, note } => {
+                self.trust_peer(public_key, note, &sender)
+            }
+            AppMsg::UpdatePeerNote { peer_id, note } => {
+                self.update_peer_note(peer_id, note, &sender)
+            }
+            AppMsg::DeletePeer(peer_id) => self.delete_peer(peer_id, &sender),
             AppMsg::SyncSessionCompleted(result) => self.finish_sync_pair(result),
+
+            // ── Async operation results ──
+            AppMsg::NoteSaved(result) => match result {
+                Ok(note) => {
+                    self.state.draft_content.clear();
+                    self.state.draft_tags_text.clear();
+                    self.state.search_query.clear();
+                    self.state.status = None;
+                    self.reading.editor.borrow().set_read_only(true);
+
+                    // Refresh lists in background
+                    let query = self.state.search_query.clone();
+                    let core = self.core.clone();
+                    let s = sender.clone();
+                    gtk::glib::spawn_future_local(async move {
+                        let result = load_home(core.as_ref(), &query);
+                        let _ = s.input_sender().send(AppMsg::HomeRefreshed(result));
+                    });
+
+                    // Determine toast and next focus
+                    let is_reply = matches!(
+                        self.state.focus_mode,
+                        FocusMode::Editing(WorkspaceMode::ReplyDraft(_))
+                    );
+                    if is_reply {
+                        self.toast_overlay.add_toast(adw::Toast::new("已发送回复"));
+                        if let Some(parent_id) = self.state.selected_note_id.clone() {
+                            self.state.focus_mode = FocusMode::Reading(parent_id.clone());
+                            self.load_note_detail(parent_id, &sender);
+                        }
+                    } else {
+                        let is_create = matches!(
+                            self.state.focus_mode,
+                            FocusMode::Editing(WorkspaceMode::CreateDraft)
+                        );
+                        let msg = if is_create { "已创建笔记" } else { "已更新笔记" };
+                        self.toast_overlay.add_toast(adw::Toast::new(msg));
+                        self.state.focus_mode = FocusMode::Reading(note.id.clone());
+                        self.state.selected_note_id = Some(note.id.clone());
+                        self.load_note_detail(note.id, &sender);
+                    }
+                }
+                Err(error) => self.state.status = Some(format!("保存失败: {error}")),
+            },
+            AppMsg::NoteDeleted(result) => match result {
+                Ok(()) => {
+                    self.toast_overlay.add_toast(adw::Toast::new("已删除笔记"));
+                    self.exit_focus(&sender);
+                    self.refresh_home(&sender);
+                }
+                Err(error) => self.state.status = Some(format!("删除失败: {error}")),
+            },
+            AppMsg::NoteRestored(result) => match result {
+                Ok(()) => {
+                    self.toast_overlay.add_toast(adw::Toast::new("已恢复笔记"));
+                    self.refresh_home(&sender);
+                }
+                Err(error) => self.state.status = Some(format!("恢复失败: {error}")),
+            },
+            AppMsg::HomeRefreshed(result) => match result {
+                Ok(home) => {
+                    self.state.home = home;
+                    self.state.sync_selection();
+                    self.state.status = None;
+                    self.rebuild_list(&sender);
+                }
+                Err(error) => self.state.status = Some(format!("加载失败: {error}")),
+            },
+            AppMsg::SyncConnectionSaved(result) => match result {
+                Ok(record) => {
+                    self.state.sync.connections.retain(|c| c.id != record.id);
+                    self.state.sync.connections.push(record);
+                    self.state.sync.host_input.clear();
+                    self.state.sync.port_input.clear();
+                    self.state.sync.error_message = None;
+                }
+                Err(e) => self.state.sync.error_message = Some(format!("保存连接失败: {e}")),
+            },
+            AppMsg::SyncConnectionDeleted(result) => match result {
+                Ok(()) => {
+                    // The caller already removed from local state
+                    self.state.sync.error_message = None;
+                }
+                Err(e) => self.state.sync.error_message = Some(format!("删除连接失败: {e}")),
+            },
+            AppMsg::PeerTrusted(result) => match result {
+                Ok(peer) => {
+                    self.state.sync.is_managing_peer = false;
+                    self.state.sync.pending_trust_peer = None;
+                    self.state.sync.peers.retain(|p| p.id != peer.id);
+                    self.state.sync.peers.push(peer);
+                    self.state.sync.error_message = None;
+                }
+                Err(e) => {
+                    self.state.sync.is_managing_peer = false;
+                    self.state.sync.error_message = Some(format!("信任对端失败: {e}"));
+                }
+            },
+            AppMsg::PeerNoteUpdated(result) => match result {
+                Ok(peer) => {
+                    self.state.sync.is_managing_peer = false;
+                    self.state.sync.peers.retain(|p| p.id != peer.id);
+                    self.state.sync.peers.push(peer.clone());
+                    self.state.sync.peer_note_draft = peer.note.clone().unwrap_or_default();
+                    self.state.sync.error_message = None;
+                }
+                Err(e) => {
+                    self.state.sync.is_managing_peer = false;
+                    self.state.sync.error_message = Some(format!("更新设备备注失败: {e}"));
+                }
+            },
+            AppMsg::PeerDeleted(result) => match result {
+                Ok(()) => {
+                    self.state.sync.is_managing_peer = false;
+                    self.state.sync.error_message = None;
+                }
+                Err(e) => {
+                    self.state.sync.is_managing_peer = false;
+                    self.state.sync.error_message = Some(format!("删除设备失败: {e}"));
+                }
+            },
         }
         self.sync_ui(&sender);
     }

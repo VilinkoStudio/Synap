@@ -2,7 +2,7 @@ use adw::prelude::*;
 use relm4::prelude::*;
 
 use crate::{
-    app::{App, message::AppMsg},
+    app::message::AppMsg,
     domain::{AppState, ContentView, Theme},
     ui::editor::WysiwygEditor,
 };
@@ -55,7 +55,7 @@ pub struct ContentPages {
     pub timeline_container: gtk::Box,
 }
 
-pub fn build_content_pages(state: &AppState, sender: &ComponentSender<App>) -> ContentPages {
+pub fn build_content_pages(state: &AppState, sender: &relm4::Sender<AppMsg>) -> ContentPages {
     let content_stack = gtk::Stack::new();
     content_stack.set_hexpand(true);
     content_stack.set_vexpand(true);
@@ -93,7 +93,7 @@ pub fn build_content_pages(state: &AppState, sender: &ComponentSender<App>) -> C
 
     // Wire up content change callback on the shared editor
     let mut editor = reading_page.editor;
-    let sender_content = sender.input_sender().clone();
+    let sender_content = sender.clone();
     editor.set_on_change(move |markdown| {
         let _ = sender_content.send(AppMsg::DraftContentChanged(markdown));
     });
@@ -143,13 +143,13 @@ pub fn build_content_pages(state: &AppState, sender: &ComponentSender<App>) -> C
 
 // ── Notes list (browse mode) ──
 
-fn build_notes_list(list_box: &gtk::ListBox, sender: &ComponentSender<App>) -> gtk::ScrolledWindow {
+fn build_notes_list(list_box: &gtk::ListBox, sender: &relm4::Sender<AppMsg>) -> gtk::ScrolledWindow {
     let scroller = gtk::ScrolledWindow::new();
     smooth_scroller(&scroller);
     scroller.set_child(Some(list_box));
     scroller.set_vexpand(true);
 
-    let sender_scroll = sender.input_sender().clone();
+    let sender_scroll = sender.clone();
     scroller.vadjustment().connect_value_changed(move |adj| {
         let upper = adj.upper();
         let page_size = adj.page_size();
@@ -176,7 +176,7 @@ struct ReadingPage {
     versions_box: gtk::Box,
 }
 
-fn build_reading_page(_sender: &ComponentSender<App>) -> ReadingPage {
+fn build_reading_page(_sender: &relm4::Sender<AppMsg>) -> ReadingPage {
     let root = gtk::Paned::new(gtk::Orientation::Horizontal);
     root.set_wide_handle(true);
     root.set_resize_start_child(true);
@@ -274,7 +274,7 @@ struct EditingOverlay {
     recommend_tags_box: gtk::Box,
 }
 
-fn build_editing_overlay(sender: &ComponentSender<App>) -> EditingOverlay {
+fn build_editing_overlay(sender: &relm4::Sender<AppMsg>) -> EditingOverlay {
     let title_label = gtk::Label::new(None);
 
     let hint_label = gtk::Label::new(None);
@@ -286,7 +286,7 @@ fn build_editing_overlay(sender: &ComponentSender<App>) -> EditingOverlay {
 
     let tags_entry = gtk::Entry::new();
     tags_entry.set_placeholder_text(Some("标签，例如 rust, idea, diary"));
-    let sender_tags = sender.input_sender().clone();
+    let sender_tags = sender.clone();
     tags_entry.connect_changed(move |entry| {
         let _ = sender_tags.send(AppMsg::DraftTagsChanged(entry.text().to_string()));
     });
@@ -321,7 +321,7 @@ struct SettingsPage {
     sync_sessions_box: gtk::Box,
 }
 
-fn build_settings_page(state: &AppState, sender: &ComponentSender<App>) -> SettingsPage {
+fn build_settings_page(state: &AppState, sender: &relm4::Sender<AppMsg>) -> SettingsPage {
     let page = adw::PreferencesPage::new();
     let root = gtk::ScrolledWindow::new();
     smooth_scroller(&root);
@@ -340,7 +340,7 @@ fn build_settings_page(state: &AppState, sender: &ComponentSender<App>) -> Setti
 
     let theme_dropdown = gtk::DropDown::from_strings(&["跟随系统", "浅色", "深色"]);
     theme_dropdown.set_selected(state.theme.index());
-    let sender_theme = sender.input_sender().clone();
+    let sender_theme = sender.clone();
     theme_dropdown.connect_selected_notify(move |dropdown| {
         let _ = sender_theme.send(AppMsg::ThemeChanged(Theme::from_index(dropdown.selected())));
     });
@@ -360,7 +360,7 @@ fn build_settings_page(state: &AppState, sender: &ComponentSender<App>) -> Setti
         .subtitle("正在读取…")
         .build();
     let refresh_button = gtk::Button::with_label("刷新");
-    let refresh_sender = sender.input_sender().clone();
+    let refresh_sender = sender.clone();
     refresh_button.connect_clicked(move |_| {
         let _ = refresh_sender.send(AppMsg::RefreshSync);
     });
@@ -411,7 +411,7 @@ fn build_settings_page(state: &AppState, sender: &ComponentSender<App>) -> Setti
     sync_host_entry.set_hexpand(true);
     sync_host_entry.set_placeholder_text(Some("主机地址"));
     sync_host_entry.set_text(&state.sync.host_input);
-    let host_sender = sender.input_sender().clone();
+    let host_sender = sender.clone();
     sync_host_entry.connect_changed(move |entry| {
         let _ = host_sender.send(AppMsg::UpdateSyncHost(entry.text().to_string()));
     });
@@ -421,14 +421,14 @@ fn build_settings_page(state: &AppState, sender: &ComponentSender<App>) -> Setti
     sync_port_entry.set_placeholder_text(Some("端口"));
     sync_port_entry.set_input_purpose(gtk::InputPurpose::Digits);
     sync_port_entry.set_text(&state.sync.port_input);
-    let port_sender = sender.input_sender().clone();
+    let port_sender = sender.clone();
     sync_port_entry.connect_changed(move |entry| {
         let _ = port_sender.send(AppMsg::UpdateSyncPort(entry.text().to_string()));
     });
 
     let add_button = gtk::Button::with_label("添加");
     add_button.add_css_class("suggested-action");
-    let add_sender = sender.input_sender().clone();
+    let add_sender = sender.clone();
     add_button.connect_clicked(move |_| {
         let _ = add_sender.send(AppMsg::AddSyncConnection);
     });

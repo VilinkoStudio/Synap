@@ -3,14 +3,14 @@ use relm4::prelude::*;
 use synap_core::dto::NoteDTO;
 
 use crate::{
-    app::{App, message::AppMsg},
+    app::message::AppMsg,
     domain::format_timestamp,
 };
 
 /// 笔记列表行（浏览模式）— 点击进入沉浸阅读
 ///
 /// When `show_restore` is true (trash view), a restore button is appended to the card footer.
-pub fn build_note_row(note: &NoteDTO, sender: &ComponentSender<App>, show_restore: bool) -> gtk::ListBoxRow {
+pub fn build_note_row(note: &NoteDTO, sender: &relm4::Sender<AppMsg>, show_restore: bool) -> gtk::ListBoxRow {
     let row = gtk::ListBoxRow::new();
     row.set_activatable(true);
 
@@ -23,7 +23,7 @@ pub fn build_note_row(note: &NoteDTO, sender: &ComponentSender<App>, show_restor
     row.set_child(Some(&body));
 
     let note_id = note.id.clone();
-    let s = sender.input_sender().clone();
+    let s = sender.clone();
     row.connect_activate(move |_| {
         let _ = s.send(AppMsg::OpenNoteFocus(note_id.clone()));
     });
@@ -34,13 +34,13 @@ pub fn build_note_row(note: &NoteDTO, sender: &ComponentSender<App>, show_restor
 /// 可点击的笔记卡片（上下文面板中的关联笔记）— 点击进入沉浸阅读
 pub fn build_clickable_note_row(
     note: &NoteDTO,
-    sender: &ComponentSender<App>,
+    sender: &relm4::Sender<AppMsg>,
     note_id: String,
 ) -> gtk::Box {
     let card = build_note_card_body(note);
     card.add_css_class("card");
 
-    let s = sender.input_sender().clone();
+    let s = sender.clone();
     let gesture = gtk::GestureClick::new();
     gesture.connect_released(move |_, _, _, _| {
         let _ = s.send(AppMsg::OpenNoteFocus(note_id.clone()));
@@ -50,14 +50,14 @@ pub fn build_clickable_note_row(
     card
 }
 
-fn append_restore_button(card: &gtk::Box, note_id: &str, sender: &ComponentSender<App>) {
+fn append_restore_button(card: &gtk::Box, note_id: &str, sender: &relm4::Sender<AppMsg>) {
     let restore_box = gtk::Box::new(gtk::Orientation::Horizontal, 4);
     restore_box.set_halign(gtk::Align::End);
 
     let restore_btn = gtk::Button::with_label("恢复");
     restore_btn.add_css_class("flat");
     restore_btn.add_css_class("synap-restore-btn");
-    let s = sender.input_sender().clone();
+    let s = sender.clone();
     let id = note_id.to_string();
     restore_btn.connect_clicked(move |btn| {
         // Prevent the row activate (which opens focus mode)

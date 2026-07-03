@@ -64,46 +64,46 @@ impl App {
             ),
             _ => ("", String::new()),
         };
-        self.empty_page.set_title(title);
-        self.empty_page.set_description(Some(&desc));
+        self.list.empty_page.set_title(title);
+        self.list.empty_page.set_description(Some(&desc));
     }
 
     fn sync_reading(&self, sender: &ComponentSender<Self>) {
-        self.reading_context_panel
+        self.reading.context_panel
             .set_visible(self.state.context_panel_open);
-        self.reading_editor.borrow_mut().set_content(&self.reading_content());
-        self.reading_meta_label.set_text(&self.reading_meta());
+        self.reading.editor.borrow_mut().set_content(&self.reading_content());
+        self.reading.meta_label.set_text(&self.reading_meta());
 
-        clear_box(&self.reading_tags_box);
+        clear_box(&self.reading.tags_box);
         if let Some(detail) = &self.state.selected_note_detail {
             if detail.tags.is_empty() {
                 let label = gtk::Label::new(Some("暂无标签"));
                 label.add_css_class("caption");
                 label.add_css_class("dim-label");
-                self.reading_tags_box.append(&label);
+                self.reading.tags_box.append(&label);
             } else {
                 for tag in &detail.tags {
-                    self.reading_tags_box.append(&tag_chip(tag));
+                    self.reading.tags_box.append(&tag_chip(tag));
                 }
             }
         }
 
-        self.sync_note_section(&self.reading_origins_box, "无溯源", |full| &full.origins, sender);
-        self.sync_note_section(&self.reading_replies_box, "无回复", |full| &full.replies, sender);
+        self.sync_note_section(&self.reading.origins_box, "无溯源", |full| &full.origins, sender);
+        self.sync_note_section(&self.reading.replies_box, "无回复", |full| &full.replies, sender);
 
-        while self.reading_versions_box.observe_children().n_items() > 1 {
-            if let Some(child) = self.reading_versions_box.last_child() {
-                self.reading_versions_box.remove(&child);
+        while self.reading.versions_box.observe_children().n_items() > 1 {
+            if let Some(child) = self.reading.versions_box.last_child() {
+                self.reading.versions_box.remove(&child);
             }
         }
         if let Some(full) = &self.state.selected_note_full {
             if full.other_versions.is_empty() {
-                self.reading_versions_box.append(&empty_relation_label("无其他版本"));
+                self.reading.versions_box.append(&empty_relation_label("无其他版本"));
             } else {
                 for version in &full.other_versions {
                     let note = &version.note;
-                    self.reading_versions_box.append(&build_clickable_note_row(
-                        note, sender, note.id.clone(),
+                    self.reading.versions_box.append(&build_clickable_note_row(
+                        note, sender.input_sender(), note.id.clone(),
                     ));
                 }
             }
@@ -129,7 +129,7 @@ impl App {
                 container.append(&empty_relation_label(empty_title));
             } else {
                 for note in items {
-                    container.append(&build_clickable_note_row(note, sender, note.id.clone()));
+                    container.append(&build_clickable_note_row(note, sender.input_sender(), note.id.clone()));
                 }
             }
         }
@@ -137,17 +137,17 @@ impl App {
 
     fn sync_editing(&self) {
         if self.state.focus_mode.is_editing() {
-            let editor = self.reading_editor.borrow();
+            let editor = self.reading.editor.borrow();
             if editor.content() != self.state.draft_content {
                 editor.set_content(&self.state.draft_content);
             }
         }
-        if self.editing_tags_entry.text().as_str() != self.state.draft_tags_text {
-            self.editing_tags_entry.set_text(&self.state.draft_tags_text);
+        if self.editing.tags_entry.text().as_str() != self.state.draft_tags_text {
+            self.editing.tags_entry.set_text(&self.state.draft_tags_text);
         }
 
         // Sync recommended tags (only visible in editing mode)
-        clear_box(&self.recommend_tags_box);
+        clear_box(&self.editing.recommend_tags_box);
         if self.state.focus_mode.is_editing() && !self.state.recommended_tags.is_empty() {
             let existing_tags: Vec<String> = self.state.draft_tags_text
                 .split([',', '，'])
@@ -163,10 +163,10 @@ impl App {
                 btn.add_css_class("flat");
                 btn.set_tooltip_text(Some("点击添加此标签"));
                 let tag_clone = tag.clone();
-                let current = self.editing_tags_entry.text().to_string();
+                let current = self.editing.tags_entry.text().to_string();
                 // We can't directly modify state here, but the button click
                 // will trigger DraftTagsChanged via the entry's connect_changed
-                let entry = self.editing_tags_entry.clone();
+                let entry = self.editing.tags_entry.clone();
                 btn.connect_clicked(move |_| {
                     let mut tags = entry.text().to_string();
                     if !tags.is_empty() && !tags.ends_with(',') && !tags.ends_with('，') {
@@ -175,21 +175,21 @@ impl App {
                     tags.push_str(&tag_clone);
                     entry.set_text(&tags);
                 });
-                self.recommend_tags_box.append(&btn);
+                self.editing.recommend_tags_box.append(&btn);
             }
         }
     }
 
     fn sync_theme_dropdown(&self) {
         let idx = self.state.theme.index();
-        if self.theme_dropdown.selected() != idx {
-            self.theme_dropdown.set_selected(idx);
+        if self.settings.theme_dropdown.selected() != idx {
+            self.settings.theme_dropdown.set_selected(idx);
         }
     }
 
     fn sync_settings(&self, sender: &ComponentSender<Self>) {
         let listener = &self.state.sync.listener;
-        self.sync_listener_row.set_subtitle(&format!(
+        self.settings.listener_row.set_subtitle(&format!(
             "{}{}",
             listener.status,
             listener.listen_port.map(|port| format!(" · 端口 {port}")).unwrap_or_default()
@@ -199,27 +199,27 @@ impl App {
         } else {
             listener.local_addresses.join(", ")
         };
-        self.sync_addresses_row.set_subtitle(&addresses);
+        self.settings.addresses_row.set_subtitle(&addresses);
 
-        self.sync_identity_row.set_subtitle(
+        self.settings.identity_row.set_subtitle(
             self.state.sync.local_identity.as_ref()
                 .map(|id| id.identity.kaomoji_fingerprint.as_str())
                 .unwrap_or("—"),
         );
-        self.sync_signing_row.set_subtitle(
+        self.settings.signing_row.set_subtitle(
             self.state.sync.local_identity.as_ref()
                 .map(|id| id.signing.kaomoji_fingerprint.as_str())
                 .unwrap_or("—"),
         );
 
-        self.sync_error_label.set_visible(self.state.sync.error_message.is_some());
-        self.sync_error_label.set_text(self.state.sync.error_message.as_deref().unwrap_or(""));
+        self.settings.error_label.set_visible(self.state.sync.error_message.is_some());
+        self.settings.error_label.set_text(self.state.sync.error_message.as_deref().unwrap_or(""));
 
-        if self.sync_host_entry.text().as_str() != self.state.sync.host_input {
-            self.sync_host_entry.set_text(&self.state.sync.host_input);
+        if self.settings.host_entry.text().as_str() != self.state.sync.host_input {
+            self.settings.host_entry.set_text(&self.state.sync.host_input);
         }
-        if self.sync_port_entry.text().as_str() != self.state.sync.port_input {
-            self.sync_port_entry.set_text(&self.state.sync.port_input);
+        if self.settings.port_entry.text().as_str() != self.state.sync.port_input {
+            self.settings.port_entry.set_text(&self.state.sync.port_input);
         }
 
         self.sync_settings_discovered(sender);
@@ -229,9 +229,9 @@ impl App {
     }
 
     fn sync_settings_discovered(&self, sender: &ComponentSender<Self>) {
-        clear_box(&self.sync_discovered_box);
+        clear_box(&self.settings.discovered_box);
         if self.state.sync.discovered_peers.is_empty() {
-            self.sync_discovered_box.append(&simple_info_row(
+            self.settings.discovered_box.append(&simple_info_row(
                 "暂无发现设备", "确认设备在同一局域网并已启动监听",
             ));
             return;
@@ -249,14 +249,14 @@ impl App {
                 let _ = s.send(AppMsg::PairDiscoveredPeer { host: host.clone(), port });
             });
             row.add_suffix(&button);
-            self.sync_discovered_box.append(&row);
+            self.settings.discovered_box.append(&row);
         }
     }
 
     fn sync_settings_connections(&self, sender: &ComponentSender<Self>) {
-        clear_box(&self.sync_connections_box);
+        clear_box(&self.settings.connections_box);
         if self.state.sync.connections.is_empty() {
-            self.sync_connections_box.append(&simple_info_row(
+            self.settings.connections_box.append(&simple_info_row(
                 "暂无已保存连接", "可手动输入主机地址与端口添加",
             ));
             return;
@@ -281,12 +281,12 @@ impl App {
             });
             row.add_suffix(&del_btn);
             row.add_suffix(&pair_btn);
-            self.sync_connections_box.append(&row);
+            self.settings.connections_box.append(&row);
         }
     }
 
     fn sync_settings_peers(&self, sender: &ComponentSender<Self>) {
-        clear_box(&self.sync_peers_box);
+        clear_box(&self.settings.peers_box);
         if let Some(peer) = &self.state.sync.pending_trust_peer {
             let row = adw::ActionRow::builder()
                 .title("待信任设备")
@@ -304,10 +304,10 @@ impl App {
                 let _ = s.send(AppMsg::TrustPeer { public_key: pk.clone(), note: None });
             });
             row.add_suffix(&button);
-            self.sync_peers_box.append(&row);
+            self.settings.peers_box.append(&row);
         }
         if self.state.sync.peers.is_empty() {
-            self.sync_peers_box.append(&simple_info_row(
+            self.settings.peers_box.append(&simple_info_row(
                 "还没有设备记录", "首次配对后会在这里显示公钥与信任状态",
             ));
             return;
@@ -341,20 +341,20 @@ impl App {
             del_row.add_controller(g);
             row.add_row(&del_row);
 
-            self.sync_peers_box.append(&row);
+            self.settings.peers_box.append(&row);
         }
     }
 
     fn sync_settings_sessions(&self) {
-        clear_box(&self.sync_sessions_box);
+        clear_box(&self.settings.sessions_box);
         if self.state.sync.recent_sessions.is_empty() {
-            self.sync_sessions_box.append(&simple_info_row(
+            self.settings.sessions_box.append(&simple_info_row(
                 "暂无同步记录", "发起或接收一次同步后会显示在这里",
             ));
             return;
         }
         for session in &self.state.sync.recent_sessions {
-            self.sync_sessions_box.append(
+            self.settings.sessions_box.append(
                 &adw::ActionRow::builder()
                     .title(session.peer_label.as_deref().unwrap_or("未知设备"))
                     .subtitle(format!(
@@ -404,7 +404,7 @@ impl App {
 
             let notes_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
             for note in &session.notes {
-                notes_box.append(&build_clickable_note_row(note, sender, note.id.clone()));
+                notes_box.append(&build_clickable_note_row(note, sender.input_sender(), note.id.clone()));
             }
             session_box.append(&notes_box);
 

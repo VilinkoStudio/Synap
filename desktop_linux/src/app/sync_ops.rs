@@ -68,32 +68,38 @@ impl App {
         self.state.sync.error_message = (!errors.is_empty()).then(|| errors.join("\n"));
     }
 
-    pub(super) fn add_sync_connection(&mut self) {
+    pub(super) fn add_sync_connection(&mut self, sender: &ComponentSender<Self>) {
         let host = self.state.sync.host_input.trim().to_string();
         let port = self.state.sync.port_input.trim().parse::<u16>();
         match port {
-            Ok(port) => match self.core.save_sync_connection(&host, port) {
-                Ok(record) => {
-                    self.state.sync.connections.retain(|c| c.id != record.id);
-                    self.state.sync.connections.push(record);
-                    self.state.sync.host_input.clear();
-                    self.state.sync.port_input.clear();
-                    self.state.sync.error_message = None;
-                }
-                Err(e) => self.state.sync.error_message = Some(format!("保存连接失败: {e}")),
-            },
+            Ok(port) => {
+                let core = self.core.clone();
+                let sender = sender.clone();
+                gtk::glib::spawn_future_local(async move {
+                    let result = core.save_sync_connection(&host, port);
+                    let _ = sender
+                        .input_sender()
+                        .send(AppMsg::SyncConnectionSaved(result));
+                });
+            }
             Err(_) => self.state.sync.error_message = Some("端口必须是有效数字".to_string()),
         }
     }
 
-    pub(super) fn delete_sync_connection(&mut self, id: &str) {
-        match self.core.delete_sync_connection(id) {
-            Ok(()) => {
-                self.state.sync.connections.retain(|c| c.id != id);
-                self.state.sync.error_message = None;
-            }
-            Err(e) => self.state.sync.error_message = Some(format!("删除连接失败: {e}")),
-        }
+    pub(super) fn delete_sync_connection(&mut self, id: &str, sender: &ComponentSender<Self>) {
+        // Optimistic removal from local state
+        self.state.sync.connections.retain(|c| c.id != id);
+        self.state.sync.error_message = None;
+
+        let core = self.core.clone();
+        let id = id.to_string();
+        let sender = sender.clone();
+        gtk::glib::spawn_future_local(async move {
+            let result = core.delete_sync_connection(&id);
+            let _ = sender
+                .input_sender()
+                .send(AppMsg::SyncConnectionDeleted(result));
+        });
     }
 
     pub(super) fn start_sync_pair(&mut self, host: String, port: u16, sender: &ComponentSender<Self>) {
@@ -125,52 +131,43 @@ impl App {
         }
     }
 
-    pub(super) fn trust_peer(&mut self, public_key: Vec<u8>, note: Option<String>) {
+    pub(super) fn trust_peer(
+        &mut self,
+        public_key: Vec<u8>,
+        note: Option<String>,
+        sender: &ComponentSender<Self>,
+    ) {
         self.state.sync.is_managing_peer = true;
-        match self.core.trust_peer(&public_key, note) {
-            Ok(peer) => {
-                self.state.sync.is_managing_peer = false;
-                self.state.sync.pending_trust_peer = None;
-                self.state.sync.peers.retain(|p| p.id != peer.id);
-                self.state.sync.peers.push(peer);
-                self.state.sync.error_message = None;
-            }
-            Err(e) => {
-                self.state.sync.is_managing_peer = false;
-                self.state.sync.error_message = Some(format!("信任对端失败: {e}"));
-            }
-        }
+        let core = self.core.clone();
+        let sender = sender.clone();
+        gtk::glib::spawn_future_local(async move {
+            let result = core.trust_peer(&public_key, note);
+            let _ = sender.input_sender().send(AppMsg::PeerTrusted(result));
+        });
     }
 
-    pub(super) fn update_peer_note(&mut self, peer_id: String, note: Option<String>) {
+    pub(super) fn update_peer_note(
+        &mut self,
+        peer_id: String,
+        note: Option<String>,
+        sender: &ComponentSender<Self>,
+    ) {
         self.state.sync.is_managing_peer = true;
-        match self.core.update_peer_note(&peer_id, note) {
-            Ok(peer) => {
-                self.state.sync.is_managing_peer = false;
-                self.state.sync.peers.retain(|p| p.id != peer.id);
-                self.state.sync.peers.push(peer.clone());
-                self.state.sync.peer_note_draft = peer.note.clone().unwrap_or_default();
-                self.state.sync.error_message = None;
-            }
-            Err(e) => {
-                self.state.sync.is_managing_peer = false;
-                self.state.sync.error_message = Some(format!("更新设备备注失败: {e}"));
-            }
-        }
+        let core = self.core.clone();
+        let sender = sender.clone();
+        gtk::glib::spawn_future_local(async move {
+            let result = core.update_peer_note(&peer_id, note);
+            let _ = sender.input_sender().send(AppMsg::PeerNoteUpdated(result));
+        });
     }
 
-    pub(super) fn delete_peer(&mut self, peer_id: String) {
+    pub(super) fn delete_peer(&mut self, peer_id: String, sender: &ComponentSender<Self>) {
         self.state.sync.is_managing_peer = true;
-        match self.core.delete_peer(&peer_id) {
-            Ok(()) => {
-                self.state.sync.is_managing_peer = false;
-                self.state.sync.peers.retain(|p| p.id != peer_id);
-                self.state.sync.error_message = None;
-            }
-            Err(e) => {
-                self.state.sync.is_managing_peer = false;
-                self.state.sync.error_message = Some(format!("删除设备失败: {e}"));
-            }
-        }
+        let core = self.core.clone();
+        let sender = sender.clone();
+        gtk::glib::spawn_future_local(async move {
+            let result = core.delete_peer(&peer_id);
+            let _ = sender.input_sender().send(AppMsg::PeerDeleted(result));
+        });
     }
 }

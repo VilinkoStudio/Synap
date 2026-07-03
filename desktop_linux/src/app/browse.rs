@@ -14,7 +14,7 @@ use crate::{
 impl App {
     pub(super) fn connect_note_list(&self, sender: &ComponentSender<Self>) {
         let sender_for_activate = sender.input_sender().clone();
-        self.list_box.connect_row_activated(move |_, row| {
+        self.list.list_box.connect_row_activated(move |_, row| {
             let _ = sender_for_activate.send(AppMsg::NoteRowActivated(row.index() as u32));
         });
     }
@@ -64,14 +64,14 @@ impl App {
     }
 
     pub(super) fn rebuild_list(&self, sender: &ComponentSender<Self>) {
-        while let Some(child) = self.list_box.first_child() {
-            self.list_box.remove(&child);
+        while let Some(child) = self.list.list_box.first_child() {
+            self.list.list_box.remove(&child);
         }
 
         let visible = self.state.visible_notes();
         let is_trash = self.state.content_view == ContentView::Trash;
         for note in &visible {
-            self.list_box.append(&build_note_row(note, sender, is_trash));
+            self.list.list_box.append(&build_note_row(note, sender.input_sender(), is_trash));
         }
 
         if self.state.is_loading_more {
@@ -82,7 +82,7 @@ impl App {
             spinner.start();
             loading_row.set_child(Some(&spinner));
             loading_row.set_activatable(false);
-            self.list_box.append(&loading_row);
+            self.list.list_box.append(&loading_row);
         }
     }
 
@@ -166,14 +166,13 @@ impl App {
 
     pub(super) fn refresh_home(&mut self, sender: &ComponentSender<Self>) {
         let query = self.state.search_query.clone();
-        match load_home(self.core.as_ref(), &query) {
-            Ok(home) => {
-                self.state.home = home;
-                self.state.sync_selection();
-                self.state.status = None;
-            }
-            Err(error) => self.state.status = Some(format!("加载失败: {error}")),
-        }
-        self.rebuild_list(sender);
+        let core = self.core.clone();
+        let sender = sender.clone();
+        gtk::glib::spawn_future_local(async move {
+            let result = load_home(core.as_ref(), &query);
+            let _ = sender
+                .input_sender()
+                .send(AppMsg::HomeRefreshed(result));
+        });
     }
 }

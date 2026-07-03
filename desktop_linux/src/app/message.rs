@@ -1,4 +1,4 @@
-use crate::domain::{ContentView, NoteDetailData, Theme};
+use crate::domain::{ContentView, HomeData, NoteDetailData, SyncConnectionRecord, Theme};
 use synap_core::{
     dto::{
         LocalIdentityDTO, NoteDTO, PeerDTO, SyncSessionDTO,
@@ -83,4 +83,15 @@ pub enum AppMsg {
     },
     DeletePeer(String),
     SyncSessionCompleted(Result<SyncSessionDTO, ServiceError>),
+
+    // ── Async operation results ──
+    NoteSaved(Result<NoteDTO, ServiceError>),
+    NoteDeleted(Result<(), ServiceError>),
+    NoteRestored(Result<(), ServiceError>),
+    HomeRefreshed(Result<HomeData, ServiceError>),
+    SyncConnectionSaved(Result<SyncConnectionRecord, ServiceError>),
+    SyncConnectionDeleted(Result<(), ServiceError>),
+    PeerTrusted(Result<PeerDTO, ServiceError>),
+    PeerNoteUpdated(Result<PeerDTO, ServiceError>),
+    PeerDeleted(Result<(), ServiceError>),
 }
