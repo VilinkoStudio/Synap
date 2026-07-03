@@ -24,6 +24,7 @@ use crate::{
 pub struct App {
     core: Rc<dyn DesktopCore>,
     state: AppState,
+    search_debounce: Option<gtk::glib::SourceId>,
     toast_overlay: adw::ToastOverlay,
     overlay_split_view: adw::OverlaySplitView,
     content_stack: gtk::Stack,
@@ -441,6 +442,7 @@ impl SimpleComponent for App {
         let model = App {
             core: core.clone(),
             state,
+            search_debounce: None,
             toast_overlay: toast_overlay.clone(),
             overlay_split_view: overlay_split_view.clone(),
             list_box: pages.list_box.clone(),
@@ -510,8 +512,21 @@ impl SimpleComponent for App {
             AppMsg::Navigate(view) => self.navigate(view, &sender),
             AppMsg::SearchChanged(query) => {
                 self.state.search_query = query;
-                self.refresh_home(&sender);
+                // Debounce search: cancel previous timer, schedule new one (200ms)
+                if let Some(source) = self.search_debounce.take() {
+                    source.remove();
+                }
+                let s = sender.input_sender().clone();
+                let source = gtk::glib::timeout_add_local(
+                    std::time::Duration::from_millis(200),
+                    move || {
+                        let _ = s.send(AppMsg::RunSearch);
+                        gtk::glib::ControlFlow::Break
+                    },
+                );
+                self.search_debounce = Some(source);
             }
+            AppMsg::RunSearch => self.refresh_home(&sender),
             AppMsg::ClearFilters => self.clear_filters(&sender),
 
             // ── Focus mode ──

@@ -12,6 +12,7 @@ pub enum AppMsg {
     // ── Browse navigation ──
     Navigate(ContentView),
     SearchChanged(String),
+    RunSearch,
     ClearFilters,
 
     // ── Focus mode ──
