@@ -7,28 +7,69 @@ use crate::{
     domain::format_timestamp,
 };
 
-/// 笔记列表行（浏览模式）— 点击进入沉浸阅读
+/// Build a note card for FlowBox (waterfall layout) — returns a clickable gtk::Box.
 ///
 /// When `show_restore` is true (trash view), a restore button is appended to the card footer.
-pub fn build_note_row(note: &NoteDTO, sender: &relm4::Sender<AppMsg>, show_restore: bool) -> gtk::ListBoxRow {
-    let row = gtk::ListBoxRow::new();
-    row.set_activatable(true);
-
-    let body = build_note_card_body(note);
+pub fn build_note_card(note: &NoteDTO, sender: &relm4::Sender<AppMsg>, show_restore: bool) -> gtk::Box {
+    let card = build_note_card_body(note);
 
     if show_restore {
-        append_restore_button(&body, &note.id, sender);
+        append_restore_button(&card, &note.id, sender);
     }
-
-    row.set_child(Some(&body));
 
     let note_id = note.id.clone();
     let s = sender.clone();
-    row.connect_activate(move |_| {
+    let gesture = gtk::GestureClick::new();
+    gesture.connect_released(move |_, _, _, _| {
         let _ = s.send(AppMsg::OpenNoteFocus(note_id.clone()));
     });
+    card.add_controller(gesture);
 
-    row
+    card
+}
+
+/// 时间线分组标题（session header）
+pub fn build_timeline_header(started_at: u64, ended_at: u64, note_count: u32) -> gtk::Box {
+    let header = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    header.set_hexpand(true);
+    header.set_margin_top(12);
+    header.set_margin_bottom(4);
+
+    let time_range = format_time_range(started_at, ended_at);
+    let title = gtk::Label::new(Some(&time_range));
+    title.add_css_class("heading");
+    title.set_halign(gtk::Align::Start);
+    title.set_xalign(0.0);
+    header.append(&title);
+
+    let count_label = gtk::Label::new(Some(&format!("{} 条笔记", note_count)));
+    count_label.add_css_class("caption");
+    count_label.add_css_class("dim-label");
+    count_label.set_halign(gtk::Align::Start);
+    count_label.set_xalign(0.0);
+    header.append(&count_label);
+
+    header
+}
+
+fn format_time_range(started_at: u64, ended_at: u64) -> String {
+    use std::time::{Duration, UNIX_EPOCH};
+
+    let start_dt = UNIX_EPOCH + Duration::from_millis(started_at);
+    let end_dt = UNIX_EPOCH + Duration::from_millis(ended_at);
+    let start_local: chrono::DateTime<chrono::Local> = start_dt.into();
+    let end_local: chrono::DateTime<chrono::Local> = end_dt.into();
+
+    let start_date = start_local.format("%m/%d").to_string();
+    let start_time = start_local.format("%H:%M").to_string();
+    let end_time = end_local.format("%H:%M").to_string();
+
+    if start_local.date_naive() == end_local.date_naive() {
+        format!("{start_date}  {start_time} – {end_time}")
+    } else {
+        let end_date = end_local.format("%m/%d").to_string();
+        format!("{start_date} {start_time} – {end_date} {end_time}")
+    }
 }
 
 /// 可点击的笔记卡片（上下文面板中的关联笔记）— 点击进入沉浸阅读

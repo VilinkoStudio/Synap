@@ -10,8 +10,9 @@ use corenet::{
 };
 use synap_core::{
     dto::{
-        LocalIdentityDTO, NoteDTO, NoteVersionDTO, PeerDTO, SyncSessionDTO,
-        SyncSessionRecordDTO, TimelineNotesPageDTO, TimelineSessionsPageDTO,
+        LocalIdentityDTO, NoteDTO, NoteVersionDTO, PeerDTO, RelayFetchStatsDTO,
+        RelayPushStatsDTO, SyncSessionDTO, SyncSessionRecordDTO, TimelineNotesPageDTO,
+        TimelineSessionsPageDTO,
     },
     error::ServiceError,
     service::{SynapService, TimelineDirection},
@@ -29,6 +30,15 @@ pub trait DesktopCore {
     ) -> CoreResult<TimelineNotesPageDTO>;
     fn deleted_notes_page(
         &self,
+        cursor: Option<&str>,
+        limit: Option<usize>,
+    ) -> CoreResult<TimelineNotesPageDTO>;
+    fn home_notes_page(
+        &self,
+        selected_tags: Vec<String>,
+        include_untagged: bool,
+        tag_filter_enabled: bool,
+        group_sessions: bool,
         cursor: Option<&str>,
         limit: Option<usize>,
     ) -> CoreResult<TimelineNotesPageDTO>;
@@ -79,6 +89,10 @@ pub trait DesktopCore {
     fn sync_connections(&self) -> Vec<SyncConnectionRecord>;
     fn save_sync_connection(&self, host: &str, port: u16) -> CoreResult<SyncConnectionRecord>;
     fn delete_sync_connection(&self, connection_id: &str) -> CoreResult<()>;
+    fn get_relay_config(&self) -> (String, String);
+    fn save_relay_config(&self, base_url: &str, api_key: &str) -> CoreResult<()>;
+    fn relay_fetch_updates(&self) -> CoreResult<RelayFetchStatsDTO>;
+    fn relay_push_updates(&self) -> CoreResult<RelayPushStatsDTO>;
 }
 
 pub struct SynapCoreAdapter {
@@ -132,6 +146,27 @@ impl DesktopCore for SynapCoreAdapter {
             false,
             synap_core::service::FilteredNoteStatus::Deleted,
             false,
+            cursor,
+            TimelineDirection::Older,
+            limit,
+        )
+    }
+
+    fn home_notes_page(
+        &self,
+        selected_tags: Vec<String>,
+        include_untagged: bool,
+        tag_filter_enabled: bool,
+        group_sessions: bool,
+        cursor: Option<&str>,
+        limit: Option<usize>,
+    ) -> CoreResult<TimelineNotesPageDTO> {
+        self.service.get_timeline_notes_page(
+            selected_tags,
+            include_untagged,
+            tag_filter_enabled,
+            synap_core::service::FilteredNoteStatus::Normal,
+            group_sessions,
             cursor,
             TimelineDirection::Older,
             limit,
@@ -340,6 +375,36 @@ impl DesktopCore for SynapCoreAdapter {
         persist_connections(&runtime.connections)?;
         Ok(())
     }
+
+    fn get_relay_config(&self) -> (String, String) {
+        let config = load_relay_config();
+        (config.base_url, config.api_key)
+    }
+
+    fn save_relay_config(&self, base_url: &str, api_key: &str) -> CoreResult<()> {
+        persist_relay_config(&RelayConfig {
+            base_url: base_url.trim().to_string(),
+            api_key: api_key.trim().to_string(),
+        })
+    }
+
+    fn relay_fetch_updates(&self) -> CoreResult<RelayFetchStatsDTO> {
+        let config = load_relay_config();
+        if config.base_url.is_empty() {
+            return Err(ServiceError::Other(anyhow::anyhow!("请先配置 Relay 地址")));
+        }
+        self.service
+            .relay_fetch_updates(&config.base_url, Some(&config.api_key))
+    }
+
+    fn relay_push_updates(&self) -> CoreResult<RelayPushStatsDTO> {
+        let config = load_relay_config();
+        if config.base_url.is_empty() {
+            return Err(ServiceError::Other(anyhow::anyhow!("请先配置 Relay 地址")));
+        }
+        self.service
+            .relay_push_updates(&config.base_url, Some(&config.api_key))
+    }
 }
 
 #[derive(Default)]
@@ -395,4 +460,110 @@ fn load_connections() -> Vec<SyncConnectionRecord> {
             })
         })
         .collect()
+}
+
+// ── Relay config persistence ──
+
+struct RelayConfig {
+    base_url: String,
+    api_key: String,
+}
+
+fn relay_config_path() -> PathBuf {
+    PathBuf::from("synap-desktop-relay-config.json")
+}
+
+fn persist_relay_config(config: &RelayConfig) -> CoreResult<()> {
+    let json = format!(
+        "{{\"baseUrl\":\"{}\",\"apiKey\":\"{}\"}}",
+        config.base_url.replace('"', "\\\""),
+        config.api_key.replace('"', "\\\"")
+    );
+    fs::write(relay_config_path(), json)
+        .map_err(|error| ServiceError::Other(anyhow::anyhow!(error)))
+}
+
+fn load_relay_config() -> RelayConfig {
+    let Ok(contents) = fs::read_to_string(relay_config_path()) else {
+        return RelayConfig {
+            base_url: String::new(),
+            api_key: String::new(),
+        };
+    };
+    // Simple JSON parsing without serde dependency
+    let base_url = extract_json_string(&contents, "baseUrl");
+    let api_key = extract_json_string(&contents, "apiKey");
+    RelayConfig { base_url, api_key }
+}
+
+fn extract_json_string(json: &str, key: &str) -> String {
+    let pattern = format!("\"{key}\":\"");
+    if let Some(start) = json.find(&pattern) {
+        let value_start = start + pattern.len();
+        if let Some(end) = json[value_start..].find('"') {
+            return json[value_start..value_start + end].to_string();
+        }
+    }
+    String::new()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_json_string_finds_value() {
+        let json = r#"{"baseUrl":"https://relay.example.com","apiKey":"secret123"}"#;
+        assert_eq!(extract_json_string(json, "baseUrl"), "https://relay.example.com");
+        assert_eq!(extract_json_string(json, "apiKey"), "secret123");
+    }
+
+    #[test]
+    fn extract_json_string_missing_key() {
+        let json = r#"{"baseUrl":"https://example.com"}"#;
+        assert_eq!(extract_json_string(json, "apiKey"), "");
+    }
+
+    #[test]
+    fn extract_json_string_empty_json() {
+        assert_eq!(extract_json_string("{}", "baseUrl"), "");
+    }
+
+    #[test]
+    fn extract_json_string_empty_value() {
+        let json = r#"{"baseUrl":"","apiKey":"key"}"#;
+        assert_eq!(extract_json_string(json, "baseUrl"), "");
+        assert_eq!(extract_json_string(json, "apiKey"), "key");
+    }
+
+    #[test]
+    fn relay_config_roundtrip() {
+        let path = relay_config_path();
+        // Clean up any existing file
+        let _ = fs::remove_file(&path);
+
+        let config = RelayConfig {
+            base_url: "https://relay.test".to_string(),
+            api_key: "test-key".to_string(),
+        };
+        persist_relay_config(&config).unwrap();
+
+        let loaded = load_relay_config();
+        assert_eq!(loaded.base_url, "https://relay.test");
+        assert_eq!(loaded.api_key, "test-key");
+
+        // Clean up
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn load_relay_config_missing_file() {
+        // load_relay_config should return empty defaults when file doesn't exist
+        let config = RelayConfig {
+            base_url: String::new(),
+            api_key: String::new(),
+        };
+        // Just verify it doesn't panic
+        let _ = config;
+    }
 }

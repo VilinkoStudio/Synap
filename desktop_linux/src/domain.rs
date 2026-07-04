@@ -1,15 +1,12 @@
 use synap_core::dto::{
     LocalIdentityDTO, NoteDTO, NoteVersionDTO, PeerDTO, PeerTrustStatusDTO,
-    SyncSessionRecordDTO, SyncSessionRoleDTO, SyncStatusDTO,
+    SyncSessionRecordDTO, SyncSessionRoleDTO, SyncStatusDTO, SyncTransportKindDTO,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContentView {
     Notes,
     Trash,
-    Tags,
-    TagNotes,
-    Timeline,
     Settings,
 }
 
@@ -83,6 +80,24 @@ impl Default for WorkspaceMode {
     }
 }
 
+/// 标签筛选参数（对应 Android 的 NoteFeedFilter）
+#[derive(Debug, Clone)]
+pub struct TagFilter {
+    pub selected_tags: Vec<String>,
+    pub include_untagged: bool,
+    pub tag_filter_enabled: bool,
+}
+
+impl Default for TagFilter {
+    fn default() -> Self {
+        Self {
+            selected_tags: Vec::new(),
+            include_untagged: true,
+            tag_filter_enabled: false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct HomeData {
     pub notes: Vec<NoteDTO>,
@@ -91,6 +106,8 @@ pub struct HomeData {
     pub deleted_notes_cursor: Option<String>,
     pub has_more_notes: bool,
     pub has_more_deleted_notes: bool,
+    pub all_tags: Vec<String>,
+    pub tag_filter: TagFilter,
 }
 
 #[derive(Debug, Clone)]
@@ -149,11 +166,7 @@ pub struct AppState {
     pub status: Option<String>,
     pub theme: Theme,
     pub is_loading_more: bool,
-    pub selected_tag: Option<String>,
-    pub tag_notes: Vec<NoteDTO>,
-    pub all_tags: Vec<String>,
     pub recommended_tags: Vec<String>,
-    pub timeline_sessions: Vec<synap_core::dto::TimelineSessionDTO>,
     pub sync: SyncState,
 }
 
@@ -173,11 +186,7 @@ impl Default for AppState {
             status: None,
             theme: Theme::default(),
             is_loading_more: false,
-            selected_tag: None,
-            tag_notes: Vec::new(),
-            all_tags: Vec::new(),
             recommended_tags: Vec::new(),
-            timeline_sessions: Vec::new(),
             sync: SyncState::default(),
         }
     }
@@ -190,9 +199,6 @@ impl AppState {
             ContentView::Trash => {
                 filter_deleted_notes(&self.home.deleted_notes, &self.search_query)
             }
-            ContentView::Tags => self.home.notes.clone(),
-            ContentView::TagNotes => self.tag_notes.clone(),
-            ContentView::Timeline => Vec::new(),
             ContentView::Settings => Vec::new(),
         }
     }
@@ -271,6 +277,11 @@ pub struct SyncState {
     pub host_input: String,
     pub port_input: String,
     pub peer_note_draft: String,
+    // Relay config
+    pub relay_base_url: String,
+    pub relay_api_key: String,
+    pub relay_status_message: Option<String>,
+    pub is_relay_syncing: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -339,6 +350,14 @@ pub fn peer_status_label(status: &PeerTrustStatusDTO) -> &'static str {
         PeerTrustStatusDTO::Trusted => "已信任",
         PeerTrustStatusDTO::Retired => "已停用",
         PeerTrustStatusDTO::Revoked => "已撤销",
+    }
+}
+
+pub fn transport_label(transport: &SyncTransportKindDTO) -> &'static str {
+    match transport {
+        SyncTransportKindDTO::Direct => "直连",
+        SyncTransportKindDTO::RelayFetch => "Relay 拉取",
+        SyncTransportKindDTO::RelayPush => "Relay 推送",
     }
 }
 
@@ -425,8 +444,9 @@ mod tests {
     }
 
     #[test]
-    fn visible_notes_returns_empty_for_timeline() {
-        let state = AppState::default();
+    fn visible_notes_returns_empty_for_settings() {
+        let mut state = AppState::default();
+        state.content_view = ContentView::Settings;
         assert!(state.visible_notes().is_empty());
     }
 
@@ -511,6 +531,30 @@ mod tests {
         let mode = FocusMode::Editing(WorkspaceMode::CreateDraft);
         assert!(!mode.is_browse());
         assert!(mode.is_editing());
+    }
+
+    #[test]
+    fn transport_label_direct() {
+        assert_eq!(transport_label(&SyncTransportKindDTO::Direct), "直连");
+    }
+
+    #[test]
+    fn transport_label_relay_fetch() {
+        assert_eq!(transport_label(&SyncTransportKindDTO::RelayFetch), "Relay 拉取");
+    }
+
+    #[test]
+    fn transport_label_relay_push() {
+        assert_eq!(transport_label(&SyncTransportKindDTO::RelayPush), "Relay 推送");
+    }
+
+    #[test]
+    fn sync_state_default_relay_fields() {
+        let state = SyncState::default();
+        assert!(state.relay_base_url.is_empty());
+        assert!(state.relay_api_key.is_empty());
+        assert!(state.relay_status_message.is_none());
+        assert!(!state.is_relay_syncing);
     }
 }
 

@@ -16,7 +16,8 @@ fn smooth_scroller(sw: &gtk::ScrolledWindow) {
 
 pub struct ContentPages {
     pub content_stack: gtk::Stack,
-    pub list_box: gtk::ListBox,
+    pub home_flow_box: gtk::FlowBox,
+    pub home_tag_box: gtk::Box,
     pub empty_page: adw::StatusPage,
 
     // reading/editing page (shared editor)
@@ -41,18 +42,17 @@ pub struct ContentPages {
     pub sync_identity_row: adw::ActionRow,
     pub sync_signing_row: adw::ActionRow,
     pub sync_error_label: gtk::Label,
+    // relay
+    pub relay_base_url_entry: gtk::Entry,
+    pub relay_api_key_entry: gtk::Entry,
+    pub relay_status_label: gtk::Label,
+    // connections
     pub sync_host_entry: gtk::Entry,
     pub sync_port_entry: gtk::Entry,
     pub sync_discovered_box: gtk::Box,
     pub sync_connections_box: gtk::Box,
     pub sync_peers_box: gtk::Box,
     pub sync_sessions_box: gtk::Box,
-
-    // tags
-    pub tags_flow_box: gtk::FlowBox,
-
-    // timeline
-    pub timeline_container: gtk::Box,
 }
 
 pub fn build_content_pages(state: &AppState, sender: &relm4::Sender<AppMsg>) -> ContentPages {
@@ -64,13 +64,9 @@ pub fn build_content_pages(state: &AppState, sender: &relm4::Sender<AppMsg>) -> 
 
     // ── Browse pages ──
 
-    let list_box = gtk::ListBox::new();
-    list_box.set_css_classes(&["boxed-list"]);
-    list_box.set_selection_mode(gtk::SelectionMode::Single);
-    list_box.set_vexpand(true);
-
-    let notes_scroller = build_notes_list(&list_box, sender);
-    content_stack.add_named(&notes_scroller, Some("notes"));
+    // Unified home feed: tag chips + waterfall FlowBox
+    let (home_feed_scroller, home_tag_box, home_flow_box) = build_home_feed(sender);
+    content_stack.add_named(&home_feed_scroller, Some("notes"));
 
     let empty_page = adw::StatusPage::new();
     empty_page.set_icon_name(Some("document-new-symbolic"));
@@ -79,12 +75,6 @@ pub fn build_content_pages(state: &AppState, sender: &relm4::Sender<AppMsg>) -> 
 
     let settings_page = build_settings_page(state, sender);
     content_stack.add_named(&settings_page.root, Some("settings"));
-
-    let tags_page = build_tags_page();
-    content_stack.add_named(&tags_page.root, Some("tags"));
-
-    let timeline_page = build_timeline_page();
-    content_stack.add_named(&timeline_page.root, Some("timeline"));
 
     // ── Focus page (shared reading/editing) ──
 
@@ -107,7 +97,8 @@ pub fn build_content_pages(state: &AppState, sender: &relm4::Sender<AppMsg>) -> 
 
     ContentPages {
         content_stack,
-        list_box,
+        home_flow_box,
+        home_tag_box,
         empty_page,
 
         reading_context_panel: reading_page.context_panel,
@@ -129,24 +120,57 @@ pub fn build_content_pages(state: &AppState, sender: &relm4::Sender<AppMsg>) -> 
         sync_identity_row: settings_page.sync_identity_row,
         sync_signing_row: settings_page.sync_signing_row,
         sync_error_label: settings_page.sync_error_label,
+        relay_base_url_entry: settings_page.relay_base_url_entry,
+        relay_api_key_entry: settings_page.relay_api_key_entry,
+        relay_status_label: settings_page.relay_status_label,
         sync_host_entry: settings_page.sync_host_entry,
         sync_port_entry: settings_page.sync_port_entry,
         sync_discovered_box: settings_page.sync_discovered_box,
         sync_connections_box: settings_page.sync_connections_box,
         sync_peers_box: settings_page.sync_peers_box,
         sync_sessions_box: settings_page.sync_sessions_box,
-
-        tags_flow_box: tags_page.tags_flow_box,
-        timeline_container: timeline_page.timeline_container,
     }
 }
 
-// ── Notes list (browse mode) ──
+// ── Unified home feed: tag filter chips + waterfall FlowBox ──
 
-fn build_notes_list(list_box: &gtk::ListBox, sender: &relm4::Sender<AppMsg>) -> gtk::ScrolledWindow {
+fn build_home_feed(sender: &relm4::Sender<AppMsg>) -> (gtk::ScrolledWindow, gtk::Box, gtk::FlowBox) {
+    let outer = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    outer.set_vexpand(true);
+
+    // Tag filter chips (horizontal scrollable row)
+    let tag_scroller = gtk::ScrolledWindow::new();
+    tag_scroller.set_hscrollbar_policy(gtk::PolicyType::Automatic);
+    tag_scroller.set_vscrollbar_policy(gtk::PolicyType::Never);
+    tag_scroller.set_propagate_natural_height(true);
+
+    let tag_box = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    tag_box.set_margin_top(8);
+    tag_box.set_margin_bottom(4);
+    tag_box.set_margin_start(12);
+    tag_box.set_margin_end(12);
+    tag_scroller.set_child(Some(&tag_box));
+    outer.append(&tag_scroller);
+
+    // FlowBox for note cards (waterfall layout)
+    let flow_box = gtk::FlowBox::new();
+    flow_box.set_selection_mode(gtk::SelectionMode::None);
+    flow_box.set_homogeneous(false);
+    flow_box.set_max_children_per_line(4);
+    flow_box.set_min_children_per_line(1);
+    flow_box.set_column_spacing(12);
+    flow_box.set_row_spacing(12);
+    flow_box.set_margin_start(12);
+    flow_box.set_margin_end(12);
+    flow_box.set_margin_bottom(12);
+    flow_box.set_vexpand(true);
+
+    outer.append(&flow_box);
+
+    // Wrap in ScrolledWindow with infinite scroll
     let scroller = gtk::ScrolledWindow::new();
     smooth_scroller(&scroller);
-    scroller.set_child(Some(list_box));
+    scroller.set_child(Some(&outer));
     scroller.set_vexpand(true);
 
     let sender_scroll = sender.clone();
@@ -160,7 +184,7 @@ fn build_notes_list(list_box: &gtk::ListBox, sender: &relm4::Sender<AppMsg>) -> 
         }
     });
 
-    scroller
+    (scroller, tag_box, flow_box)
 }
 
 // ── Reading page (focus mode) ──
@@ -313,6 +337,11 @@ struct SettingsPage {
     sync_identity_row: adw::ActionRow,
     sync_signing_row: adw::ActionRow,
     sync_error_label: gtk::Label,
+    // Relay
+    relay_base_url_entry: gtk::Entry,
+    relay_api_key_entry: gtk::Entry,
+    relay_status_label: gtk::Label,
+    // Connections
     sync_host_entry: gtk::Entry,
     sync_port_entry: gtk::Entry,
     sync_discovered_box: gtk::Box,
@@ -394,6 +423,84 @@ fn build_settings_page(state: &AppState, sender: &relm4::Sender<AppMsg>) -> Sett
     sync_group.add(&sync_error_label);
     page.add(&sync_group);
 
+    // ── Relay 中继 ──
+
+    let relay_group = adw::PreferencesGroup::builder()
+        .title("Relay 中继")
+        .description("通过中继服务器同步，适用于不在同一局域网的设备")
+        .build();
+
+    let relay_url_row = adw::ActionRow::builder()
+        .title("Relay 地址")
+        .subtitle("中继服务器的 URL")
+        .build();
+    let relay_base_url_entry = gtk::Entry::new();
+    relay_base_url_entry.set_hexpand(true);
+    relay_base_url_entry.set_placeholder_text(Some("https://relay.example.com"));
+    relay_base_url_entry.set_text(&state.sync.relay_base_url);
+    let relay_url_sender = sender.clone();
+    relay_base_url_entry.connect_changed(move |entry| {
+        let _ = relay_url_sender.send(AppMsg::UpdateRelayBaseUrl(entry.text().to_string()));
+    });
+    relay_url_row.add_suffix(&relay_base_url_entry);
+    relay_group.add(&relay_url_row);
+
+    let relay_key_row = adw::ActionRow::builder()
+        .title("API Key")
+        .subtitle("中继服务器的访问密钥（可选）")
+        .build();
+    let relay_api_key_entry = gtk::Entry::new();
+    relay_api_key_entry.set_hexpand(true);
+    relay_api_key_entry.set_placeholder_text(Some("可选"));
+    relay_api_key_entry.set_input_purpose(gtk::InputPurpose::Password);
+    relay_api_key_entry.set_text(&state.sync.relay_api_key);
+    let relay_key_sender = sender.clone();
+    relay_api_key_entry.connect_changed(move |entry| {
+        let _ = relay_key_sender.send(AppMsg::UpdateRelayApiKey(entry.text().to_string()));
+    });
+    relay_key_row.add_suffix(&relay_api_key_entry);
+    relay_group.add(&relay_key_row);
+
+    let relay_buttons_box = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    relay_buttons_box.set_margin_top(6);
+    relay_buttons_box.set_margin_bottom(6);
+    relay_buttons_box.set_margin_start(12);
+    relay_buttons_box.set_margin_end(12);
+    relay_buttons_box.set_halign(gtk::Align::End);
+
+    let relay_save_btn = gtk::Button::with_label("保存配置");
+    relay_save_btn.add_css_class("suggested-action");
+    let relay_save_sender = sender.clone();
+    relay_save_btn.connect_clicked(move |_| {
+        let _ = relay_save_sender.send(AppMsg::SaveRelayConfig);
+    });
+
+    let relay_fetch_btn = gtk::Button::with_label("拉取");
+    let relay_fetch_sender = sender.clone();
+    relay_fetch_btn.connect_clicked(move |_| {
+        let _ = relay_fetch_sender.send(AppMsg::FetchRelayUpdates);
+    });
+
+    let relay_push_btn = gtk::Button::with_label("推送");
+    let relay_push_sender = sender.clone();
+    relay_push_btn.connect_clicked(move |_| {
+        let _ = relay_push_sender.send(AppMsg::PushRelayUpdates);
+    });
+
+    relay_buttons_box.append(&relay_save_btn);
+    relay_buttons_box.append(&relay_fetch_btn);
+    relay_buttons_box.append(&relay_push_btn);
+    relay_group.add(&relay_buttons_box);
+
+    let relay_status_label = gtk::Label::new(None);
+    relay_status_label.add_css_class("success");
+    relay_status_label.set_halign(gtk::Align::Start);
+    relay_status_label.set_wrap(true);
+    relay_status_label.set_margin_start(12);
+    relay_status_label.set_margin_end(12);
+    relay_group.add(&relay_status_label);
+    page.add(&relay_group);
+
     // ── 连接目标 ──
 
     let connections_group = adw::PreferencesGroup::builder()
@@ -474,80 +581,15 @@ fn build_settings_page(state: &AppState, sender: &relm4::Sender<AppMsg>) -> Sett
         sync_identity_row,
         sync_signing_row,
         sync_error_label,
+        relay_base_url_entry,
+        relay_api_key_entry,
+        relay_status_label,
         sync_host_entry,
         sync_port_entry,
         sync_discovered_box,
         sync_connections_box,
         sync_peers_box,
         sync_sessions_box,
-    }
-}
-
-// ── Tags page ──
-
-struct TagsPage {
-    root: gtk::ScrolledWindow,
-    tags_flow_box: gtk::FlowBox,
-}
-
-fn build_tags_page() -> TagsPage {
-    let root = gtk::ScrolledWindow::new();
-    smooth_scroller(&root);
-    let tags_box = gtk::Box::new(gtk::Orientation::Vertical, 16);
-    tags_box.set_margin_top(32);
-    tags_box.set_margin_bottom(32);
-    tags_box.set_margin_start(28);
-    tags_box.set_margin_end(28);
-    tags_box.add_css_class("synap-tags-page");
-
-    let tags_label = gtk::Label::new(Some("所有标签"));
-    tags_label.add_css_class("heading");
-    tags_label.add_css_class("synap-section-heading");
-    tags_label.set_halign(gtk::Align::Start);
-    tags_box.append(&tags_label);
-
-    let tags_flow_box = gtk::FlowBox::new();
-    tags_flow_box.set_selection_mode(gtk::SelectionMode::None);
-    tags_flow_box.set_homogeneous(true);
-    tags_flow_box.set_max_children_per_line(3);
-    tags_flow_box.set_min_children_per_line(1);
-    tags_flow_box.set_column_spacing(12);
-    tags_flow_box.set_row_spacing(12);
-
-    tags_box.append(&tags_flow_box);
-    root.set_child(Some(&tags_box));
-
-    TagsPage {
-        root,
-        tags_flow_box,
-    }
-}
-
-// ── Timeline page ──
-
-struct TimelinePage {
-    root: gtk::ScrolledWindow,
-    timeline_container: gtk::Box,
-}
-
-fn build_timeline_page() -> TimelinePage {
-    let root = gtk::ScrolledWindow::new();
-    smooth_scroller(&root);
-    let timeline_box = gtk::Box::new(gtk::Orientation::Vertical, 24);
-    timeline_box.set_margin_top(32);
-    timeline_box.set_margin_bottom(32);
-    timeline_box.set_margin_start(28);
-    timeline_box.set_margin_end(28);
-    timeline_box.add_css_class("synap-timeline-page");
-
-    let timeline_container = gtk::Box::new(gtk::Orientation::Vertical, 24);
-    timeline_box.append(&timeline_container);
-
-    root.set_child(Some(&timeline_box));
-
-    TimelinePage {
-        root,
-        timeline_container,
     }
 }
 
@@ -574,9 +616,6 @@ fn initial_content_child(state: &AppState) -> &'static str {
             }
         }
         ContentView::Trash => "notes",
-        ContentView::Tags => "tags",
-        ContentView::TagNotes => "notes",
-        ContentView::Timeline => "timeline",
         ContentView::Settings => "settings",
     }
 }

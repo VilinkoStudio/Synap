@@ -26,15 +26,13 @@ impl App {
         self.reading.editor.borrow().set_read_only(true);
 
         let child_name = match self.state.content_view {
-            ContentView::Notes | ContentView::Trash | ContentView::TagNotes => {
+            ContentView::Notes | ContentView::Trash => {
                 if self.state.visible_notes().is_empty() {
                     "empty"
                 } else {
                     "notes"
                 }
             }
-            ContentView::Tags => "tags",
-            ContentView::Timeline => "timeline",
             ContentView::Settings => "settings",
         };
         self.content_stack.set_visible_child_name(child_name);

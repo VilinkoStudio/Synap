@@ -1,8 +1,8 @@
 use crate::domain::{ContentView, HomeData, NoteDetailData, SyncConnectionRecord, Theme};
 use synap_core::{
     dto::{
-        LocalIdentityDTO, NoteDTO, PeerDTO, SyncSessionDTO,
-        SyncSessionRecordDTO,
+        LocalIdentityDTO, NoteDTO, PeerDTO, PeerTrustStatusDTO, RelayFetchStatsDTO,
+        RelayPushStatsDTO, SyncSessionDTO, SyncSessionRecordDTO,
     },
     error::ServiceError,
 };
@@ -17,7 +17,6 @@ pub enum AppMsg {
 
     // ── Focus mode ──
     OpenNoteFocus(String),
-    NoteRowActivated(u32),
     ExitFocus,
     NoteDetailLoaded(Result<NoteDetailData, ServiceError>),
 
@@ -45,14 +44,11 @@ pub enum AppMsg {
     LoadMoreNotes,
     MoreNotesLoaded(Result<(Vec<NoteDTO>, Option<String>, bool), ServiceError>),
 
-    // ── Tags ──
-    TagSelected(String),
-    TagsLoaded(Result<Vec<String>, ServiceError>),
-    TagNotesLoaded(Result<Vec<NoteDTO>, ServiceError>),
+    // ── Tag filters ──
+    ToggleTagFilter(String),
+    ToggleUntaggedFilter,
+    ToggleAllTags,
     TagRecommendationsLoaded(Result<Vec<String>, ServiceError>),
-
-    // ── Timeline ──
-    TimelineLoaded(Result<Vec<synap_core::dto::TimelineSessionDTO>, ServiceError>),
 
     // ── Sync ──
     RefreshSync,
@@ -82,7 +78,24 @@ pub enum AppMsg {
         note: Option<String>,
     },
     DeletePeer(String),
+    SetPeerStatus {
+        peer_id: String,
+        status: PeerTrustStatusDTO,
+    },
+    DismissPendingTrustPrompt,
     SyncSessionCompleted(Result<SyncSessionDTO, ServiceError>),
+
+    // ── Relay config ──
+    UpdateRelayBaseUrl(String),
+    UpdateRelayApiKey(String),
+    SaveRelayConfig,
+    RelayConfigSaved(Result<(), ServiceError>),
+
+    // ── Relay operations ──
+    FetchRelayUpdates,
+    PushRelayUpdates,
+    RelayFetchCompleted(Result<RelayFetchStatsDTO, ServiceError>),
+    RelayPushCompleted(Result<RelayPushStatsDTO, ServiceError>),
 
     // ── Async operation results ──
     NoteSaved(Result<NoteDTO, ServiceError>),

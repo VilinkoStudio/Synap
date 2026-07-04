@@ -1,55 +1,63 @@
 use crate::{
     core::{CoreResult, DesktopCore},
-    domain::{HomeData, NoteDetailData},
+    domain::{HomeData, NoteDetailData, TagFilter},
 };
 use synap_core::dto::NoteDTO;
 
 const PAGE_SIZE: usize = 50;
 
-pub fn load_home(core: &dyn DesktopCore, query: &str) -> CoreResult<HomeData> {
+pub fn load_home(
+    core: &dyn DesktopCore,
+    query: &str,
+    tag_filter: &TagFilter,
+) -> CoreResult<HomeData> {
     let trimmed = query.trim();
 
-    let notes = if trimmed.is_empty() {
-        let page = core.recent_notes_page(None, Some(PAGE_SIZE))?;
+    let (notes, cursor, has_more) = if trimmed.is_empty() {
+        let page = core.home_notes_page(
+            tag_filter.selected_tags.clone(),
+            tag_filter.include_untagged,
+            tag_filter.tag_filter_enabled,
+            true, // group_sessions
+            None,
+            Some(PAGE_SIZE),
+        )?;
         let has_more = page.next_cursor.is_some();
-        HomeData {
-            notes: page.notes,
-            deleted_notes: Vec::new(),
-            notes_cursor: page.next_cursor,
-            deleted_notes_cursor: None,
-            has_more_notes: has_more,
-            has_more_deleted_notes: false,
-        }
+        (page.notes, page.next_cursor, has_more)
     } else {
         let notes = core.search(trimmed, PAGE_SIZE)?;
-        HomeData {
-            notes,
-            deleted_notes: Vec::new(),
-            notes_cursor: None,
-            deleted_notes_cursor: None,
-            has_more_notes: false,
-            has_more_deleted_notes: false,
-        }
+        (notes, None, false)
     };
 
     let deleted_page = core.deleted_notes_page(None, Some(PAGE_SIZE))?;
     let has_more_deleted = deleted_page.next_cursor.is_some();
+    let all_tags = core.get_all_tags().unwrap_or_default();
 
     Ok(HomeData {
-        notes: notes.notes,
+        notes,
         deleted_notes: deleted_page.notes,
-        notes_cursor: notes.notes_cursor,
+        notes_cursor: cursor,
         deleted_notes_cursor: deleted_page.next_cursor,
-        has_more_notes: notes.has_more_notes,
+        has_more_notes: has_more,
         has_more_deleted_notes: has_more_deleted,
+        all_tags,
+        tag_filter: tag_filter.clone(),
     })
 }
 
 pub fn load_more_notes(
     core: &dyn DesktopCore,
     cursor: &str,
+    tag_filter: &TagFilter,
 ) -> CoreResult<(Vec<NoteDTO>, Option<String>, bool)> {
-    let page = core.recent_notes_page(Some(cursor), Some(PAGE_SIZE))?;
+    let page = core.home_notes_page(
+        tag_filter.selected_tags.clone(),
+        tag_filter.include_untagged,
+        tag_filter.tag_filter_enabled,
+        true, // group_sessions
+        Some(cursor),
+        Some(PAGE_SIZE),
+    )?;
     let has_more = page.next_cursor.is_some();
     let cursor = page.next_cursor;
     Ok((page.notes, cursor, has_more))
@@ -217,6 +225,22 @@ mod tests {
             Ok(vec!["rust".to_string(), "idea".to_string()])
         }
 
+        fn home_notes_page(
+            &self,
+            _selected_tags: Vec<String>,
+            _include_untagged: bool,
+            _tag_filter_enabled: bool,
+            _group_sessions: bool,
+            _cursor: Option<&str>,
+            limit: Option<usize>,
+        ) -> CoreResult<TimelineNotesPageDTO> {
+            let n = limit.unwrap_or(50);
+            Ok(TimelineNotesPageDTO {
+                notes: self.notes.iter().take(n).cloned().collect(),
+                next_cursor: None,
+            })
+        }
+
         fn get_notes_by_tag(&self, _tag: &str, _limit: usize) -> CoreResult<Vec<NoteDTO>> {
             Ok(vec![])
         }
@@ -311,12 +335,29 @@ mod tests {
         fn delete_sync_connection(&self, _connection_id: &str) -> CoreResult<()> {
             Ok(())
         }
+
+        fn get_relay_config(&self) -> (String, String) {
+            (String::new(), String::new())
+        }
+
+        fn save_relay_config(&self, _base_url: &str, _api_key: &str) -> CoreResult<()> {
+            Ok(())
+        }
+
+        fn relay_fetch_updates(&self) -> CoreResult<synap_core::dto::RelayFetchStatsDTO> {
+            Err(synap_core::error::ServiceError::Other(anyhow::anyhow!("not implemented")))
+        }
+
+        fn relay_push_updates(&self) -> CoreResult<synap_core::dto::RelayPushStatsDTO> {
+            Err(synap_core::error::ServiceError::Other(anyhow::anyhow!("not implemented")))
+        }
     }
 
     #[test]
     fn load_home_empty_query_returns_recent_and_deleted() {
         let core = MockCore::new();
-        let home = load_home(&core, "").unwrap();
+        let filter = TagFilter::default();
+        let home = load_home(&core, "", &filter).unwrap();
         assert_eq!(home.notes.len(), 2);
         assert_eq!(home.deleted_notes.len(), 1);
         assert!(!home.has_more_notes);
@@ -326,7 +367,8 @@ mod tests {
     #[test]
     fn load_home_search_query_returns_filtered() {
         let core = MockCore::new();
-        let home = load_home(&core, "first").unwrap();
+        let filter = TagFilter::default();
+        let home = load_home(&core, "first", &filter).unwrap();
         assert_eq!(home.notes.len(), 1);
         assert_eq!(home.notes[0].id, "1");
     }
@@ -334,14 +376,16 @@ mod tests {
     #[test]
     fn load_home_search_with_whitespace() {
         let core = MockCore::new();
-        let home = load_home(&core, "  first  ").unwrap();
+        let filter = TagFilter::default();
+        let home = load_home(&core, "  first  ", &filter).unwrap();
         assert_eq!(home.notes.len(), 1);
     }
 
     #[test]
     fn load_more_notes_returns_page() {
         let core = MockCore::new();
-        let (notes, cursor, has_more) = load_more_notes(&core, "cursor").unwrap();
+        let filter = TagFilter::default();
+        let (notes, cursor, has_more) = load_more_notes(&core, "cursor", &filter).unwrap();
         assert_eq!(notes.len(), 2);
         assert!(cursor.is_none());
         assert!(!has_more);

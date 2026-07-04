@@ -17,7 +17,7 @@ use crate::{
     domain::{AppState, ContentView, FocusMode, Theme, WorkspaceMode},
     ui::{
         editor::WysiwygEditor,
-        note_widgets::{build_clickable_note_row, build_note_row, tag_chip},
+        note_widgets::{build_clickable_note_row, tag_chip},
         shell::build_content_pages,
         theme::apply_theme,
         util::{compact_single_line, parse_tags, render_reading_text},
@@ -46,7 +46,6 @@ pub struct EditingWidgets {
 
 /// 笔记列表的 widget 引用
 pub struct ListWidgets {
-    pub list_box: gtk::ListBox,
     pub empty_page: adw::StatusPage,
 }
 
@@ -58,6 +57,11 @@ pub struct SettingsWidgets {
     pub identity_row: adw::ActionRow,
     pub signing_row: adw::ActionRow,
     pub error_label: gtk::Label,
+    // Relay
+    pub relay_base_url_entry: gtk::Entry,
+    pub relay_api_key_entry: gtk::Entry,
+    pub relay_status_label: gtk::Label,
+    // Connections
     pub host_entry: gtk::Entry,
     pub port_entry: gtk::Entry,
     pub discovered_box: gtk::Box,
@@ -79,8 +83,8 @@ pub struct App {
     reading: ReadingWidgets,
     editing: EditingWidgets,
     settings: SettingsWidgets,
-    tags_flow_box: gtk::FlowBox,
-    timeline_container: gtk::Box,
+    home_flow_box: gtk::FlowBox,
+    home_tag_box: gtk::Box,
 }
 
 #[relm4::component(pub)]
@@ -128,8 +132,6 @@ impl SimpleComponent for App {
                                 let view = match row.index() {
                                     0 => ContentView::Notes,
                                     1 => ContentView::Trash,
-                                    2 => ContentView::Tags,
-                                    3 => ContentView::Timeline,
                                     _ => return,
                                 };
                                 sender.input(AppMsg::Navigate(view));
@@ -152,7 +154,7 @@ impl SimpleComponent for App {
                                     set_margin_start: 8,
                                     set_margin_end: 8,
                                     gtk::Image { set_icon_name: Some("document-open-symbolic") },
-                                    gtk::Label { set_label: "笔记列表", set_xalign: 0.0, set_hexpand: true }
+                                    gtk::Label { set_label: "笔记", set_xalign: 0.0, set_hexpand: true }
                                 }
                             },
 
@@ -176,48 +178,6 @@ impl SimpleComponent for App {
                                     gtk::Label { set_label: "回收站", set_xalign: 0.0, set_hexpand: true }
                                 }
                             },
-
-                            gtk::ListBoxRow {
-                                #[watch]
-                                set_css_classes: if matches!(model.state.content_view, ContentView::Tags | ContentView::TagNotes) {
-                                    &["synap-nav-row", "active"]
-                                } else {
-                                    &["synap-nav-row"]
-                                },
-                                set_activatable: true,
-                                gtk::Box {
-                                    set_orientation: gtk::Orientation::Horizontal,
-                                    set_spacing: 10,
-                                    set_hexpand: true,
-                                    set_margin_top: 4,
-                                    set_margin_bottom: 4,
-                                    set_margin_start: 8,
-                                    set_margin_end: 8,
-                                    gtk::Image { set_icon_name: Some("tag-symbolic") },
-                                    gtk::Label { set_label: "标签", set_xalign: 0.0, set_hexpand: true }
-                                }
-                            },
-
-                            gtk::ListBoxRow {
-                                #[watch]
-                                set_css_classes: if model.state.content_view == ContentView::Timeline {
-                                    &["synap-nav-row", "active"]
-                                } else {
-                                    &["synap-nav-row"]
-                                },
-                                set_activatable: true,
-                                gtk::Box {
-                                    set_orientation: gtk::Orientation::Horizontal,
-                                    set_spacing: 10,
-                                    set_hexpand: true,
-                                    set_margin_top: 4,
-                                    set_margin_bottom: 4,
-                                    set_margin_start: 8,
-                                    set_margin_end: 8,
-                                    gtk::Image { set_icon_name: Some("view-list-symbolic") },
-                                    gtk::Label { set_label: "时间线", set_xalign: 0.0, set_hexpand: true }
-                                }
-                            }
                         },
 
                         gtk::Box { set_vexpand: true },
@@ -348,7 +308,7 @@ impl SimpleComponent for App {
                                     set_tooltip_text: Some("清除筛选"),
                                     add_css_class: "flat",
                                     #[watch]
-                                    set_visible: model.state.content_view == ContentView::TagNotes || !model.state.search_query.is_empty(),
+                                    set_visible: model.state.home.tag_filter.tag_filter_enabled || !model.state.search_query.is_empty(),
                                     connect_clicked[sender] => move |_| {
                                         sender.input(AppMsg::ClearFilters);
                                     }
@@ -440,7 +400,8 @@ impl SimpleComponent for App {
         let core = init;
         let mut state = AppState::default();
 
-        match load_home(core.as_ref(), "") {
+        let default_filter = crate::domain::TagFilter::default();
+        match load_home(core.as_ref(), "", &default_filter) {
             Ok(home) => {
                 state.home = home;
                 state.sync_selection();
@@ -451,6 +412,12 @@ impl SimpleComponent for App {
         }
 
         apply_theme(state.theme);
+
+        // Load relay config on startup
+        let (relay_base_url, relay_api_key) = core.get_relay_config();
+        state.sync.relay_base_url = relay_base_url;
+        state.sync.relay_api_key = relay_api_key;
+
         let toast_overlay = adw::ToastOverlay::new();
         let overlay_split_view = adw::OverlaySplitView::new();
         let pages = build_content_pages(&state, sender.input_sender());
@@ -465,7 +432,6 @@ impl SimpleComponent for App {
             content_stack: pages.content_stack,
 
             list: ListWidgets {
-                list_box: pages.list_box.clone(),
                 empty_page: pages.empty_page,
             },
             reading: ReadingWidgets {
@@ -483,6 +449,8 @@ impl SimpleComponent for App {
                 tags_entry: pages.editing_tags_entry,
                 recommend_tags_box: pages.recommend_tags_box,
             },
+            home_flow_box: pages.home_flow_box,
+            home_tag_box: pages.home_tag_box,
             settings: SettingsWidgets {
                 theme_dropdown: pages.theme_dropdown,
                 listener_row: pages.sync_listener_row,
@@ -490,6 +458,9 @@ impl SimpleComponent for App {
                 identity_row: pages.sync_identity_row,
                 signing_row: pages.sync_signing_row,
                 error_label: pages.sync_error_label,
+                relay_base_url_entry: pages.relay_base_url_entry,
+                relay_api_key_entry: pages.relay_api_key_entry,
+                relay_status_label: pages.relay_status_label,
                 host_entry: pages.sync_host_entry,
                 port_entry: pages.sync_port_entry,
                 discovered_box: pages.sync_discovered_box,
@@ -497,13 +468,9 @@ impl SimpleComponent for App {
                 peers_box: pages.sync_peers_box,
                 sessions_box: pages.sync_sessions_box,
             },
-            tags_flow_box: pages.tags_flow_box,
-            timeline_container: pages.timeline_container,
         };
 
         let widgets = view_output!();
-        model.connect_note_list(&sender);
-        model.rebuild_list(&sender);
         model.sync_ui(&sender);
 
         // ── Global keyboard shortcuts ──
@@ -555,13 +522,6 @@ impl SimpleComponent for App {
 
             // ── Focus mode ──
             AppMsg::OpenNoteFocus(note_id) => self.enter_focus(note_id, &sender),
-            AppMsg::NoteRowActivated(index) => {
-                let visible = self.state.visible_notes();
-                if let Some(note) = visible.get(index as usize) {
-                    let note_id = note.id.clone();
-                    self.enter_focus(note_id, &sender);
-                }
-            }
             AppMsg::ExitFocus => self.exit_focus(&sender),
             AppMsg::NoteDetailLoaded(result) => match result {
                 Ok(data) => {
@@ -616,38 +576,15 @@ impl SimpleComponent for App {
             AppMsg::LoadMoreNotes => self.load_more_notes(&sender),
             AppMsg::MoreNotesLoaded(result) => self.finish_loading_more(result, &sender),
 
-            // ── Tags ──
-            AppMsg::TagSelected(tag) => self.open_tag_notes(tag, &sender),
-            AppMsg::TagsLoaded(result) => match result {
-                Ok(tags) => {
-                    self.state.all_tags = tags;
-                    self.state.status = None;
-                }
-                Err(error) => self.state.status = Some(format!("加载标签失败: {error}")),
-            },
-            AppMsg::TagNotesLoaded(result) => match result {
-                Ok(notes) => {
-                    self.state.tag_notes = notes;
-                    self.state.sync_selection();
-                    self.rebuild_list(&sender);
-                    self.state.status = None;
-                }
-                Err(error) => self.state.status = Some(format!("加载标签笔记失败: {error}")),
-            },
+            // ── Tag filters ──
+            AppMsg::ToggleTagFilter(tag) => self.toggle_tag_filter(tag, &sender),
+            AppMsg::ToggleUntaggedFilter => self.toggle_untagged_filter(&sender),
+            AppMsg::ToggleAllTags => self.toggle_all_tags(&sender),
             AppMsg::TagRecommendationsLoaded(result) => match result {
                 Ok(tags) => {
                     self.state.recommended_tags = tags;
                 }
                 Err(_) => { /* silently ignore recommendation failures */ }
-            },
-
-            // ── Timeline ──
-            AppMsg::TimelineLoaded(result) => match result {
-                Ok(sessions) => {
-                    self.state.timeline_sessions = sessions;
-                    self.state.status = None;
-                }
-                Err(error) => self.state.status = Some(format!("加载时间线失败: {error}")),
             },
 
             // ── Sync ──
@@ -691,7 +628,29 @@ impl SimpleComponent for App {
                 self.update_peer_note(peer_id, note, &sender)
             }
             AppMsg::DeletePeer(peer_id) => self.delete_peer(peer_id, &sender),
+            AppMsg::SetPeerStatus { peer_id, status } => {
+                self.set_peer_status(peer_id, status, &sender)
+            }
+            AppMsg::DismissPendingTrustPrompt => self.dismiss_pending_trust_prompt(),
             AppMsg::SyncSessionCompleted(result) => self.finish_sync_pair(result),
+
+            // ── Relay config ──
+            AppMsg::UpdateRelayBaseUrl(value) => self.update_relay_base_url(&value),
+            AppMsg::UpdateRelayApiKey(value) => self.update_relay_api_key(&value),
+            AppMsg::SaveRelayConfig => self.save_relay_config(&sender),
+            AppMsg::RelayConfigSaved(result) => self.finish_save_relay_config(result),
+
+            // ── Relay operations ──
+            AppMsg::FetchRelayUpdates => self.fetch_relay_updates(&sender),
+            AppMsg::PushRelayUpdates => self.push_relay_updates(&sender),
+            AppMsg::RelayFetchCompleted(result) => {
+                self.finish_fetch_relay_updates(result);
+                self.refresh_sync(&sender);
+            }
+            AppMsg::RelayPushCompleted(result) => {
+                self.finish_push_relay_updates(result);
+                self.refresh_sync(&sender);
+            }
 
             // ── Async operation results ──
             AppMsg::NoteSaved(result) => match result {
@@ -704,10 +663,11 @@ impl SimpleComponent for App {
 
                     // Refresh lists in background
                     let query = self.state.search_query.clone();
+                    let tag_filter = self.state.home.tag_filter.clone();
                     let core = self.core.clone();
                     let s = sender.clone();
                     gtk::glib::spawn_future_local(async move {
-                        let result = load_home(core.as_ref(), &query);
+                        let result = load_home(core.as_ref(), &query, &tag_filter);
                         let _ = s.input_sender().send(AppMsg::HomeRefreshed(result));
                     });
 

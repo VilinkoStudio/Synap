@@ -8,7 +8,7 @@ use super::message::AppMsg;
 use crate::{
     domain::ContentView,
     ui::{
-        note_widgets::{build_clickable_note_row, tag_chip},
+        note_widgets::{build_clickable_note_row, build_note_card, build_timeline_header, tag_chip},
         util::render_reading_text,
     },
 };
@@ -17,12 +17,11 @@ impl App {
     pub(super) fn sync_ui(&self, sender: &ComponentSender<Self>) {
         self.sync_content_stack();
         self.sync_empty_page();
+        self.sync_home_feed(sender);
         self.sync_reading(sender);
         self.sync_editing();
         self.sync_theme_dropdown();
         self.sync_settings(sender);
-        self.sync_tags(sender);
-        self.sync_timeline(sender);
     }
 
     fn sync_content_stack(&self) {
@@ -32,11 +31,9 @@ impl App {
 
         let is_empty = self.state.visible_notes().is_empty();
         let child_name = match self.state.content_view {
-            ContentView::Notes | ContentView::Trash | ContentView::TagNotes => {
+            ContentView::Notes | ContentView::Trash => {
                 if is_empty { "empty" } else { "notes" }
             }
-            ContentView::Tags => "tags",
-            ContentView::Timeline => "timeline",
             ContentView::Settings => "settings",
         };
         self.content_stack.set_visible_child_name(child_name);
@@ -221,6 +218,20 @@ impl App {
         self.settings.error_label.set_visible(self.state.sync.error_message.is_some());
         self.settings.error_label.set_text(self.state.sync.error_message.as_deref().unwrap_or(""));
 
+        // Relay config sync (avoid overwriting user input while typing)
+        if self.settings.relay_base_url_entry.text().as_str() != self.state.sync.relay_base_url {
+            self.settings.relay_base_url_entry.set_text(&self.state.sync.relay_base_url);
+        }
+        if self.settings.relay_api_key_entry.text().as_str() != self.state.sync.relay_api_key {
+            self.settings.relay_api_key_entry.set_text(&self.state.sync.relay_api_key);
+        }
+        self.settings
+            .relay_status_label
+            .set_visible(self.state.sync.relay_status_message.is_some());
+        self.settings.relay_status_label.set_text(
+            self.state.sync.relay_status_message.as_deref().unwrap_or(""),
+        );
+
         if self.settings.host_entry.text().as_str() != self.state.sync.host_input {
             self.settings.host_entry.set_text(&self.state.sync.host_input);
         }
@@ -360,66 +371,115 @@ impl App {
             return;
         }
         for session in &self.state.sync.recent_sessions {
+            let transport_info = crate::domain::transport_label(&session.transport);
+            let relay_info = session
+                .relay_url
+                .as_deref()
+                .filter(|u| !u.is_empty())
+                .map(|u| format!(" · {u}"))
+                .unwrap_or_default();
             self.settings.sessions_box.append(
                 &adw::ActionRow::builder()
                     .title(session.peer_label.as_deref().unwrap_or("未知设备"))
                     .subtitle(format!(
-                        "{} · {} · {}",
+                        "{} · {} · {} · {transport_info}{relay_info}",
                         crate::domain::sync_role_label(&session.role),
                         crate::domain::sync_status_label(&session.status),
-                        crate::domain::format_timestamp(session.finished_at_ms)
+                        crate::domain::format_timestamp(session.finished_at_ms),
                     ))
                     .build(),
             );
         }
     }
 
-    fn sync_tags(&self, sender: &ComponentSender<Self>) {
-        while let Some(child) = self.tags_flow_box.first_child() {
-            self.tags_flow_box.remove(&child);
+    fn sync_home_feed(&self, sender: &ComponentSender<Self>) {
+        // Sync home feed for Notes and Trash views in browse mode
+        if !matches!(self.state.content_view, ContentView::Notes | ContentView::Trash)
+            || !self.state.focus_mode.is_browse()
+        {
+            return;
         }
-        for tag in &self.state.all_tags {
-            let button = gtk::Button::with_label(&format!("#{tag}"));
-            button.add_css_class("pill");
-            let tc = tag.clone();
-            let s = sender.input_sender().clone();
-            button.connect_clicked(move |_| {
-                let _ = s.send(AppMsg::TagSelected(tc.clone()));
-            });
-            self.tags_flow_box.append(&button);
-        }
-    }
 
-    fn sync_timeline(&self, sender: &ComponentSender<Self>) {
-        while let Some(child) = self.timeline_container.first_child() {
-            self.timeline_container.remove(&child);
-        }
-        for session in &self.state.timeline_sessions {
-            let session_box = gtk::Box::new(gtk::Orientation::Vertical, 12);
-            session_box.add_css_class("synap-timeline-session");
+        let is_notes = self.state.content_view == ContentView::Notes;
 
-            let start_time = crate::domain::format_timestamp(session.started_at);
-            let end_time = crate::domain::format_timestamp(session.ended_at);
-            let header = gtk::Label::new(Some(&format!(
-                "{} - {} · {} 条笔记", start_time, end_time, session.note_count
-            )));
-            header.add_css_class("heading");
-            header.add_css_class("synap-section-heading");
-            header.set_halign(gtk::Align::Start);
-            session_box.append(&header);
+        // ── Tag filter chips (only for Notes view) ──
+        clear_box(&self.home_tag_box);
+        self.home_tag_box.set_visible(is_notes);
 
-            let notes_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
-            for note in &session.notes {
-                notes_box.append(&build_clickable_note_row(note, sender.input_sender(), note.id.clone()));
+        if is_notes {
+            let filter = &self.state.home.tag_filter;
+            let is_all = !filter.tag_filter_enabled;
+            let all_btn = gtk::Button::with_label("全部");
+            all_btn.add_css_class("pill");
+            if is_all {
+                all_btn.add_css_class("accent");
             }
-            session_box.append(&notes_box);
+            let s_all = sender.input_sender().clone();
+            all_btn.connect_clicked(move |_| {
+                let _ = s_all.send(AppMsg::ToggleAllTags);
+            });
+            self.home_tag_box.append(&all_btn);
 
-            let separator = gtk::Separator::new(gtk::Orientation::Horizontal);
-            separator.set_margin_top(8);
-            separator.set_margin_bottom(8);
-            session_box.append(&separator);
+            let untagged_btn = gtk::Button::with_label("无标签");
+            untagged_btn.add_css_class("pill");
+            if filter.tag_filter_enabled && !filter.include_untagged {
+                untagged_btn.add_css_class("accent");
+            }
+            let s_untagged = sender.input_sender().clone();
+            untagged_btn.connect_clicked(move |_| {
+                let _ = s_untagged.send(AppMsg::ToggleUntaggedFilter);
+            });
+            self.home_tag_box.append(&untagged_btn);
 
-            self.timeline_container.append(&session_box);
+            for tag in &self.state.home.all_tags {
+                let btn = gtk::Button::with_label(&format!("#{tag}"));
+                btn.add_css_class("pill");
+                let is_selected = !filter.tag_filter_enabled || filter.selected_tags.contains(tag);
+                if filter.tag_filter_enabled && is_selected {
+                    btn.add_css_class("accent");
+                }
+                let tc = tag.clone();
+                let s = sender.input_sender().clone();
+                btn.connect_clicked(move |_| {
+                    let _ = s.send(AppMsg::ToggleTagFilter(tc.clone()));
+                });
+                self.home_tag_box.append(&btn);
+            }
+        }
+
+        // ── FlowBox: timeline headers + note cards ──
+        while let Some(child) = self.home_flow_box.first_child() {
+            self.home_flow_box.remove(&child);
+        }
+
+        let notes = self.state.visible_notes();
+        let is_trash = self.state.content_view == ContentView::Trash;
+        for note in &notes {
+            // Insert timeline group header when a new group starts (Notes view only)
+            if is_notes {
+                if let Some(group) = &note.timeline_group {
+                    if group.starts_group {
+                        let header = build_timeline_header(
+                            group.started_at as u64,
+                            group.ended_at as u64,
+                            group.note_count,
+                        );
+                        self.home_flow_box.insert(&header, -1);
+                    }
+                }
+            }
+
+            let card = build_note_card(note, sender.input_sender(), is_trash);
+            self.home_flow_box.insert(&card, -1);
+        }
+
+        // Loading spinner at the end
+        if self.state.is_loading_more {
+            let spinner = gtk::Spinner::new();
+            spinner.set_margin_top(8);
+            spinner.set_margin_bottom(8);
+            spinner.start();
+            self.home_flow_box.insert(&spinner, -1);
         }
     }
 
