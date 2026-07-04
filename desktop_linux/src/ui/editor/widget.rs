@@ -1,390 +1,289 @@
-//! WysiwygEditor — the main block-based WYSIWYG editor widget.
+//! Markdown editor — block-based rendered view + syntax-highlighted edit view.
 //!
-//! Renders markdown as a vertical stack of styled block widgets.
-//! In edit mode, clicking a block switches it to a TextView for raw editing.
-//! On blur/escape, re-parses and re-renders the block.
+//! Two modes:
+//! - **Read-only**: renders markdown as styled block widgets
+//! - **Editable**: shows a single `gtk::TextView` with markdown syntax highlighting
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use gtk::prelude::*;
 
-use super::model::{BlockKind, MdBlock};
+use super::model::MdBlock;
 use super::parser::parse_markdown;
 use super::renderer::render_block;
 
-/// A block widget that can switch between display and edit mode.
-struct BlockEntry {
-    block: MdBlock,
-    display: gtk::Widget,
-    edit: Option<gtk::TextView>,
-    mode: BlockMode,
-    slot: gtk::Box,
-}
-
-#[derive(Clone, Copy, PartialEq)]
-enum BlockMode {
-    Display,
-    Editing,
-}
-
-/// Shared inner state for the editor (behind Rc<RefCell<>>).
+/// Inner state shared between callbacks.
 struct EditorInner {
-    blocks_box: gtk::Box,
-    entries: Vec<BlockEntry>,
     source: String,
     read_only: bool,
-    active_edit: Option<usize>,
     on_change: Option<Box<dyn Fn(String)>>,
+    rendered_box: gtk::Box,
+    edit_buffer: gtk::TextBuffer,
+    edit_view: gtk::TextView,
 }
 
-/// The main WYSIWYG editor widget.
-///
-/// Uses `Rc<RefCell<>>` internally so click handlers can trigger edit mode.
+/// The main editor widget.
 #[derive(Clone)]
 pub struct WysiwygEditor {
-    container: gtk::Box,
+    container: gtk::Stack,
     inner: Rc<RefCell<EditorInner>>,
 }
 
 impl WysiwygEditor {
-    /// Create a new editor in read-only display mode.
     pub fn new_read_only() -> Self {
         Self::new(true)
     }
 
     fn new(read_only: bool) -> Self {
-        let container = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        container.add_css_class("synap-editor");
+        // Read-only rendered view
+        let rendered_scroller = gtk::ScrolledWindow::new();
+        rendered_scroller.set_kinetic_scrolling(true);
+        rendered_scroller.set_overlay_scrolling(true);
+        rendered_scroller.set_propagate_natural_height(true);
+        rendered_scroller.set_vexpand(true);
+        rendered_scroller.set_hscrollbar_policy(gtk::PolicyType::Never);
 
-        let scroller = gtk::ScrolledWindow::new();
-        scroller.set_kinetic_scrolling(true);
-        scroller.set_overlay_scrolling(true);
-        scroller.set_propagate_natural_height(true);
-        scroller.set_vexpand(true);
+        let rendered_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        rendered_box.add_css_class("synap-editor-blocks");
+        rendered_scroller.set_child(Some(&rendered_box));
 
-        let blocks_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        blocks_box.add_css_class("synap-editor-blocks");
+        // Edit view
+        let edit_scroller = gtk::ScrolledWindow::new();
+        edit_scroller.set_kinetic_scrolling(true);
+        edit_scroller.set_overlay_scrolling(true);
+        edit_scroller.set_propagate_natural_height(true);
+        edit_scroller.set_vexpand(true);
+        edit_scroller.set_hscrollbar_policy(gtk::PolicyType::Never);
 
-        scroller.set_child(Some(&blocks_box));
-        container.append(&scroller);
+        let edit_buffer = gtk::TextBuffer::new(None);
+        setup_syntax_tags(&edit_buffer);
 
-        let inner = EditorInner {
-            blocks_box,
-            entries: Vec::new(),
+        let edit_view = gtk::TextView::with_buffer(&edit_buffer);
+        edit_view.set_wrap_mode(gtk::WrapMode::WordChar);
+        edit_view.set_top_margin(24);
+        edit_view.set_bottom_margin(64);
+        edit_view.set_left_margin(32);
+        edit_view.set_right_margin(32);
+        edit_view.add_css_class("synap-editor-source");
+        edit_scroller.set_child(Some(&edit_view));
+
+        // Stack
+        let container = gtk::Stack::new();
+        container.set_transition_type(gtk::StackTransitionType::Crossfade);
+        container.set_transition_duration(120);
+        container.add_named(&rendered_scroller, Some("rendered"));
+        container.add_named(&edit_scroller, Some("edit"));
+        container.set_visible_child_name(if read_only { "rendered" } else { "edit" });
+
+        let inner = Rc::new(RefCell::new(EditorInner {
             source: String::new(),
             read_only,
-            active_edit: None,
             on_change: None,
-        };
+            rendered_box,
+            edit_buffer,
+            edit_view,
+        }));
 
-        Self {
-            container,
-            inner: Rc::new(RefCell::new(inner)),
+        // Buffer changed → highlight + callback
+        {
+            let inner_ref = Rc::downgrade(&inner);
+            let buf = inner.borrow().edit_buffer.clone();
+            buf.connect_changed(move |buffer| {
+                let Some(inner) = inner_ref.upgrade() else { return };
+                let mut inner = inner.borrow_mut();
+                let text = buffer_text(buffer);
+                apply_highlighting(buffer, &text);
+                inner.source = text.clone();
+                if let Some(ref f) = inner.on_change {
+                    f(text);
+                }
+            });
         }
+
+        Self { container, inner }
     }
 
-    /// Set the callback for content changes.
     pub fn set_on_change(&mut self, f: impl Fn(String) + 'static) {
         self.inner.borrow_mut().on_change = Some(Box::new(f));
     }
 
-    /// Get the root widget for embedding in a parent.
-    pub fn widget(&self) -> &gtk::Box {
+    pub fn widget(&self) -> &gtk::Stack {
         &self.container
     }
 
-    /// Toggle read-only mode. When true, blocks cannot be clicked to edit.
-    /// Rebuilds blocks to add/remove click handlers.
-    /// When switching to editable with empty content, auto-enters edit mode.
     pub fn set_read_only(&self, read_only: bool) {
         let mut inner = self.inner.borrow_mut();
         if inner.read_only == read_only {
             return;
         }
         inner.read_only = read_only;
-        let blocks = parse_markdown(&inner.source.clone());
-        rebuild_blocks(&mut inner, &blocks, &self.inner);
 
-        // If switching to editable and content is empty, auto-enter edit mode
-        if !read_only && inner.source.trim().is_empty() {
-            drop(inner);
-            let self_ref = self.inner.clone();
-            gtk::glib::idle_add_local(move || {
-                enter_edit_mode(&self_ref, 0);
-                gtk::glib::ControlFlow::Break
-            });
+        if read_only {
+            rebuild_rendered(&mut inner);
+            self.container.set_visible_child_name("rendered");
+        } else {
+            inner.edit_buffer.set_text(&inner.source);
+            apply_highlighting(&inner.edit_buffer, &inner.source);
+            self.container.set_visible_child_name("edit");
+            inner.edit_view.grab_focus();
         }
     }
 
-    /// Set the markdown content, parsing and rendering all blocks.
     pub fn set_content(&self, markdown: &str) {
         let mut inner = self.inner.borrow_mut();
-        if inner.active_edit.is_some() {
+        if inner.source == markdown {
             return;
         }
         inner.source = markdown.to_string();
-        let blocks = parse_markdown(markdown);
-        rebuild_blocks(&mut inner, &blocks, &self.inner);
+        if inner.read_only {
+            rebuild_rendered(&mut inner);
+        }
     }
 
-    /// Get the current raw markdown content.
     pub fn content(&self) -> String {
         self.inner.borrow().source.clone()
     }
-
 }
 
-/// Rebuild all block widgets from a fresh parse.
-fn rebuild_blocks(
-    inner: &mut EditorInner,
-    blocks: &[MdBlock],
-    self_ref: &Rc<RefCell<EditorInner>>,
-) {
-    if let Some(idx) = inner.active_edit {
-        commit_edit_inner(inner, idx);
+fn rebuild_rendered(inner: &mut EditorInner) {
+    while let Some(child) = inner.rendered_box.first_child() {
+        inner.rendered_box.remove(&child);
     }
-
-    while let Some(child) = inner.blocks_box.first_child() {
-        inner.blocks_box.remove(&child);
-    }
-    inner.entries.clear();
-
+    let blocks = parse_markdown(&inner.source);
     if blocks.is_empty()
-        || (blocks.len() == 1 && matches!(blocks[0].kind, BlockKind::Blank))
+        || (blocks.len() == 1 && matches!(blocks[0].kind, super::model::BlockKind::Blank))
     {
         let label = gtk::Label::new(Some("开始记录..."));
         label.add_css_class("synap-editor-empty");
         label.set_xalign(0.0);
-        inner.blocks_box.append(&label);
+        inner.rendered_box.append(&label);
         return;
     }
-
-    for (i, block) in blocks.iter().enumerate() {
-        let entry = create_block_entry(block.clone(), i, inner.read_only, self_ref);
-        inner.blocks_box.append(&entry.slot);
-        inner.entries.push(entry);
+    for block in &blocks {
+        inner.rendered_box.append(&render_block(block));
     }
 }
 
-/// Make a rendered widget non-selectable so it doesn't consume clicks.
-fn make_not_selectable(widget: &gtk::Widget) {
-    if let Some(label) = widget.downcast_ref::<gtk::Label>() {
-        label.set_selectable(false);
-    }
-    // For composite widgets (code blocks, lists), recurse into children
-    if let Some(box_widget) = widget.downcast_ref::<gtk::Box>() {
-        let mut child = box_widget.first_child();
-        while let Some(c) = child {
-            make_not_selectable(&c);
-            child = c.next_sibling();
-        }
-    }
+fn buffer_text(buffer: &gtk::TextBuffer) -> String {
+    buffer.text(&buffer.start_iter(), &buffer.end_iter(), false).to_string()
 }
 
-/// Create a BlockEntry with click handler wired up.
-fn create_block_entry(
-    block: MdBlock,
-    index: usize,
-    read_only: bool,
-    self_ref: &Rc<RefCell<EditorInner>>,
-) -> BlockEntry {
-    let display = render_block(&block);
-    let slot = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    slot.add_css_class("synap-editor-block-editable");
-    slot.append(&display);
+// ── Syntax highlighting via pulldown-cmark ──
 
-    if !read_only {
-        // Disable text selection so clicks reach the gesture handler
-        make_not_selectable(&display);
+use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 
-        // Click on the display widget to enter edit mode
-        let click = gtk::GestureClick::new();
-        let inner_ref = self_ref.clone();
-        click.connect_pressed(move |_, _, _, _| {
-            let inner_ref = inner_ref.clone();
-            gtk::glib::idle_add_local(move || {
-                enter_edit_mode(&inner_ref, index);
-                gtk::glib::ControlFlow::Break
-            });
-        });
-        display.add_controller(click);
-    }
+fn setup_syntax_tags(buffer: &gtk::TextBuffer) {
+    let table = buffer.tag_table();
 
-    BlockEntry {
-        block,
-        display,
-        edit: None,
-        mode: BlockMode::Display,
-        slot,
-    }
-}
+    let add = |name: &str, configure: fn(&gtk::TextTag)| {
+        let tag = gtk::TextTag::new(Some(name));
+        configure(&tag);
+        table.add(&tag);
+    };
 
-/// Enter edit mode for a specific block.
-fn enter_edit_mode(self_ref: &Rc<RefCell<EditorInner>>, index: usize) {
-    let mut inner = self_ref.borrow_mut();
-    if inner.read_only || index >= inner.entries.len() {
-        return;
-    }
-
-    // Commit any other active edit first
-    if let Some(active) = inner.active_edit {
-        if active != index {
-            commit_edit_inner(&mut inner, active);
-        }
-    }
-
-    let entry = &mut inner.entries[index];
-    if entry.mode == BlockMode::Editing {
-        return;
-    }
-
-    let text_view = gtk::TextView::new();
-    text_view.set_wrap_mode(gtk::WrapMode::WordChar);
-    text_view.set_top_margin(8);
-    text_view.set_bottom_margin(8);
-    text_view.set_left_margin(12);
-    text_view.set_right_margin(12);
-    text_view.add_css_class("synap-editor-edit-view");
-
-    let raw = entry.block.kind.to_markdown();
-    text_view.buffer().set_text(&raw);
-
-    entry.slot.remove(&entry.display);
-    entry.slot.append(&text_view);
-    entry.edit = Some(text_view.clone());
-    entry.mode = BlockMode::Editing;
-    inner.active_edit = Some(index);
-
-    text_view.grab_focus();
-    let buffer = text_view.buffer();
-    let start = buffer.start_iter();
-    let end = buffer.end_iter();
-    buffer.select_range(&start, &end);
-
-    // Connect focus-out to commit
-    let inner_ref = self_ref.clone();
-    let focus_ctrl = gtk::EventControllerFocus::new();
-    focus_ctrl.connect_leave(move |_| {
-        // Use idle_add to avoid borrow conflicts
-        let inner_ref = inner_ref.clone();
-        gtk::glib::idle_add_local(move || {
-            let mut inner = inner_ref.borrow_mut();
-            if let Some(idx) = inner.active_edit {
-                commit_edit_inner(&mut inner, idx);
-            }
-            gtk::glib::ControlFlow::Break
-        });
+    add("h1", |t| { t.set_weight(700); t.set_scale(1.6); t.set_foreground(Some("#3584e4")); });
+    add("h2", |t| { t.set_weight(600); t.set_scale(1.35); t.set_foreground(Some("#3584e4")); });
+    add("h3", |t| { t.set_weight(600); t.set_scale(1.15); t.set_foreground(Some("#3584e4")); });
+    add("h4", |t| { t.set_weight(600); t.set_foreground(Some("#3584e4")); });
+    add("bold", |t| { t.set_weight(700); });
+    add("italic", |t| { t.set_style(gtk::pango::Style::Italic); });
+    add("strike", |t| { t.set_strikethrough(true); });
+    add("code_inline", |t| {
+        t.set_family(Some("monospace"));
+        t.set_font(Some("monospace 13"));
+        t.set_background(Some("alpha(currentColor, 0.08)"));
     });
-    text_view.add_controller(focus_ctrl);
+    add("code_block", |t| {
+        t.set_family(Some("monospace"));
+        t.set_font(Some("monospace 13"));
+        t.set_background(Some("alpha(currentColor, 0.05)"));
+        t.set_left_margin(16);
+    });
+    add("link", |t| {
+        t.set_foreground(Some("#3584e4"));
+        t.set_underline(gtk::pango::Underline::Single);
+    });
+    add("quote", |t| {
+        t.set_foreground(Some("alpha(currentColor, 0.6)"));
+        t.set_left_margin(24);
+        t.set_style(gtk::pango::Style::Italic);
+    });
+    add("marker", |t| { t.set_foreground(Some("alpha(currentColor, 0.4)")); });
+    add("hr", |t| { t.set_foreground(Some("alpha(currentColor, 0.25)")); });
+}
 
-    // Connect Escape to commit, Tab to indent
-    let key_ctrl = gtk::EventControllerKey::new();
-    let inner_ref2 = self_ref.clone();
-    let tv_for_tab = text_view.clone();
-    key_ctrl.connect_key_pressed(move |_, key, _, modifier| {
-        if key == gtk::gdk::Key::Escape {
-            let mut inner = inner_ref2.borrow_mut();
-            if let Some(idx) = inner.active_edit {
-                commit_edit_inner(&mut inner, idx);
+fn apply_highlighting(buffer: &gtk::TextBuffer, text: &str) {
+    let mut start = buffer.start_iter();
+    let mut end = buffer.end_iter();
+    buffer.remove_all_tags(&mut start, &mut end);
+
+    let options = Options::ENABLE_TABLES
+        | Options::ENABLE_STRIKETHROUGH
+        | Options::ENABLE_TASKLISTS
+        | Options::ENABLE_HEADING_ATTRIBUTES;
+
+    let parser = Parser::new_ext(text, options);
+
+    for (event, range) in parser.into_offset_iter() {
+        let tag_name = match &event {
+            Event::Start(tag) => match tag {
+                Tag::Heading { level, .. } => {
+                    match level {
+                        pulldown_cmark::HeadingLevel::H1 => Some("h1"),
+                        pulldown_cmark::HeadingLevel::H2 => Some("h2"),
+                        pulldown_cmark::HeadingLevel::H3 => Some("h3"),
+                        _ => Some("h4"),
+                    }
+                }
+                Tag::CodeBlock(_) => Some("code_block"),
+                Tag::BlockQuote(_) => Some("quote"),
+                Tag::Strong => Some("bold"),
+                Tag::Emphasis => Some("italic"),
+                Tag::Strikethrough => Some("strike"),
+                Tag::Link { .. } => Some("link"),
+                _ => None,
+            },
+            Event::Code(_) => Some("code_inline"),
+            Event::Rule => Some("hr"),
+            _ => None,
+        };
+
+        if let Some(name) = tag_name {
+            let start_char = text[..range.start].chars().count() as i32;
+            let end_char = text[..range.end].chars().count() as i32;
+            let mut s = buffer.iter_at_offset(start_char);
+            let mut e = buffer.iter_at_offset(end_char);
+            if let Some(t) = buffer.tag_table().lookup(name) {
+                buffer.apply_tag(&t, &mut s, &mut e);
             }
-            return gtk::glib::Propagation::Stop;
         }
-        // Tab → insert 2 spaces at cursor
-        if key == gtk::gdk::Key::Tab && !modifier.contains(gtk::gdk::ModifierType::SHIFT_MASK) {
-            let buffer = tv_for_tab.buffer();
-            let (start, end) = buffer.selection_bounds().unwrap_or_else(|| {
-                let mark = buffer.mark("insert").unwrap();
-                let iter = buffer.iter_at_mark(&mark);
-                (iter.clone(), iter)
-            });
-            // If there's a selection, indent all selected lines
-            if start != end {
-                indent_selection(&buffer, &start, &end);
+    }
+
+    // Highlight list markers separately (pulldown-cmark doesn't expose marker ranges)
+    for (line_idx, line) in text.lines().enumerate() {
+        let trimmed = line.trim_start();
+        let indent = line.len() - trimmed.len();
+        let is_marker = trimmed.starts_with("- ")
+            || trimmed.starts_with("* ")
+            || trimmed.starts_with("+ ")
+            || trimmed.starts_with("- [ ] ")
+            || trimmed.starts_with("- [x] ")
+            || trimmed.starts_with("- [X] ");
+
+        if is_marker {
+            let marker_len = if trimmed.starts_with("- [ ] ") || trimmed.starts_with("- [x] ") || trimmed.starts_with("- [X] ") {
+                indent + 6
             } else {
-                let mark = buffer.mark("insert").unwrap();
-                let mut cursor = buffer.iter_at_mark(&mark);
-                buffer.insert(&mut cursor, "  ");
+                indent + 2
+            };
+            if let Some(mut s) = buffer.iter_at_line(line_idx as i32) {
+                let mut e = s;
+                e.forward_chars(marker_len as i32);
+                if let Some(t) = buffer.tag_table().lookup("marker") {
+                    buffer.apply_tag(&t, &mut s, &mut e);
+                }
             }
-            return gtk::glib::Propagation::Stop;
         }
-        // Shift+Tab → remove leading 2 spaces from current line
-        if key == gtk::gdk::Key::Tab && modifier.contains(gtk::gdk::ModifierType::SHIFT_MASK) {
-            let buffer = tv_for_tab.buffer();
-            let mark = buffer.mark("insert").unwrap();
-            let mut iter = buffer.iter_at_mark(&mark);
-            iter.set_line_offset(0);
-            let line_start = iter;
-            let mut line_end = line_start;
-            line_end.forward_chars(2);
-            let text = buffer.text(&line_start, &line_end, false);
-            if text.as_str() == "  " {
-                buffer.delete(&mut line_start.clone(), &mut line_end);
-            }
-            return gtk::glib::Propagation::Stop;
-        }
-        gtk::glib::Propagation::Proceed
-    });
-    text_view.add_controller(key_ctrl);
-}
-
-/// Commit the edit for a specific block — read text, re-parse, re-render.
-fn commit_edit_inner(inner: &mut EditorInner, index: usize) {
-    if index >= inner.entries.len() {
-        return;
-    }
-
-    let entry = &mut inner.entries[index];
-    if entry.mode != BlockMode::Editing {
-        return;
-    }
-
-    let text_view = entry.edit.as_ref().unwrap();
-    let buffer = text_view.buffer();
-    let start = buffer.start_iter();
-    let end = buffer.end_iter();
-    let new_text = buffer.text(&start, &end, false).to_string();
-
-    // Re-parse the edited block
-    let new_blocks = parse_markdown(&new_text);
-    let new_block = new_blocks.into_iter().next().unwrap_or(MdBlock {
-        kind: BlockKind::Blank,
-        source_start: 0,
-        source_end: new_text.len(),
-    });
-
-    // Update the entry
-    entry.slot.remove(text_view);
-    let new_display = render_block(&new_block);
-    entry.slot.append(&new_display);
-    entry.display = new_display;
-    entry.block = new_block;
-    entry.edit = None;
-    entry.mode = BlockMode::Display;
-    inner.active_edit = None;
-
-    // Rebuild the full source from all blocks (safe for UTF-8)
-    inner.source = inner
-        .entries
-        .iter()
-        .map(|e| e.block.kind.to_markdown())
-        .collect::<Vec<_>>()
-        .join("\n\n");
-
-    // Fire change callback
-    if let Some(ref f) = inner.on_change {
-        f(inner.source.clone());
-    }
-}
-
-/// Indent all lines in a selection by inserting 2 spaces at the start of each line.
-fn indent_selection(buffer: &gtk::TextBuffer, start: &gtk::TextIter, end: &gtk::TextIter) {
-    let mut line = start.line();
-    let last_line = end.line();
-    while line <= last_line {
-        if let Some(mut iter) = buffer.iter_at_line(line) {
-            buffer.insert(&mut iter, "  ");
-        }
-        line += 1;
     }
 }
