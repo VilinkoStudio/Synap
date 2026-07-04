@@ -107,20 +107,19 @@
     cursor: text;
 }
 
-/* ── Editor Edit Mode TextView ── */
+/* ── Editor Source Edit View ── */
 
-.synap-editor-edit-view {
+.synap-editor-source {
     font-size: 15px;
     line-height: 1.6;
     padding: 0;
-    border-radius: 4px;
-    border: none;
     background: transparent;
     caret-color: currentColor;
 }
 
-.synap-editor-edit-view:focus {
-    outline: none;
+.synap-editor-source text {
+    font-family: sans-serif;
+    font-size: 15px;
 }
 
 /* ── Editor Empty State ── */

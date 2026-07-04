@@ -202,12 +202,12 @@ fn setup_syntax_tags(buffer: &gtk::TextBuffer) {
     add("strike", |t| { t.set_strikethrough(true); });
     add("code_inline", |t| {
         t.set_family(Some("monospace"));
-        t.set_font(Some("monospace 13"));
+        t.set_scale(0.9);
         t.set_background(Some("alpha(currentColor, 0.08)"));
     });
     add("code_block", |t| {
         t.set_family(Some("monospace"));
-        t.set_font(Some("monospace 13"));
+        t.set_scale(0.9);
         t.set_background(Some("alpha(currentColor, 0.05)"));
         t.set_left_margin(16);
     });
