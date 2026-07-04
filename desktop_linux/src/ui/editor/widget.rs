@@ -85,25 +85,40 @@ impl WysiwygEditor {
             edit_view,
         }));
 
-        // Buffer changed → highlight + callback
+        // Buffer changed → schedule highlight (debounced via idle)
         {
             let inner_ref = Rc::downgrade(&inner);
             let buf = inner.borrow().edit_buffer.clone();
             buf.connect_changed(move |buffer| {
                 let Some(inner_rc) = inner_ref.upgrade() else { return };
-                let text;
-                let cb: Option<Rc<dyn Fn(String)>>;
+                // Update source immediately (cheap)
                 {
                     let Ok(mut inner) = inner_rc.try_borrow_mut() else { return };
-                    text = buffer_text(buffer);
-                    apply_highlighting(buffer, &text);
+                    let text = buffer_text(buffer);
                     inner.source = text.clone();
-                    cb = inner.on_change.clone();
                 }
-                // Borrow released — safe to call on_change
-                if let Some(ref f) = cb {
-                    f(text);
-                }
+                // Defer highlighting to idle so it doesn't block typing
+                let buf = buffer.clone();
+                let inner_ref2 = inner_ref.clone();
+                gtk::glib::idle_add_local(move || {
+                    let Some(inner_rc) = inner_ref2.upgrade() else {
+                        return gtk::glib::ControlFlow::Break;
+                    };
+                    let text;
+                    let cb: Option<Rc<dyn Fn(String)>>;
+                    {
+                        let Ok(inner) = inner_rc.try_borrow() else {
+                            return gtk::glib::ControlFlow::Break;
+                        };
+                        text = inner.source.clone();
+                        cb = inner.on_change.clone();
+                    }
+                    apply_highlighting(&buf, &text);
+                    if let Some(ref f) = cb {
+                        f(text);
+                    }
+                    gtk::glib::ControlFlow::Break
+                });
             });
         }
 
@@ -155,11 +170,9 @@ impl WysiwygEditor {
         if inner.read_only {
             rebuild_rendered(&mut inner);
         } else {
-            // In edit mode, update the buffer (drop borrow first for connect_changed)
             let buf = inner.edit_buffer.clone();
             drop(inner);
             buf.set_text(markdown);
-            // connect_changed fires here and applies highlighting
         }
     }
 
