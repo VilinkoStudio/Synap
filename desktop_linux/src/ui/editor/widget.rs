@@ -149,6 +149,12 @@ impl WysiwygEditor {
         inner.source = markdown.to_string();
         if inner.read_only {
             rebuild_rendered(&mut inner);
+        } else {
+            // In edit mode, update the buffer (drop borrow first for connect_changed)
+            let buf = inner.edit_buffer.clone();
+            drop(inner);
+            buf.set_text(markdown);
+            // connect_changed fires here and applies highlighting
         }
     }
 
@@ -193,35 +199,35 @@ fn setup_syntax_tags(buffer: &gtk::TextBuffer) {
         table.add(&tag);
     };
 
-    add("h1", |t| { t.set_weight(700); t.set_scale(1.6); t.set_foreground(Some("#3584e4")); });
-    add("h2", |t| { t.set_weight(600); t.set_scale(1.35); t.set_foreground(Some("#3584e4")); });
-    add("h3", |t| { t.set_weight(600); t.set_scale(1.15); t.set_foreground(Some("#3584e4")); });
-    add("h4", |t| { t.set_weight(600); t.set_foreground(Some("#3584e4")); });
-    add("bold", |t| { t.set_weight(700); });
-    add("italic", |t| { t.set_style(gtk::pango::Style::Italic); });
-    add("strike", |t| { t.set_strikethrough(true); });
+    add("h1", |t| { t.set_weight(700); t.set_scale(1.5); t.set_foreground(Some("#1a5fb4")); });
+    add("h2", |t| { t.set_weight(700); t.set_scale(1.3); t.set_foreground(Some("#1a5fb4")); });
+    add("h3", |t| { t.set_weight(600); t.set_scale(1.15); t.set_foreground(Some("#1a5fb4")); });
+    add("h4", |t| { t.set_weight(600); t.set_foreground(Some("#1a5fb4")); });
+    add("bold", |t| { t.set_weight(800); });
+    add("italic", |t| { t.set_style(gtk::pango::Style::Italic); t.set_foreground(Some("#6e6e6e")); });
+    add("strike", |t| { t.set_strikethrough(true); t.set_foreground(Some("#999999")); });
     add("code_inline", |t| {
         t.set_family(Some("monospace"));
-        t.set_scale(0.9);
-        t.set_background(Some("alpha(currentColor, 0.08)"));
+        t.set_foreground(Some("#c62828"));
+        t.set_background(Some("alpha(currentColor, 0.06)"));
     });
     add("code_block", |t| {
         t.set_family(Some("monospace"));
-        t.set_scale(0.9);
-        t.set_background(Some("alpha(currentColor, 0.05)"));
+        t.set_foreground(Some("#c62828"));
+        t.set_background(Some("alpha(currentColor, 0.04)"));
         t.set_left_margin(16);
     });
     add("link", |t| {
-        t.set_foreground(Some("#3584e4"));
+        t.set_foreground(Some("#1a5fb4"));
         t.set_underline(gtk::pango::Underline::Single);
     });
     add("quote", |t| {
-        t.set_foreground(Some("alpha(currentColor, 0.6)"));
+        t.set_foreground(Some("#6e6e6e"));
         t.set_left_margin(24);
         t.set_style(gtk::pango::Style::Italic);
     });
-    add("marker", |t| { t.set_foreground(Some("alpha(currentColor, 0.4)")); });
-    add("hr", |t| { t.set_foreground(Some("alpha(currentColor, 0.25)")); });
+    add("marker", |t| { t.set_foreground(Some("#999999")); });
+    add("hr", |t| { t.set_foreground(Some("#cccccc")); });
 }
 
 fn apply_highlighting(buffer: &gtk::TextBuffer, text: &str) {
