@@ -86,12 +86,13 @@ impl WysiwygEditor {
         }));
 
         // Buffer changed → highlight + callback
+        // Use try_borrow_mut to avoid panic when called during set_read_only/set_content
         {
             let inner_ref = Rc::downgrade(&inner);
             let buf = inner.borrow().edit_buffer.clone();
             buf.connect_changed(move |buffer| {
                 let Some(inner) = inner_ref.upgrade() else { return };
-                let mut inner = inner.borrow_mut();
+                let Ok(mut inner) = inner.try_borrow_mut() else { return };
                 let text = buffer_text(buffer);
                 apply_highlighting(buffer, &text);
                 inner.source = text.clone();
@@ -113,19 +114,29 @@ impl WysiwygEditor {
     }
 
     pub fn set_read_only(&self, read_only: bool) {
-        let mut inner = self.inner.borrow_mut();
-        if inner.read_only == read_only {
-            return;
-        }
-        inner.read_only = read_only;
+        {
+            let mut inner = self.inner.borrow_mut();
+            if inner.read_only == read_only {
+                return;
+            }
+            inner.read_only = read_only;
 
-        if read_only {
-            rebuild_rendered(&mut inner);
-            self.container.set_visible_child_name("rendered");
-        } else {
-            inner.edit_buffer.set_text(&inner.source);
-            apply_highlighting(&inner.edit_buffer, &inner.source);
-            self.container.set_visible_child_name("edit");
+            if read_only {
+                rebuild_rendered(&mut inner);
+                self.container.set_visible_child_name("rendered");
+                return;
+            }
+        }
+        // Drop borrow before set_text — the connect_changed callback needs to borrow_mut
+        let (buffer, source) = {
+            let inner = self.inner.borrow();
+            (inner.edit_buffer.clone(), inner.source.clone())
+        };
+        buffer.set_text(&source);
+        apply_highlighting(&buffer, &source);
+        self.container.set_visible_child_name("edit");
+        {
+            let inner = self.inner.borrow();
             inner.edit_view.grab_focus();
         }
     }
