@@ -95,29 +95,32 @@
 /* ── Editor Block Hover (edit mode hint) ── */
 
 .synap-editor-block-editable {
-    padding: 4px 8px;
-    border-radius: 6px;
-    transition: background-color 150ms ease;
+    padding: 2px 4px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    transition: background-color 150ms ease, border-color 150ms ease;
 }
 
 .synap-editor-block-editable:hover {
-    background-color: alpha(currentColor, 0.03);
+    background-color: alpha(currentColor, 0.04);
+    border-color: alpha(currentColor, 0.08);
     cursor: text;
 }
 
 /* ── Editor Edit Mode TextView ── */
 
 .synap-editor-edit-view {
-    font-size: 14px;
-    padding: 10px 14px;
-    border-radius: 8px;
-    border: 1px solid alpha(currentColor, 0.15);
-    background-color: alpha(currentColor, 0.02);
+    font-size: 15px;
+    line-height: 1.6;
+    padding: 0;
+    border-radius: 4px;
+    border: none;
+    background: transparent;
     caret-color: currentColor;
 }
 
 .synap-editor-edit-view:focus {
-    border-color: alpha(currentColor, 0.3);
+    outline: none;
 }
 
 /* ── Editor Empty State ── */

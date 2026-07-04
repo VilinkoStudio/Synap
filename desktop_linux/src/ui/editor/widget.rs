@@ -167,6 +167,21 @@ fn rebuild_blocks(
     }
 }
 
+/// Make a rendered widget non-selectable so it doesn't consume clicks.
+fn make_not_selectable(widget: &gtk::Widget) {
+    if let Some(label) = widget.downcast_ref::<gtk::Label>() {
+        label.set_selectable(false);
+    }
+    // For composite widgets (code blocks, lists), recurse into children
+    if let Some(box_widget) = widget.downcast_ref::<gtk::Box>() {
+        let mut child = box_widget.first_child();
+        while let Some(c) = child {
+            make_not_selectable(&c);
+            child = c.next_sibling();
+        }
+    }
+}
+
 /// Create a BlockEntry with click handler wired up.
 fn create_block_entry(
     block: MdBlock,
@@ -180,17 +195,20 @@ fn create_block_entry(
     slot.append(&display);
 
     if !read_only {
+        // Disable text selection so clicks reach the gesture handler
+        make_not_selectable(&display);
+
+        // Click on the display widget to enter edit mode
         let click = gtk::GestureClick::new();
         let inner_ref = self_ref.clone();
         click.connect_pressed(move |_, _, _, _| {
-            // Defer to idle so the click event finishes before grab_focus
             let inner_ref = inner_ref.clone();
             gtk::glib::idle_add_local(move || {
                 enter_edit_mode(&inner_ref, index);
                 gtk::glib::ControlFlow::Break
             });
         });
-        slot.add_controller(click);
+        display.add_controller(click);
     }
 
     BlockEntry {
@@ -327,25 +345,15 @@ fn commit_edit_inner(inner: &mut EditorInner, index: usize) {
     let end = buffer.end_iter();
     let new_text = buffer.text(&start, &end, false).to_string();
 
-    let block_start = entry.block.source_start;
-    let block_end = entry.block.source_end;
-
-    if block_start <= inner.source.len() && block_end <= inner.source.len() {
-        inner.source = format!(
-            "{}{}{}",
-            &inner.source[..block_start],
-            new_text,
-            &inner.source[block_end..]
-        );
-    }
-
+    // Re-parse the edited block
     let new_blocks = parse_markdown(&new_text);
     let new_block = new_blocks.into_iter().next().unwrap_or(MdBlock {
         kind: BlockKind::Blank,
-        source_start: block_start,
-        source_end: block_start + new_text.len(),
+        source_start: 0,
+        source_end: new_text.len(),
     });
 
+    // Update the entry
     entry.slot.remove(text_view);
     let new_display = render_block(&new_block);
     entry.slot.append(&new_display);
@@ -354,6 +362,14 @@ fn commit_edit_inner(inner: &mut EditorInner, index: usize) {
     entry.edit = None;
     entry.mode = BlockMode::Display;
     inner.active_edit = None;
+
+    // Rebuild the full source from all blocks (safe for UTF-8)
+    inner.source = inner
+        .entries
+        .iter()
+        .map(|e| e.block.kind.to_markdown())
+        .collect::<Vec<_>>()
+        .join("\n\n");
 
     // Fire change callback
     if let Some(ref f) = inner.on_change {
