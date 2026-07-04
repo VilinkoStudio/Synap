@@ -71,7 +71,13 @@ impl App {
     fn sync_reading(&self, sender: &ComponentSender<Self>) {
         self.reading.context_panel
             .set_visible(self.state.context_panel_open);
-        self.reading.editor.borrow_mut().set_content(&self.reading_content());
+        // Only sync editor content in reading mode.
+        // In editing mode, sync_editing handles the editor content.
+        // Writing rendered text here would conflict with raw markdown in sync_editing,
+        // causing an infinite connect_changed → sync_ui loop.
+        if !self.state.focus_mode.is_editing() {
+            self.reading.editor.borrow_mut().set_content(&self.reading_content());
+        }
         self.reading.meta_label.set_text(&self.reading_meta());
 
         clear_box(&self.reading.tags_box);
