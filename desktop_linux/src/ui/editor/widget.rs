@@ -17,7 +17,7 @@ use super::renderer::render_block;
 struct EditorInner {
     source: String,
     read_only: bool,
-    on_change: Option<Box<dyn Fn(String)>>,
+    on_change: Option<Rc<dyn Fn(String)>>,
     rendered_box: gtk::Box,
     edit_buffer: gtk::TextBuffer,
     edit_view: gtk::TextView,
@@ -86,17 +86,22 @@ impl WysiwygEditor {
         }));
 
         // Buffer changed → highlight + callback
-        // Use try_borrow_mut to avoid panic when called during set_read_only/set_content
         {
             let inner_ref = Rc::downgrade(&inner);
             let buf = inner.borrow().edit_buffer.clone();
             buf.connect_changed(move |buffer| {
-                let Some(inner) = inner_ref.upgrade() else { return };
-                let Ok(mut inner) = inner.try_borrow_mut() else { return };
-                let text = buffer_text(buffer);
-                apply_highlighting(buffer, &text);
-                inner.source = text.clone();
-                if let Some(ref f) = inner.on_change {
+                let Some(inner_rc) = inner_ref.upgrade() else { return };
+                let text;
+                let cb: Option<Rc<dyn Fn(String)>>;
+                {
+                    let Ok(mut inner) = inner_rc.try_borrow_mut() else { return };
+                    text = buffer_text(buffer);
+                    apply_highlighting(buffer, &text);
+                    inner.source = text.clone();
+                    cb = inner.on_change.clone();
+                }
+                // Borrow released — safe to call on_change
+                if let Some(ref f) = cb {
                     f(text);
                 }
             });
@@ -106,7 +111,7 @@ impl WysiwygEditor {
     }
 
     pub fn set_on_change(&mut self, f: impl Fn(String) + 'static) {
-        self.inner.borrow_mut().on_change = Some(Box::new(f));
+        self.inner.borrow_mut().on_change = Some(Rc::new(f));
     }
 
     pub fn widget(&self) -> &gtk::Stack {
@@ -128,12 +133,12 @@ impl WysiwygEditor {
             }
         }
         // Drop borrow before set_text — the connect_changed callback needs to borrow_mut
+        // connect_changed will call apply_highlighting automatically
         let (buffer, source) = {
             let inner = self.inner.borrow();
             (inner.edit_buffer.clone(), inner.source.clone())
         };
         buffer.set_text(&source);
-        apply_highlighting(&buffer, &source);
         self.container.set_visible_child_name("edit");
         {
             let inner = self.inner.borrow();
@@ -186,6 +191,22 @@ fn buffer_text(buffer: &gtk::TextBuffer) -> String {
     buffer.text(&buffer.start_iter(), &buffer.end_iter(), false).to_string()
 }
 
+// ── Helpers ──
+
+/// Build a map from byte offset to char offset for O(1) lookup.
+fn build_byte_to_char_map(text: &str) -> Vec<usize> {
+    let mut map = Vec::with_capacity(text.len() + 1);
+    let mut char_count = 0;
+    for (byte_pos, _) in text.char_indices() {
+        while map.len() <= byte_pos {
+            map.push(char_count);
+        }
+        char_count += 1;
+    }
+    map.push(char_count); // past-the-end
+    map
+}
+
 // ── Syntax highlighting via pulldown-cmark ──
 
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
@@ -235,6 +256,9 @@ fn apply_highlighting(buffer: &gtk::TextBuffer, text: &str) {
     let mut end = buffer.end_iter();
     buffer.remove_all_tags(&mut start, &mut end);
 
+    // Pre-compute byte→char offset map for O(1) lookup
+    let byte_to_char = build_byte_to_char_map(text);
+
     let options = Options::ENABLE_TABLES
         | Options::ENABLE_STRIKETHROUGH
         | Options::ENABLE_TASKLISTS
@@ -245,14 +269,12 @@ fn apply_highlighting(buffer: &gtk::TextBuffer, text: &str) {
     for (event, range) in parser.into_offset_iter() {
         let tag_name = match &event {
             Event::Start(tag) => match tag {
-                Tag::Heading { level, .. } => {
-                    match level {
-                        pulldown_cmark::HeadingLevel::H1 => Some("h1"),
-                        pulldown_cmark::HeadingLevel::H2 => Some("h2"),
-                        pulldown_cmark::HeadingLevel::H3 => Some("h3"),
-                        _ => Some("h4"),
-                    }
-                }
+                Tag::Heading { level, .. } => match level {
+                    pulldown_cmark::HeadingLevel::H1 => Some("h1"),
+                    pulldown_cmark::HeadingLevel::H2 => Some("h2"),
+                    pulldown_cmark::HeadingLevel::H3 => Some("h3"),
+                    _ => Some("h4"),
+                },
                 Tag::CodeBlock(_) => Some("code_block"),
                 Tag::BlockQuote(_) => Some("quote"),
                 Tag::Strong => Some("bold"),
@@ -267,8 +289,8 @@ fn apply_highlighting(buffer: &gtk::TextBuffer, text: &str) {
         };
 
         if let Some(name) = tag_name {
-            let start_char = text[..range.start].chars().count() as i32;
-            let end_char = text[..range.end].chars().count() as i32;
+            let start_char = byte_to_char.get(range.start).copied().unwrap_or(0) as i32;
+            let end_char = byte_to_char.get(range.end).copied().unwrap_or(byte_to_char.len()) as i32;
             let mut s = buffer.iter_at_offset(start_char);
             let mut e = buffer.iter_at_offset(end_char);
             if let Some(t) = buffer.tag_table().lookup(name) {
