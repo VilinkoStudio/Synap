@@ -1,6 +1,7 @@
 package com.synap.app.ui.screens
 
 import android.content.ComponentName
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.PredictiveBackHandler
@@ -52,7 +53,14 @@ fun SettingLogoScreen(onNavigateBack: () -> Unit) {
 
     // 动态检查当前系统的哪个 Component 处于启用状态
     val oldComponent = ComponentName(context, "$packageName.MainActivityOld")
-    val isOldIconCurrentlyEnabled = packageManager.getComponentEnabledSetting(oldComponent) == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+    val defaultComponent = ComponentName(context, "$packageName.MainActivity")
+
+    val resolveIntent = Intent(Intent.ACTION_MAIN).apply {
+        addCategory(Intent.CATEGORY_LAUNCHER)
+        setPackage(packageName)
+    }
+    val resolvedActivity = packageManager.resolveActivity(resolveIntent, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.name
+    val isOldIconCurrentlyEnabled = resolvedActivity == "$packageName.MainActivityOld"
 
     var selectedIndex by remember { mutableIntStateOf(if (isOldIconCurrentlyEnabled) 1 else 0) }
 
@@ -74,7 +82,6 @@ fun SettingLogoScreen(onNavigateBack: () -> Unit) {
     fun switchIcon(index: Int) {
         if (selectedIndex == index) return
         selectedIndex = index
-        val defaultComponent = ComponentName(context, "$packageName.MainActivity")
 
         if (index == 1) {
             // 启用旧图标，禁用默认
