@@ -121,7 +121,6 @@ fun SynapNavGraph(
                         onReplyToNote = { noteId, summary -> navController.navigate(editorRoute(parentId = noteId, parentSummary = summary)) },
                         onToggleDeleted = viewModel::toggleDeleted,
                         onOpenSearch = { navController.navigate("search") },
-                        onOpenStarmap = { navController.navigate("starmap") },
                         onOpenTrash = { navController.navigate("trash") },
                         onLoadMore = viewModel::loadMore,
                         onOpenTimelineBrowser = viewModel::openTimelineBrowser,
@@ -144,6 +143,13 @@ fun SynapNavGraph(
                         uiState = uiState,
                         onNavigateBack = { navController.popBackStack() },
                         onRefresh = viewModel::refresh,
+                    )
+                }
+
+                composable("lab") {
+                    LaboratoryScreen(
+                        onNavigateBack = { navController.popBackStack() },
+                        onOpenStarmap = { navController.navigate("starmap") },
                     )
                 }
 
@@ -239,6 +245,7 @@ fun SynapNavGraph(
                         onNavigateToSync = { navController.navigate("sync") },
                         onNavigateToTeam = { navController.navigate("team") },
                         onNavigateToVersion = { navController.navigate("version") },
+                        onNavigateToLab = { navController.navigate("lab") },
                         onNavigateBack = { navController.popBackStack() },
                         draftCapacity = draftCapacity,
                         onDraftCapacityChange = onDraftCapacityChange,
