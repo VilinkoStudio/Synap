@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
@@ -255,6 +256,7 @@ private fun AppearanceSection(
 private fun FeatureSection(
     draftCapacity: Int,
     onDraftCapacityChange: (Int) -> Unit,
+    onNavigateToLab: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val capacities = listOf(0, 5, 10, 20, 50, 100)
@@ -336,6 +338,38 @@ private fun FeatureSection(
                     )
                 }
             }
+        }
+
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onNavigateToLab() }
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Science,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(end = 16.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.setting_lab),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            Icon(
+                Icons.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -664,6 +698,7 @@ fun SettingsScreen(
     onNavigateToSync: () -> Unit,
     onNavigateToTeam: () -> Unit,
     onNavigateToVersion: () -> Unit,
+    onNavigateToLab: () -> Unit,
     onNavigateBack: () -> Unit,
     draftCapacity: Int,
     onDraftCapacityChange: (Int) -> Unit,
@@ -725,6 +760,7 @@ fun SettingsScreen(
                 FeatureSection(
                     draftCapacity = draftCapacity,
                     onDraftCapacityChange = onDraftCapacityChange,
+                    onNavigateToLab = onNavigateToLab,
                 )
             }
 
@@ -804,9 +840,9 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(24.dp))
                         aboutContent()
                         Spacer(modifier = Modifier.height(32.dp))
-                    }
                 }
             }
         }
     }
+}
 }

@@ -145,7 +145,6 @@ fun HomeScreen(
     onReplyToNote: (String, String) -> Unit,
     onToggleDeleted: (Note) -> Unit,
     onOpenSearch: () -> Unit,
-    onOpenStarmap: () -> Unit,
     onOpenTrash: () -> Unit,
     onLoadMore: () -> Unit,
     onOpenTimelineBrowser: () -> Unit,
@@ -930,20 +929,6 @@ fun HomeScreen(
                     }
 
                     Surface(
-                        modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickable { onOpenStarmap() },
-                        color = Color.Transparent
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Filled.Map, null)
-                            Spacer(Modifier.width(16.dp))
-                            Text(stringResource(R.string.starmap_title), style = MaterialTheme.typography.titleMedium)
-                        }
-                    }
-
-                    Surface(
                         modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickable { onOpenSettings() },
                         color = Color.Transparent
                     ) {
@@ -1105,11 +1090,6 @@ fun HomeScreen(
                                                         leadingIcon = { Icon(Icons.Filled.QrCodeScanner, contentDescription = null) }
                                                     )
                                                     DropdownMenuItem(
-                                                        text = { Text(stringResource(R.string.starmap_title)) },
-                                                        onClick = { showNavMenu = false; onOpenStarmap() },
-                                                        leadingIcon = { Icon(Icons.Filled.Map, contentDescription = null) }
-                                                    )
-                                                    DropdownMenuItem(
                                                         text = { Text(stringResource(R.string.trash_title)) },
                                                         onClick = { showNavMenu = false; onOpenTrash() },
                                                         leadingIcon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null) }
@@ -1124,10 +1104,6 @@ fun HomeScreen(
                                         } else {
                                             IconButton(onClick = openScanner) {
                                                 Icon(Icons.Filled.QrCodeScanner, contentDescription = "扫一扫")
-                                            }
-
-                                            IconButton(onClick = onOpenStarmap) {
-                                                Icon(Icons.Filled.Map, contentDescription = stringResource(R.string.starmap_title))
                                             }
 
                                             IconButton(onClick = onOpenTrash) {
