@@ -165,12 +165,6 @@ fun SettingHomeScreen(
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = stringResource(R.string.setting_show_tag_bar_desc),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
                     }
                     Switch(
                         checked = tagBarEnabled,
@@ -201,12 +195,6 @@ fun SettingHomeScreen(
                             text = stringResource(R.string.setting_show_time_groups),
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = stringResource(R.string.setting_show_time_groups_desc),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     Switch(
@@ -240,12 +228,6 @@ fun SettingHomeScreen(
                             text = stringResource(R.string.setting_show_timeline_jump_tool),
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = stringResource(R.string.setting_show_timeline_jump_tool_desc),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     Switch(

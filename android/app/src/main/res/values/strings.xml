@@ -101,7 +101,8 @@
     <string name="notedetail_add_calendar_reminder">添加日历提醒</string>
     <string name="notedetail_calendar_default_title">Synap 笔记提醒</string>
     <string name="notedetail_calendar_unavailable">未找到可用的日历应用</string>
-    <string name="creative_team">创作团队</string>
+    <string name="creative_team">开发人员</string>
+    <string name="publisher">发行商</string>
     <string name="bilibili">哔哩哔哩</string>
     <string name="tiktok">抖音</string>
     <string name="edit_reply_context_title">接续这条思路</string>
@@ -147,15 +148,12 @@
     <string name="cannot_import_database">当前无法导入数据库</string>
     <string name="export_backup_title">导出备份文件</string>
     <string name="setting_home_layout">布局</string>
-    <string name="setting_home_display_options">首页组合</string>
+    <string name="setting_home_display_options">首页显示的内容</string>
     <string name="setting_show_time_groups">时间分组</string>
-    <string name="setting_show_time_groups_desc">在首页笔记流中显示时间分组标题</string>
     <string name="setting_collapse_nav_buttons">折叠首页导航栏的按钮</string>
     <string name="setting_collapse_nav_buttons_desc">此选项仅适用于手机布局，不适用于大屏幕布局</string>
     <string name="setting_show_tag_bar">标签栏</string>
-    <string name="setting_show_tag_bar_desc">在首页显示标签筛选栏</string>
-    <string name="setting_show_timeline_jump_tool">时间跳转工具</string>
-    <string name="setting_show_timeline_jump_tool_desc">在首页显示时间浏览和快速跳转入口</string>
+    <string name="setting_show_timeline_jump_tool">快速时间跳转工具</string>
     <string name="setting_other">其它</string>
     <string name="setting_widget_alignment">控件对齐方向</string>
     <string name="setting_widget_alignment_desc">选择部分控件（如工具栏、浮动按钮）的对齐方向</string>
