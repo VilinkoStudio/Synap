@@ -1327,3 +1327,77 @@ fn relay_sync_test_envelope(
         .seal_relay_payload_for(recipient_mailbox_public_key, &bytes)
         .unwrap()
 }
+
+#[test]
+fn test_deleted_note_tag_excluded_after_import() {
+    let dir = tempdir().unwrap();
+    let path_a = dir.path().join("import-test-a.redb");
+    let path_b = dir.path().join("import-test-b.redb");
+
+    let service_a = SynapService::new(Some(path_a.to_string_lossy().into_owned())).unwrap();
+    let service_b = SynapService::new(Some(path_b.to_string_lossy().into_owned())).unwrap();
+
+    // Create a note with a tag on service_a
+    let note = service_a
+        .create_note("test note".to_string(), vec!["test-tag".into()])
+        .unwrap();
+
+    // Verify tag exists
+    let tags = service_a.get_all_tags().unwrap();
+    assert!(tags.contains(&"test-tag".to_string()));
+
+    // Delete the note
+    service_a.delete_note(&note.id).unwrap();
+
+    // Verify tag is excluded after deletion
+    let tags_after_delete = service_a.get_all_tags().unwrap();
+    assert!(!tags_after_delete.contains(&"test-tag".to_string()));
+
+    // Export the note (including tombstone)
+    let exported = service_a.export_share(&vec![note.id.clone()]).unwrap();
+
+    // Import into service_b
+    let stats = service_b.import_share(&exported).unwrap();
+    assert_eq!(stats.records_applied, 1);
+
+    // Verify tag is NOT shown on service_b (it should be excluded because the note is deleted)
+    let tags_on_b = service_b.get_all_tags().unwrap();
+    assert!(
+        !tags_on_b.contains(&"test-tag".to_string()),
+        "Tag 'test-tag' should not appear after importing a deleted note, but got: {:?}",
+        tags_on_b
+    );
+}
+
+#[test]
+fn test_get_all_tags_excludes_imported_deleted_notes_during_transaction() {
+    let dir = tempdir().unwrap();
+    let path_a = dir.path().join("import-atomic-a.redb");
+    let path_b = dir.path().join("import-atomic-b.redb");
+
+    let service_a = SynapService::new(Some(path_a.to_string_lossy().into_owned())).unwrap();
+    let service_b = SynapService::new(Some(path_b.to_string_lossy().into_owned())).unwrap();
+
+    // Create a note with a tag on service_a, then delete it
+    let note = service_a
+        .create_note("to be deleted".to_string(), vec!["ephemeral".into()])
+        .unwrap();
+    service_a.delete_note(&note.id).unwrap();
+
+    // Verify on service_a: tag should not appear
+    assert!(!service_a.get_all_tags().unwrap().contains(&"ephemeral".to_string()));
+
+    // Export and import
+    let exported = service_a.export_share(&vec![note.id.clone()]).unwrap();
+    service_b.import_share(&exported).unwrap();
+
+    // Tag should not appear in get_all_tags
+    let tags = service_b.get_all_tags().unwrap();
+    assert!(!tags.contains(&"ephemeral".to_string()),
+        "Tag should not appear for deleted note, got: {:?}", tags);
+
+    // Also verify via search_tags
+    let search_results = service_b.search_tags("ephemeral", 10).unwrap();
+    assert!(!search_results.contains(&"ephemeral".to_string()),
+        "Tag should not appear in search_tags for deleted note, got: {:?}", search_results);
+}

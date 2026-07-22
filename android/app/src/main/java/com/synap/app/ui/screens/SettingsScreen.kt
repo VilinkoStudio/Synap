@@ -39,9 +39,12 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -55,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -85,169 +89,149 @@ private fun AppearanceSection(
             .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        // 1. 主题和颜色
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onNavigateToColorSettings() }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Palette,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(end = 16.dp)
-            )
-            Column(modifier = Modifier.weight(1f)) {
+        ListItem(
+            headlineContent = {
                 Text(
                     text = stringResource(R.string.setting_color),
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
                 )
-            }
-            Icon(
-                Icons.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Filled.Palette,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            },
+            trailingContent = {
+                Icon(
+                    Icons.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable { onNavigateToColorSettings() },
+        )
 
         HorizontalDivider(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
-        // 2. 语言
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onNavigateToLanguageSelection() }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Language,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(end = 16.dp)
-            )
-            Column(modifier = Modifier.weight(1f)) {
+        ListItem(
+            headlineContent = {
                 Text(
                     text = stringResource(R.string.language),
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
                 )
-            }
-            Icon(
-                Icons.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Filled.Language,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            },
+            trailingContent = {
+                Icon(
+                    Icons.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable { onNavigateToLanguageSelection() },
+        )
 
         HorizontalDivider(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
-        // 3. 应用图标
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onNavigateToAppIcon() }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Apps,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(end = 16.dp)
-            )
-            Column(modifier = Modifier.weight(1f)) {
+        ListItem(
+            headlineContent = {
                 Text(
                     text = stringResource(R.string.setting_app_icon),
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
                 )
-            }
-            Icon(
-                Icons.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Filled.Apps,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            },
+            trailingContent = {
+                Icon(
+                    Icons.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable { onNavigateToAppIcon() },
+        )
 
         HorizontalDivider(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
-        // 4. 首页布局
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onNavigateToHomeLayout() }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Home,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(end = 16.dp)
-            )
-            Column(modifier = Modifier.weight(1f)) {
+        ListItem(
+            headlineContent = {
                 Text(
                     text = stringResource(R.string.setting_home_layout),
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
                 )
-            }
-            Icon(
-                Icons.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Filled.Home,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            },
+            trailingContent = {
+                Icon(
+                    Icons.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable { onNavigateToHomeLayout() },
+        )
 
         HorizontalDivider(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
-        // 5. 笔记文字样式
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onNavigateToTypographySettings() }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.FormatSize,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(end = 16.dp)
-            )
-            Column(modifier = Modifier.weight(1f)) {
+        ListItem(
+            headlineContent = {
                 Text(
                     text = stringResource(R.string.note_typography_style),
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
                 )
-            }
-            Icon(
-                Icons.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        HorizontalDivider(
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-            modifier = Modifier.padding(horizontal = 16.dp),
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Filled.FormatSize,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            },
+            trailingContent = {
+                Icon(
+                    Icons.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable { onNavigateToTypographySettings() },
         )
     }
 }
@@ -274,41 +258,39 @@ private fun FeatureSection(
             .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        // 草稿箱容量
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = true }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Inventory2,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(end = 16.dp)
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.draft_capacity),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = if (draftCapacity == 0) stringResource(R.string.draft_capacity_summary_off) else stringResource(R.string.draft_capacity_summary_on, draftCapacity),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Icon(
-                Icons.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+            ListItem(
+                headlineContent = {
+                    Text(
+                        text = stringResource(R.string.draft_capacity),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                },
+                supportingContent = {
+                    Text(
+                        text = if (draftCapacity == 0) stringResource(R.string.draft_capacity_summary_off) else stringResource(R.string.draft_capacity_summary_on, draftCapacity),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                leadingContent = {
+                    Icon(
+                        imageVector = Icons.Filled.Inventory2,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                },
+                trailingContent = {
+                    Icon(
+                        Icons.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                modifier = Modifier.clickable { expanded = true },
+            )
+
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
@@ -345,32 +327,30 @@ private fun FeatureSection(
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onNavigateToLab() }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Science,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(end = 16.dp)
-            )
-            Column(modifier = Modifier.weight(1f)) {
+        ListItem(
+            headlineContent = {
                 Text(
                     text = stringResource(R.string.setting_lab),
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
                 )
-            }
-            Icon(
-                Icons.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Filled.Science,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            },
+            trailingContent = {
+                Icon(
+                    Icons.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable { onNavigateToLab() },
+        )
     }
 }
 
@@ -396,128 +376,120 @@ private fun BackupSyncSection(
             .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onNavigateToSync() }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Sync,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(end = 16.dp)
-            )
-            Column(modifier = Modifier.weight(1f)) {
+        ListItem(
+            headlineContent = {
                 Text(
                     text = stringResource(R.string.setting_sync),
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
                 )
-            }
-            Icon(
-                Icons.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Filled.Sync,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            },
+            trailingContent = {
+                Icon(
+                    Icons.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable { onNavigateToSync() },
+        )
 
         HorizontalDivider(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onExportDatabase() }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Save,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(end = 16.dp)
-            )
-            Column(modifier = Modifier.weight(1f)) {
+        ListItem(
+            headlineContent = {
                 Text(
                     text = stringResource(R.string.export_backup),
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
                 )
-            }
-            Icon(
-                Icons.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Filled.Save,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            },
+            trailingContent = {
+                Icon(
+                    Icons.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable { onExportDatabase() },
+        )
 
         HorizontalDivider(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onShareDatabase() }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Share,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(end = 16.dp)
-            )
-            Column(modifier = Modifier.weight(1f)) {
+        ListItem(
+            headlineContent = {
                 Text(
                     text = stringResource(R.string.export_and_share),
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
                 )
-            }
-            Icon(
-                Icons.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Filled.Share,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            },
+            trailingContent = {
+                Icon(
+                    Icons.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable { onShareDatabase() },
+        )
 
         HorizontalDivider(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onImportDatabase() }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Restore,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(end = 16.dp)
-            )
-            Column(modifier = Modifier.weight(1f)) {
+        ListItem(
+            headlineContent = {
                 Text(
                     text = stringResource(R.string.import_backup),
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
                 )
-            }
-            Icon(
-                Icons.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Filled.Restore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            },
+            trailingContent = {
+                Icon(
+                    Icons.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable { onImportDatabase() },
+        )
     }
 }
 
@@ -542,32 +514,30 @@ private fun AboutSection(
             .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = stringResource(R.string.app_desc),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                lineHeight = 20.sp,
-            )
-        }
+        ListItem(
+            headlineContent = {
+                Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            },
+            supportingContent = {
+                Text(
+                    text = stringResource(R.string.app_desc),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 20.sp,
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        )
 
         HorizontalDivider(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onNavigateToVersion() }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
+        ListItem(
+            headlineContent = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.version_info), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                    Text(stringResource(R.string.version_info), style = MaterialTheme.typography.bodyLarge)
                     val vType = detectVersionType(buildVersion)
                     if (vType != VersionType.Release) {
                         Spacer(modifier = Modifier.width(6.dp))
@@ -581,91 +551,97 @@ private fun AboutSection(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(2.dp))
+            },
+            supportingContent = {
                 Text(
                     text = buildVersion + (buildVersionDetails?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            }
-            Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+            },
+            trailingContent = {
+                Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable { onNavigateToVersion() },
+        )
 
         HorizontalDivider(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onNavigateToTeam() }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Group,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(end = 16.dp)
-            )
-            Text(stringResource(R.string.creative_team), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-            Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        ListItem(
+            headlineContent = {
+                Text(stringResource(R.string.creative_team), style = MaterialTheme.typography.bodyLarge)
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Filled.Group,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            },
+            trailingContent = {
+                Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable { onNavigateToTeam() },
+        )
 
         HorizontalDivider(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://vilinkostudio.github.io/synap.vilinko.com/")))
-                }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(stringResource(R.string.setting_official_website), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-            Icon(Icons.Filled.Link, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        ListItem(
+            headlineContent = {
+                Text(stringResource(R.string.setting_official_website), style = MaterialTheme.typography.bodyLarge)
+            },
+            trailingContent = {
+                Icon(Icons.Filled.Link, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://vilinkostudio.github.io/synap.vilinko.com/")))
+            },
+        )
 
         HorizontalDivider(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/VilinkoStudio/Synap")))
-                }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(stringResource(R.string.view_project_homepage), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-            Icon(Icons.Filled.Link, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        ListItem(
+            headlineContent = {
+                Text(stringResource(R.string.view_project_homepage), style = MaterialTheme.typography.bodyLarge)
+            },
+            trailingContent = {
+                Icon(Icons.Filled.Link, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/VilinkoStudio/Synap")))
+            },
+        )
 
         HorizontalDivider(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/VilinkoStudio/Synap/releases")))
-                }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(stringResource(R.string.download_latest_version), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-            Icon(Icons.Filled.Link, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        ListItem(
+            headlineContent = {
+                Text(stringResource(R.string.download_latest_version), style = MaterialTheme.typography.bodyLarge)
+            },
+            trailingContent = {
+                Icon(Icons.Filled.Link, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/VilinkoStudio/Synap/releases")))
+            },
+        )
     }
 }
 
@@ -840,9 +816,9 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(24.dp))
                         aboutContent()
                         Spacer(modifier = Modifier.height(32.dp))
+                    }
                 }
             }
         }
     }
-}
 }
