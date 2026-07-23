@@ -15,12 +15,15 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
@@ -45,6 +48,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
@@ -310,6 +316,15 @@ fun NoteCardItem(
 
     val noteColor = NoteColorUtil.parseNoteColor(note.tags)
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val cardBackgroundColor = when {
+        note.isDeleted -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+        isSelected -> MaterialTheme.colorScheme.secondaryContainer
+        noteColor != null -> {
+            val blendTarget = if (isDark) Color.Black else Color.White
+            lerp(noteColor, blendTarget, 0.6f)
+        }
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
 
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { dismissValue ->
@@ -342,181 +357,204 @@ fun NoteCardItem(
         }
     }
 
-    SwipeToDismissBox(
-        state = dismissState,
-        enableDismissFromStartToEnd = !isSelectionMode,
-        enableDismissFromEndToStart = !note.isDeleted && !isSelectionMode,
-        modifier = Modifier.pointerInput(Unit) {
-            awaitPointerEventScope {
-                while (true) {
-                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                    isPressed = event.changes.any { it.pressed }
-                }
-            }
-        },
-        backgroundContent = {
-            val color by animateColorAsState(
-                targetValue = when (dismissState.targetValue) {
-                    SwipeToDismissBoxValue.StartToEnd -> if (note.isDeleted) {
-                        MaterialTheme.colorScheme.primaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.errorContainer
+    // Outer Box to overlay checkbox above the card
+    Box(modifier = modifier) {
+        SwipeToDismissBox(
+            state = dismissState,
+            enableDismissFromStartToEnd = !isSelectionMode,
+            enableDismissFromEndToStart = !note.isDeleted && !isSelectionMode,
+            modifier = Modifier.pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        isPressed = event.changes.any { it.pressed }
                     }
-                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.primaryContainer
-                    SwipeToDismissBoxValue.Settled -> Color.Transparent
-                },
-                label = "dismiss_color",
-            )
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(color, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 20.dp),
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.CenterStart,
-                ) {
-                    Icon(
-                        imageVector = if (note.isDeleted) Icons.Filled.Refresh else Icons.Filled.Delete,
-                        contentDescription = null,
-                    )
                 }
-                if (!note.isDeleted) {
+            },
+            backgroundContent = {
+                val color by animateColorAsState(
+                    targetValue = when (dismissState.targetValue) {
+                        SwipeToDismissBoxValue.StartToEnd -> if (note.isDeleted) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.errorContainer
+                        }
+                        SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.primaryContainer
+                        SwipeToDismissBoxValue.Settled -> Color.Transparent
+                    },
+                    label = "dismiss_color",
+                )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(color, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 20.dp),
+                ) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.CenterEnd,
+                        contentAlignment = Alignment.CenterStart,
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.Reply,
+                            imageVector = if (note.isDeleted) Icons.Filled.Refresh else Icons.Filled.Delete,
                             contentDescription = null,
                         )
                     }
-                }
-            }
-        },
-    ) {
-        Card(
-            modifier = modifier
-                .fillMaxWidth()
-                .combinedClickable(
-                    enabled = !note.isDeleted || isSelectionMode,
-                    onClick = onClick,
-                    onLongClick = onLongClick
-                )
-                .let { cardModifier ->
-                    if (sharedTransitionScope != null && animatedVisibilityScope != null && !note.isDeleted) {
-                        with(sharedTransitionScope) {
-                            cardModifier.sharedBounds(
-                                sharedContentState = rememberSharedContentState(key = "note_card_${note.id}"),
-                                animatedVisibilityScope = animatedVisibilityScope,
+                    if (!note.isDeleted) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.CenterEnd,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Reply,
+                                contentDescription = null,
                             )
                         }
-                    } else cardModifier
-                },
-            colors = CardDefaults.cardColors(
-                containerColor = when {
-                    note.isDeleted -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-                    isSelected -> MaterialTheme.colorScheme.secondaryContainer
-                    noteColor != null -> {
-                        val blendTarget = if (isDark) Color.Black else Color.White
-                        lerp(noteColor, blendTarget, 0.6f)
                     }
-                    else -> MaterialTheme.colorScheme.surfaceVariant
                 }
-            ),
+            },
         ) {
-            Box {
-                backgroundDecoration()
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(CardDefaults.shape)
+                    .combinedClickable(
+                        enabled = !note.isDeleted || isSelectionMode,
+                        onClick = onClick,
+                        onLongClick = onLongClick
+                    )
+                    .let { cardModifier ->
+                        if (sharedTransitionScope != null && animatedVisibilityScope != null && !note.isDeleted) {
+                            with(sharedTransitionScope) {
+                                cardModifier.sharedBounds(
+                                    sharedContentState = rememberSharedContentState(key = "note_card_${note.id}"),
+                                    animatedVisibilityScope = animatedVisibilityScope,
+                                )
+                            }
+                        } else cardModifier
+                    },
+                colors = CardDefaults.cardColors(
+                    containerColor = cardBackgroundColor
+                ),
+            ) {
+                Box {
+                    backgroundDecoration()
 
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        val primaryColor = noteColor ?: MaterialTheme.colorScheme.primary
-                        val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
-                        val baseFontSize = LocalNoteTextSize.current.value
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            val primaryColor = noteColor ?: MaterialTheme.colorScheme.primary
+                            val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
+                            val baseFontSize = LocalNoteTextSize.current.value
 
-                        val annotatedContent = remember(note.content, primaryColor, highlightColor, baseFontSize) {
-                            buildMarkdownAnnotatedString(note.content, primaryColor, highlightColor, baseFontSize, isCompact = true)
-                        }
+                            val annotatedContent = remember(note.content, primaryColor, highlightColor, baseFontSize) {
+                                buildMarkdownAnnotatedString(note.content, primaryColor, highlightColor, baseFontSize, isCompact = true)
+                            }
 
-                        Text(
-                            text = annotatedContent,
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                fontFamily = LocalNoteFontFamily.current,
-                                fontWeight = LocalNoteFontWeight.current,
-                                fontSize = LocalNoteTextSize.current,
-                                lineHeight = LocalNoteTextSize.current * 1.5f
-                            ),
-                            color = if (note.isDeleted) Color.Gray else Color.Unspecified,
-                            textDecoration = if (note.isDeleted) TextDecoration.LineThrough else TextDecoration.None,
-                            maxLines = maxLines,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-
-                        val replyContext = note.replyTo?.contentPreview ?: note.parentSummary
-                        if (!replyContext.isNullOrBlank()) {
                             Text(
-                                text = "\u56DE\u590D\u81EA\u201C${replyContext}\u201D",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(top = 8.dp),
+                                text = annotatedContent,
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontFamily = LocalNoteFontFamily.current,
+                                    fontWeight = LocalNoteFontWeight.current,
+                                    fontSize = LocalNoteTextSize.current,
+                                    lineHeight = LocalNoteTextSize.current * 1.5f
+                                ),
+                                color = if (note.isDeleted) Color.Gray else Color.Unspecified,
+                                textDecoration = if (note.isDeleted) TextDecoration.LineThrough else TextDecoration.None,
+                                maxLines = maxLines,
+                                overflow = TextOverflow.Ellipsis,
                             )
-                        }
 
-                        Spacer(modifier = Modifier.height(12.dp))
-                        val timeLabel = if (note.editedFrom != null) {
-                            "\u7F16\u8F91\u4E8E ${formatNoteDate(note.timestamp)}"
-                        } else {
-                            formatNoteTime(note.timestamp)
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = timeLabel,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(end = 12.dp),
-                            )
-                            Row(
-                                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                val displayTags = NoteColorUtil.filterDisplayTags(note.tags)
-                                displayTags.take(5).forEach { tag ->
-                                    Surface(
-                                        color = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.secondaryContainer,
-                                        shape = MaterialTheme.shapes.small,
-                                    ) {
+                            val replyContext = note.replyTo?.contentPreview ?: note.parentSummary
+                            if (!replyContext.isNullOrBlank()) {
+                                Text(
+                                    text = "\u56DE\u590D\u81EA\u201C${replyContext}\u201D",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(top = 8.dp),
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+                            val timeLabel = if (note.editedFrom != null) {
+                                "\u7F16\u8F91\u4E8E ${formatNoteDate(note.timestamp)}"
+                            } else {
+                                formatNoteTime(note.timestamp)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = timeLabel,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(end = 12.dp),
+                                )
+                                Row(
+                                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    val displayTags = NoteColorUtil.filterDisplayTags(note.tags)
+                                    displayTags.take(5).forEach { tag ->
+                                        Surface(
+                                            color = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.secondaryContainer,
+                                            shape = MaterialTheme.shapes.small,
+                                        ) {
+                                            Text(
+                                                text = tag,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                style = MaterialTheme.typography.labelSmall,
+                                            )
+                                        }
+                                    }
+                                    if (displayTags.size > 5) {
                                         Text(
-                                            text = tag,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            text = "+${displayTags.size - 5}",
                                             style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(vertical = 4.dp),
                                         )
                                     }
-                                }
-                                if (displayTags.size > 5) {
-                                    Text(
-                                        text = "+${displayTags.size - 5}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(vertical = 4.dp),
-                                    )
                                 }
                             }
                         }
                     }
-
-                    AnimatedVisibility(visible = isSelectionMode) {
-                        Checkbox(
-                            checked = isSelected,
-                            onCheckedChange = null,
-                            modifier = Modifier.padding(start = 16.dp)
-                        )
-                    }
                 }
+            }
+        }
+
+        // Checkbox overlay at right side with gradient
+        AnimatedVisibility(
+            visible = isSelectionMode,
+            enter = androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.fadeOut(),
+            modifier = Modifier.matchParentSize()
+        ) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp))
+                    .drawBehind {
+                        // Gradient from left 0% to right 50% opacity using card background color
+                        val gradientWidth = 120.dp.toPx()
+                        drawRect(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(
+                                    cardBackgroundColor.copy(alpha = 0f),
+                                    cardBackgroundColor.copy(alpha = 1f)
+                                ),
+                                startX = size.width - gradientWidth,
+                                endX = size.width
+                            )
+                        )
+                    },
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = null,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
             }
         }
     }
