@@ -72,6 +72,10 @@ fun SynapNavGraph(
     databaseActivity: MainActivity?,
     draftCapacity: Int,
     onDraftCapacityChange: (Int) -> Unit,
+    securityLockEnabled: Boolean,
+    onSecurityLockToggle: (Boolean) -> Unit,
+    shouldLock: Boolean,
+    onUnlock: () -> Unit,
 ) {
     val navController = rememberNavController()
     val startDestination = remember { if (hasSeenAgreement) "home" else "tutorial" }
@@ -250,6 +254,8 @@ fun SynapNavGraph(
                         onNavigateBack = { navController.popBackStack() },
                         draftCapacity = draftCapacity,
                         onDraftCapacityChange = onDraftCapacityChange,
+                        securityLockEnabled = securityLockEnabled,
+                        onSecurityLockToggle = onSecurityLockToggle,
                     )
                 }
 
@@ -446,6 +452,12 @@ fun SynapNavGraph(
                         },
                     )
                 }
+            }
+
+            if (shouldLock) {
+                SecurityLockScreen(
+                    onUnlock = { onUnlock() },
+                )
             }
         }
     }

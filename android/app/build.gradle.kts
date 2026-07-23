@@ -205,6 +205,7 @@ dependencies {
     implementation("com.google.zxing:core:3.5.3")
     implementation("dev.rikka.shizuku:api:13.1.5")
     implementation("dev.rikka.shizuku:provider:13.1.5")
+    implementation("androidx.biometric:biometric:1.2.0-alpha05")
 }
 
 apply(from = rootProject.file("gradle/rust-uniffi.gradle.kts"))

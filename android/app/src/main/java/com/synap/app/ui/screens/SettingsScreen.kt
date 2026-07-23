@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
@@ -50,6 +51,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -69,6 +71,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.app.KeyguardManager
+import android.content.Context
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.synap.app.R
 import java.util.concurrent.CancellationException
 
@@ -245,7 +251,17 @@ private fun FeatureSection(
     onDraftCapacityChange: (Int) -> Unit,
     onNavigateToLab: () -> Unit,
     onNavigateToShortcut: () -> Unit,
+    securityLockEnabled: Boolean,
+    onSecurityLockToggle: (Boolean) -> Unit,
 ) {
+    val context = LocalContext.current
+    val biometricLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            onSecurityLockToggle(true)
+        }
+    }
     var expanded by remember { mutableStateOf(false) }
     val capacities = listOf(0, 5, 10, 20, 50, 100)
     val capacityLabels = listOf(stringResource(R.string.draft_capacity_off), "5", "10", "20", "50", "100")
@@ -355,6 +371,50 @@ private fun FeatureSection(
             },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             modifier = Modifier.clickable { onNavigateToShortcut() },
+        )
+
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+
+        // 安全锁
+        ListItem(
+            headlineContent = {
+                Text(
+                    text = stringResource(R.string.setting_security_lock),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Filled.Lock,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            },
+            trailingContent = {
+                Switch(
+                    checked = securityLockEnabled,
+                    onCheckedChange = { wantEnabled ->
+                        if (wantEnabled) {
+                            val km = context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+                            val intent = km.createConfirmDeviceCredentialIntent(
+                                context.getString(R.string.setting_security_lock),
+                                context.getString(R.string.setting_security_lock)
+                            )
+                            if (intent != null) {
+                                biometricLauncher.launch(intent)
+                            } else {
+                                onSecurityLockToggle(true)
+                            }
+                        } else {
+                            onSecurityLockToggle(false)
+                        }
+                    },
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         )
 
         HorizontalDivider(
@@ -714,6 +774,8 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     draftCapacity: Int,
     onDraftCapacityChange: (Int) -> Unit,
+    securityLockEnabled: Boolean,
+    onSecurityLockToggle: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -775,6 +837,8 @@ fun SettingsScreen(
                     onDraftCapacityChange = onDraftCapacityChange,
                     onNavigateToLab = onNavigateToLab,
                     onNavigateToShortcut = onNavigateToShortcut,
+                    securityLockEnabled = securityLockEnabled,
+                    onSecurityLockToggle = onSecurityLockToggle,
                 )
             }
 

@@ -38,6 +38,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.os.LocaleListCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.synap.app.data.model.ShareImportStats
 import com.synap.app.R
 import com.synap.app.ui.data.sampleLanguages
@@ -47,6 +50,7 @@ import com.synap.app.ui.viewmodel.AppSessionUiState
 import com.synap.app.ui.viewmodel.AppSessionViewModel
 import com.synap.app.ui.viewmodel.ShareImportUiState
 import com.synap.app.ui.viewmodel.ShareImportViewModel
+import kotlinx.coroutines.awaitCancellation
 
 // --- 定义专属于笔记正文的 CompositionLocal ---
 val LocalNoteTextSize = compositionLocalOf { 16.sp }
@@ -92,6 +96,21 @@ fun SynapApp(activity: MainActivity?) {
     var handedness by remember { mutableStateOf(prefs.getString("handedness", "靠右") ?: "靠右") }
     var hasSeenAgreement by remember { mutableStateOf(prefs.getBoolean("hasSeenAgreement", false)) }
     var draftCapacity by remember { mutableIntStateOf(prefs.getInt("draftCapacity", 20)) }
+    var securityLockEnabled by remember { mutableStateOf(prefs.getBoolean("securityLockEnabled", false)) }
+    var shouldLock by remember { mutableStateOf(securityLockEnabled) }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner, securityLockEnabled) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP || event == Lifecycle.Event.ON_CREATE) {
+                if (securityLockEnabled) {
+                    shouldLock = true
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        awaitCancellation()
+    }
 
     val sessionViewModel: AppSessionViewModel = hiltViewModel()
     val sessionState by sessionViewModel.uiState.collectAsState()
@@ -180,6 +199,8 @@ fun SynapApp(activity: MainActivity?) {
                             onAgreementAccepted = { hasSeenAgreement = true; prefs.edit().putBoolean("hasSeenAgreement", true).apply() },
                             databaseActivity = activity,
                             draftCapacity = draftCapacity, onDraftCapacityChange = { draftCapacity = it; prefs.edit().putInt("draftCapacity", it).apply() },
+                            securityLockEnabled = securityLockEnabled, onSecurityLockToggle = { securityLockEnabled = it; prefs.edit().putBoolean("securityLockEnabled", it).apply() },
+                            shouldLock = shouldLock, onUnlock = { shouldLock = false },
                         )
                     }
 
