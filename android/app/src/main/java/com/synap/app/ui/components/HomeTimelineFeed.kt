@@ -31,6 +31,7 @@ import com.synap.app.ui.util.formatSessionTimeRange
 fun HomeTimelineFeed(
     notes: List<Note>,
     showTimeGroups: Boolean,
+    dualColumnCards: Boolean,
     state: LazyStaggeredGridState,
     isSelectionMode: Boolean,
     selectedNoteIds: Set<String>,
@@ -47,7 +48,7 @@ fun HomeTimelineFeed(
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
 ) {
     LazyVerticalStaggeredGrid(
-        columns = StaggeredGridCells.Adaptive(minSize = 240.dp),
+        columns = if (dualColumnCards) StaggeredGridCells.Fixed(2) else StaggeredGridCells.Adaptive(minSize = 240.dp),
         state = state,
         modifier = Modifier
             .fillMaxSize()
@@ -105,6 +106,7 @@ fun HomeTimelineFeed(
                     onToggleDeleted = { onToggleDeleted(note) },
                     onReply = { onReplyToNote(note.id, note.content) },
                     animationDelayMillis = (index.coerceAtMost(8)) * 35,
+                    maxLines = if (dualColumnCards) 7 else 4,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedVisibilityScope = animatedVisibilityScope,
                 )

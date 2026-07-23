@@ -111,6 +111,7 @@
     <string name="setting_show_timeline_jump_tool_desc">在首页显示时间浏览和快速跳转入口</string>
     <string name="setting_collapse_nav_buttons">折叠首页导航栏内容</string>
     <string name="setting_phone_layout">手机布局适配</string>
+    <string name="setting_dual_column_cards">首页展示双列卡片</string>
     <string name="setting_collapse_nav_buttons_desc">此项仅适用于手机布局</string>
     <string name="setting_scan_method">扫码方式</string>
     <string name="setting_scan">扫一扫</string>
