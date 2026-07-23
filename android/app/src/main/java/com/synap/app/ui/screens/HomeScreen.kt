@@ -591,6 +591,7 @@ fun HomeScreen(
                 HomeTimelineFeed(
                     notes = displayNotes,
                     showTimeGroups = uiState.showTimeGroups,
+                    dualColumnCards = uiState.dualColumnCards,
                     state = noteGridState,
                     bottomInset = bottomInset,
                     hasMore = uiState.hasMore && !uiState.isSearchMode,

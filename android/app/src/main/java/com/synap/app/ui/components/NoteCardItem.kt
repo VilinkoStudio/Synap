@@ -69,7 +69,7 @@ import com.synap.app.ui.util.formatNoteDate
 import com.synap.app.ui.util.formatNoteTime
 import kotlinx.coroutines.launch
 
-// ==================== 共享 Markdown 渲染引擎 ====================
+// ==================== Shared Markdown Rendering Engine ====================
 fun buildMarkdownAnnotatedString(
     text: String,
     primaryColor: Color,
@@ -77,18 +77,70 @@ fun buildMarkdownAnnotatedString(
     baseFontSize: Float,
     isCompact: Boolean = false
 ): AnnotatedString {
-    val charArray = text.toCharArray()
-    Regex("^(> )", RegexOption.MULTILINE).findAll(text).forEach { charArray[it.range.first] = '“' }
-    Regex("^-\\s+\\[ \\]\\s", RegexOption.MULTILINE).findAll(text).forEach { match ->
-        charArray[match.range.first] = '☐'
+    // Pre-analyze table structure from original text
+    val origLines = text.split('\n')
+    val tableSepRegex = Regex("^\\|?\\s*-{2,}(\\s*\\|\\s*-{2,})*\\s*\\|?\\s*$")
+    val tableRowRegex = Regex("^\\|(.+)\\|$")
+    val lineIsTable = BooleanArray(origLines.size)
+    val lineIsSep = BooleanArray(origLines.size)
+    val lineIsHdr = BooleanArray(origLines.size)
+    for (li in origLines.indices) {
+        val t = origLines[li].trim()
+        if (tableRowRegex.matches(t)) {
+            lineIsTable[li] = true
+            if (tableSepRegex.matches(t)) {
+                lineIsSep[li] = true
+            } else if (li + 1 < origLines.size && tableSepRegex.matches(origLines[li + 1].trim())) {
+                lineIsHdr[li] = true
+            }
+        }
+    }
+
+    // Filter out separator lines and empty header lines from text
+    val filteredLines = origLines.mapIndexedNotNull { li, line ->
+        if (lineIsSep[li]) {
+            null // remove separator lines
+        } else if (lineIsHdr[li]) {
+            // Check if header row is all empty (e.g. "| | |" or "|  |  |")
+            val content = line.trim().removePrefix("|").removeSuffix("|").trim()
+            if (content.isEmpty() || content.all { it == '|' || it.isWhitespace() }) {
+                null // remove empty header rows
+            } else {
+                line
+            }
+        } else {
+            line
+        }
+    }
+    val filteredText = filteredLines.joinToString("\n")
+
+    // Re-analyze table structure on filtered text (for styling offsets)
+    val fLines = filteredText.split('\n')
+    val fLineIsTable = BooleanArray(fLines.size)
+    val fLineIsHdr = BooleanArray(fLines.size)
+    var origIdx = 0
+    for (fi in fLines.indices) {
+        // Find corresponding original line
+        while (origIdx < origLines.size && origLines[origIdx] != fLines[fi]) origIdx++
+        if (origIdx < origLines.size) {
+            fLineIsTable[fi] = lineIsTable[origIdx]
+            fLineIsHdr[fi] = lineIsHdr[origIdx]
+            origIdx++
+        }
+    }
+
+    val charArray = filteredText.toCharArray()
+    Regex("^(> )", RegexOption.MULTILINE).findAll(filteredText).forEach { charArray[it.range.first] = '\u201C' }
+    Regex("^-\\s+\\[ \\]\\s", RegexOption.MULTILINE).findAll(filteredText).forEach { match ->
+        charArray[match.range.first] = '\u2610'
         for (i in match.range.first + 1..match.range.last) charArray[i] = ' '
     }
-    Regex("^-\\s+\\[x\\]\\s", RegexOption.MULTILINE).findAll(text).forEach { match ->
-        charArray[match.range.first] = '☑'
+    Regex("^-\\s+\\[x\\]\\s", RegexOption.MULTILINE).findAll(filteredText).forEach { match ->
+        charArray[match.range.first] = '\u2611'
         for (i in match.range.first + 1..match.range.last) charArray[i] = ' '
     }
     if (!isCompact) {
-        Regex("^- (?!(\\[ \\]|\\[x\\]))", RegexOption.MULTILINE).findAll(text).forEach { charArray[it.range.first] = '•' }
+        Regex("^- (?!(\\[ \\]|\\[x\\]))", RegexOption.MULTILINE).findAll(filteredText).forEach { charArray[it.range.first] = '\u2022' }
     }
     val visualString = String(charArray)
 
@@ -130,22 +182,21 @@ fun buildMarkdownAnnotatedString(
                     val level = match.groups[1]!!.value.trim().length
                     val scale = 1.8f - (level * 0.15f)
                     addStyle(hiddenSpanStyle, match.groups[1]!!.range.first, match.groups[1]!!.range.last + 1)
-                    val lineEnd = visualString.indexOf('\n', match.range.last).takeIf { it != -1 } ?: visualString.length
                     addStyle(SpanStyle(fontWeight = FontWeight.ExtraBold, fontSize = (baseFontSize * scale).sp, color = primaryColor), match.groups[2]!!.range.first, match.groups[2]!!.range.last + 1)
                     addStyle(ParagraphStyle(lineHeight = (baseFontSize * 1.5f).sp), match.range.first, match.range.last + 1)
                 }
             }
 
-            val lines = visualString.split('\n')
+            val qLines = visualString.split('\n')
             var offset = 0
             var inQuote = false
             var quoteStart = 0
 
-            for (i in lines.indices) {
-                val line = lines[i]
+            for (qi in qLines.indices) {
+                val line = qLines[qi]
                 val lineLength = line.length
 
-                if (line.startsWith("“ ")) {
+                if (line.startsWith("\u201C ")) {
                     if (!inQuote) {
                         inQuote = true
                         quoteStart = offset
@@ -177,7 +228,7 @@ fun buildMarkdownAnnotatedString(
             Regex("^(#{1,4} )", RegexOption.MULTILINE).findAll(visualString).forEach { match ->
                 addStyle(hiddenSpanStyle, match.range.first, match.range.last + 1)
             }
-            Regex("^“( )", RegexOption.MULTILINE).findAll(visualString).forEach { match ->
+            Regex("^>( )", RegexOption.MULTILINE).findAll(visualString).forEach { match ->
                 addStyle(hiddenSpanStyle, match.range.first, match.range.last + 1)
             }
             Regex("^>+ ", RegexOption.MULTILINE).findAll(visualString).forEach { match ->
@@ -186,6 +237,52 @@ fun buildMarkdownAnnotatedString(
             Regex("^(-\\s+|\\d+\\.\\s+)", RegexOption.MULTILINE).findAll(visualString).forEach { match ->
                 addStyle(hiddenSpanStyle, match.range.first, match.range.last + 1)
             }
+        }
+
+        // Table processing - format rows in filtered text
+        var lineOffset = 0
+        for (fi in fLines.indices) {
+            val vLine = fLines[fi]
+            val lineLen = vLine.length
+
+            if (fLineIsTable[fi]) {
+                // All table rows (header and regular): strip outer pipes, style inner pipes
+                val trimmed = vLine.trimStart()
+                val leadSpaces = lineOffset + vLine.indexOf(trimmed)
+                val content = trimmed.removePrefix("|").removeSuffix("|").trim()
+                if (content.isEmpty()) {
+                    lineOffset += lineLen + 1
+                    continue
+                }
+                val contentStart = leadSpaces + trimmed.indexOf(content.first())
+                val contentEnd = contentStart + content.length
+
+                // Hide leading "| "
+                if (trimmed.startsWith("|")) {
+                    addStyle(hiddenSpanStyle, leadSpaces, contentStart)
+                }
+
+                if (fLineIsHdr[fi]) {
+                    // Header: bold + primary color for pipes
+                    Regex("\\|").findAll(content).forEach { pipeMatch ->
+                        val pipePos = contentStart + pipeMatch.range.first
+                        addStyle(SpanStyle(fontWeight = FontWeight.Bold, color = primaryColor), pipePos, pipePos + 1)
+                    }
+                } else {
+                    // Regular row: primary color for pipes
+                    Regex("\\|").findAll(content).forEach { pipeMatch ->
+                        val pipePos = contentStart + pipeMatch.range.first
+                        addStyle(SpanStyle(color = primaryColor), pipePos, pipePos + 1)
+                    }
+                }
+
+                // Hide trailing " |"
+                if (contentEnd < lineOffset + lineLen) {
+                    addStyle(hiddenSpanStyle, contentEnd, lineOffset + lineLen)
+                }
+            }
+
+            lineOffset += lineLen + 1
         }
     }
 }
@@ -203,12 +300,12 @@ fun NoteCardItem(
     onToggleDeleted: () -> Unit,
     onReply: () -> Unit,
     animationDelayMillis: Int = 0,
+    maxLines: Int = 4,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
 ) {
     val scope = rememberCoroutineScope()
 
-    // 【核心修复 1】：使用底层触摸 API，记录用户是否处于长按/滑动未松手状态
     var isPressed by remember { mutableStateOf(false) }
 
     val noteColor = NoteColorUtil.parseNoteColor(note.tags)
@@ -216,20 +313,17 @@ fun NoteCardItem(
 
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { dismissValue ->
-            if (isSelectionMode) return@rememberSwipeToDismissBoxState false // 多选模式下禁用滑动
+            if (isSelectionMode) return@rememberSwipeToDismissBoxState false
 
-            // 仅放行状态变化（让底色变红），绝不在这里执行删除逻辑！
             when (dismissValue) {
                 SwipeToDismissBoxValue.StartToEnd -> true
                 SwipeToDismissBoxValue.EndToStart -> !note.isDeleted
                 SwipeToDismissBoxValue.Settled -> true
             }
         },
-        // 滑动 5% 即可触发状态（背景变色）
         positionalThreshold = { totalDistance -> totalDistance * 0.05f }
     )
 
-    // 【核心修复 3】：只有等用户彻底松手（isPressed = false）并且状态已切换，才执行真正动作
     LaunchedEffect(dismissState.currentValue, isPressed) {
         if (!isPressed) {
             when (dismissState.currentValue) {
@@ -256,7 +350,6 @@ fun NoteCardItem(
             awaitPointerEventScope {
                 while (true) {
                     val event = awaitPointerEvent(PointerEventPass.Initial)
-                    // 只要有任何一根手指按在屏幕上，就是 true，松手就是 false
                     isPressed = event.changes.any { it.pressed }
                 }
             }
@@ -346,7 +439,6 @@ fun NoteCardItem(
                         val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
                         val baseFontSize = LocalNoteTextSize.current.value
 
-                        // 使用共享渲染引擎（Compact 紧凑模式）
                         val annotatedContent = remember(note.content, primaryColor, highlightColor, baseFontSize) {
                             buildMarkdownAnnotatedString(note.content, primaryColor, highlightColor, baseFontSize, isCompact = true)
                         }
@@ -361,14 +453,14 @@ fun NoteCardItem(
                             ),
                             color = if (note.isDeleted) Color.Gray else Color.Unspecified,
                             textDecoration = if (note.isDeleted) TextDecoration.LineThrough else TextDecoration.None,
-                            maxLines = 4,
+                            maxLines = maxLines,
                             overflow = TextOverflow.Ellipsis,
                         )
 
                         val replyContext = note.replyTo?.contentPreview ?: note.parentSummary
                         if (!replyContext.isNullOrBlank()) {
                             Text(
-                                text = "回复自“${replyContext}”",
+                                text = "\u56DE\u590D\u81EA\u201C${replyContext}\u201D",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(top = 8.dp),
@@ -377,7 +469,7 @@ fun NoteCardItem(
 
                         Spacer(modifier = Modifier.height(12.dp))
                         val timeLabel = if (note.editedFrom != null) {
-                            "编辑于 ${formatNoteDate(note.timestamp)}"
+                            "\u7F16\u8F91\u4E8E ${formatNoteDate(note.timestamp)}"
                         } else {
                             formatNoteTime(note.timestamp)
                         }
@@ -417,7 +509,6 @@ fun NoteCardItem(
                         }
                     }
 
-                    // 多选模式下的复选框
                     AnimatedVisibility(visible = isSelectionMode) {
                         Checkbox(
                             checked = isSelected,

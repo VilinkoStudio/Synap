@@ -37,6 +37,7 @@ data class HomeUiState(
     val showTagBar: Boolean = HomeDisplayPrefs.DEFAULT_SHOW_TAG_BAR,
     val showTimeGroups: Boolean = true,
     val showTimelineJumpTool: Boolean = HomeDisplayPrefs.DEFAULT_SHOW_TIMELINE_JUMP_TOOL,
+    val dualColumnCards: Boolean = HomeDisplayPrefs.DEFAULT_DUAL_COLUMN_CARDS,
     val availableTags: List<String> = emptyList(),
     val unselectedTags: Set<String> = emptySet(),
     val isUntaggedUnselected: Boolean = false,
@@ -100,6 +101,7 @@ private data class HomeFeedState(
 private data class HomeDisplayState(
     val showTimeGroups: Boolean,
     val showTimelineJumpTool: Boolean,
+    val dualColumnCards: Boolean,
 )
 
 @HiltViewModel
@@ -130,6 +132,12 @@ class HomeViewModel @Inject constructor(
         prefs.getBoolean(
             HomeDisplayPrefs.SHOW_TIMELINE_JUMP_TOOL,
             HomeDisplayPrefs.DEFAULT_SHOW_TIMELINE_JUMP_TOOL,
+        )
+    )
+    private val dualColumnCards = MutableStateFlow(
+        prefs.getBoolean(
+            HomeDisplayPrefs.DUAL_COLUMN_CARDS,
+            HomeDisplayPrefs.DEFAULT_DUAL_COLUMN_CARDS,
         )
     )
     private val timelinePortalState = MutableStateFlow(PortalState<NoteRecord>())
@@ -210,10 +218,12 @@ class HomeViewModel @Inject constructor(
     private val homeDisplayState = combine(
         showTimeGroups,
         showTimelineJumpTool,
-    ) { currentShowTimeGroups, currentShowTimelineJumpTool ->
+        dualColumnCards,
+    ) { currentShowTimeGroups, currentShowTimelineJumpTool, currentDualColumnCards ->
         HomeDisplayState(
             showTimeGroups = currentShowTimeGroups,
             showTimelineJumpTool = currentShowTimelineJumpTool,
+            dualColumnCards = currentDualColumnCards,
         )
     }
 
@@ -236,6 +246,7 @@ class HomeViewModel @Inject constructor(
             showTagBar = currentHomeFeed.showTagBar,
             showTimeGroups = currentDisplayState.showTimeGroups && !searchMode,
             showTimelineJumpTool = currentDisplayState.showTimelineJumpTool && !searchMode,
+            dualColumnCards = currentDisplayState.dualColumnCards && !searchMode,
             availableTags = currentHomeFeed.availableTags,
             unselectedTags = currentHomeFeed.unselectedTags,
             isUntaggedUnselected = currentHomeFeed.isUntaggedUnselected,

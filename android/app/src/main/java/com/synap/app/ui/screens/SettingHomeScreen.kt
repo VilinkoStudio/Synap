@@ -74,6 +74,7 @@ fun SettingHomeScreen(
     var widgetAlignment by remember { mutableStateOf(prefs.getString("widget_alignment", "default") ?: "default") }
     var showAlignmentMenu by remember { mutableStateOf(false) }
     var isNavCollapsed by remember { mutableStateOf(prefs.getBoolean("is_nav_collapsed", false)) }
+    var dualColumnCards by remember { mutableStateOf(prefs.getBoolean("dual_column_cards", true)) }
     var tagBarEnabled by remember(showTagBar) { mutableStateOf(showTagBar) }
     var timeGroupsEnabled by remember(showTimeGroups) { mutableStateOf(showTimeGroups) }
     var timelineJumpToolEnabled by remember(showTimelineJumpTool) { mutableStateOf(showTimelineJumpTool) }
@@ -278,6 +279,39 @@ fun SettingHomeScreen(
                         onCheckedChange = {
                             isNavCollapsed = it
                             prefs.edit().putBoolean("is_nav_collapsed", it).apply()
+                        }
+                    )
+                }
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ViewAgenda,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 16.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.setting_dual_column_cards),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                    Switch(
+                        checked = dualColumnCards,
+                        onCheckedChange = {
+                            dualColumnCards = it
+                            prefs.edit().putBoolean("dual_column_cards", it).apply()
                         }
                     )
                 }

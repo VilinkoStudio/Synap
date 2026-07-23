@@ -152,6 +152,7 @@
     <string name="setting_show_time_groups">时间分组</string>
     <string name="setting_collapse_nav_buttons">折叠首页导航栏内容</string>
     <string name="setting_phone_layout">手机布局适配</string>
+    <string name="setting_dual_column_cards">首页展示双列卡片</string>
     <string name="setting_collapse_nav_buttons_desc">此项仅适用于手机布局</string>
     <string name="setting_show_tag_bar">标签栏</string>
     <string name="setting_show_timeline_jump_tool">快速时间跳转工具</string>
