@@ -156,6 +156,7 @@ android {
     }
     buildFeatures {
         compose = true
+        aidl = true
     }
 
     sourceSets {
@@ -202,6 +203,8 @@ dependencies {
     implementation("io.noties.markwon:core:4.6.2")
     implementation("io.noties.markwon:editor:4.6.2")
     implementation("com.google.zxing:core:3.5.3")
+    implementation("dev.rikka.shizuku:api:13.1.5")
+    implementation("dev.rikka.shizuku:provider:13.1.5")
 }
 
 apply(from = rootProject.file("gradle/rust-uniffi.gradle.kts"))

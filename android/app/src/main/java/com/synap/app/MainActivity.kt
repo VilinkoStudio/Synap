@@ -56,6 +56,13 @@ class MainActivity : AppCompatActivity() {
             return false // <--- 修复了这里的编译报错
         }
 
+        // 无障碍快捷方式触发 → 直接打开编辑器
+        if (intent.hasCategory(Intent.CATEGORY_ACCESSIBILITY_SHORTCUT_TARGET)) {
+            intent.action = Intent.ACTION_VIEW
+            intent.data = Uri.parse("synap://editor")
+            return true
+        }
+
         var extractedText: String? = null
 
         // 1. 处理系统选词菜单

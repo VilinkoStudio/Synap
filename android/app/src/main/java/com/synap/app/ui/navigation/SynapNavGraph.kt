@@ -246,9 +246,16 @@ fun SynapNavGraph(
                         onNavigateToTeam = { navController.navigate("team") },
                         onNavigateToVersion = { navController.navigate("version") },
                         onNavigateToLab = { navController.navigate("lab") },
+                        onNavigateToShortcut = { navController.navigate("shortcut") },
                         onNavigateBack = { navController.popBackStack() },
                         draftCapacity = draftCapacity,
                         onDraftCapacityChange = onDraftCapacityChange,
+                    )
+                }
+
+                composable("shortcut") {
+                    SettingShortcutScreen(
+                        onNavigateBack = { navController.popBackStack() },
                     )
                 }
 
