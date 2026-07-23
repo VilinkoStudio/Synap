@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Group
@@ -32,6 +33,7 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
@@ -241,6 +243,7 @@ private fun FeatureSection(
     draftCapacity: Int,
     onDraftCapacityChange: (Int) -> Unit,
     onNavigateToLab: () -> Unit,
+    onNavigateToShortcut: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val capacities = listOf(0, 5, 10, 20, 50, 100)
@@ -321,6 +324,37 @@ private fun FeatureSection(
                 }
             }
         }
+
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+
+        // 快捷记笔记入口
+        ListItem(
+            headlineContent = {
+                Text(
+                    text = stringResource(R.string.setting_volume_key_shortcut),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Filled.Bolt,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            },
+            trailingContent = {
+                Icon(
+                    Icons.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable { onNavigateToShortcut() },
+        )
 
         HorizontalDivider(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
@@ -675,6 +709,7 @@ fun SettingsScreen(
     onNavigateToTeam: () -> Unit,
     onNavigateToVersion: () -> Unit,
     onNavigateToLab: () -> Unit,
+    onNavigateToShortcut: () -> Unit,
     onNavigateBack: () -> Unit,
     draftCapacity: Int,
     onDraftCapacityChange: (Int) -> Unit,
@@ -737,6 +772,7 @@ fun SettingsScreen(
                     draftCapacity = draftCapacity,
                     onDraftCapacityChange = onDraftCapacityChange,
                     onNavigateToLab = onNavigateToLab,
+                    onNavigateToShortcut = onNavigateToShortcut,
                 )
             }
 

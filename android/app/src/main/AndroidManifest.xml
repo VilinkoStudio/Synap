@@ -17,6 +17,7 @@
         <package android:name="com.samsung.android.visionintelligence" />
         <package android:name="com.nubia.vision" />
         <package android:name="com.google.ar.lens" />
+        <package android:name="moe.shizuku.privileged.api" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
@@ -35,6 +36,14 @@
         android:theme="@style/Theme.Synap"
         tools:targetApi="31"
         android:enableOnBackInvokedCallback="true">
+
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
         <activity
             android:name=".MainActivity"
@@ -117,6 +126,21 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity-alias>
+
+        <activity
+            android:name=".ShortcutTriggerActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:noHistory="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.ACCESSIBILITY_SHORTCUT_TARGET" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityshortcut.target"
+                android:resource="@xml/accessibility_shortcut" />
+        </activity>
 
         <provider
             android:name="androidx.core.content.FileProvider"
