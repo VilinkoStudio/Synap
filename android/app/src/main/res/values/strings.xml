@@ -244,4 +244,10 @@
     <string name="shortcut_method4_desc">选择你想摘录到Synap笔记的一段文字，在弹出的"文字菜单"中，选择"Synap新建笔记"，即可把这段文字一键摘录。你可以复制下方这段文本测试：</string>
     <string name="shortcut_method4_sample">壬戌之秋，七月既望，苏子与客泛舟游于赤壁之下。清风徐来，水波不兴。举酒属客，诵明月之诗，歌窈窕之章。少焉，月出于东山之上，徘徊于斗牛之间。白露横江，水光接天。纵一苇之所如，凌万顷之茫然。浩浩乎如冯虚御风，而不知其所止；飘飘乎如遗世独立，羽化而登仙。\n于是饮酒乐甚，扣舷而歌之。歌曰："桂棹兮兰桨，击空明兮溯流光。渺渺兮予怀，望美人兮天一方。"客有吹洞箫者，倚歌而和之。其声呜呜然，如怨如慕，如泣如诉，余音袅袅，不绝如缕。舞幽壑之潜蛟，泣孤舟之嫠妇。\n——苏轼《前赤壁赋》（节选）</string>
     <string name="shortcut_method3_widget_guide">可通过添加"Synap"安卓小部件实现一键唤起"新建笔记"页面。\n\n如何添加小部件？\n1.原生安卓系统长按桌面，选择"小部件"，找到"Synap"，点击或长按小组件即可添加到桌面。\n\n2.Xiaomi HyperOS：长按桌面或双指向内缩，选择"小部件"\n• MIUI~HyperOS3：点击全部应用，滑到底，点击"安卓小部件"，找到"Synap"，点击或长按小组件即可添加到桌面。\n• HyperOS4：点击右上角搜索，滑到底，点击"安卓小部件"，找到"Synap"，点击或长按小组件即可添加到桌面。\n\n3.其他品牌手机方法类似。</string>
+    <string name="setting_security_lock">安全锁</string>
+    <string name="security_lock_title">安全锁</string>
+    <string name="security_lock_verify">点击此按钮进行验证</string>
+    <string name="security_lock_success">验证成功</string>
+    <string name="security_lock_failed">验证失败，请重试</string>
+    <string name="security_lock_verifying">正在验证…</string>
 </resources>

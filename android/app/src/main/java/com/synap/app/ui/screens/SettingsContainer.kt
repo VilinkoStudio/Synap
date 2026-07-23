@@ -56,6 +56,8 @@ fun SettingsContainer(
     onNavigateBack: () -> Unit,
     draftCapacity: Int,
     onDraftCapacityChange: (Int) -> Unit,
+    securityLockEnabled: Boolean,
+    onSecurityLockToggle: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -197,6 +199,8 @@ fun SettingsContainer(
         onNavigateBack = onNavigateBack,
         draftCapacity = draftCapacity,
         onDraftCapacityChange = onDraftCapacityChange,
+        securityLockEnabled = securityLockEnabled,
+        onSecurityLockToggle = onSecurityLockToggle,
     )
 }
 
