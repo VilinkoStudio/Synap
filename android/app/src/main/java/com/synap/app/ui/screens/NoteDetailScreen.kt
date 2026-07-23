@@ -13,7 +13,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,6 +30,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -72,6 +75,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.TransformOrigin
@@ -103,6 +107,156 @@ import com.synap.app.ui.util.formatNoteTime
 import com.synap.app.ui.viewmodel.DetailUiState
 import kotlinx.coroutines.launch
 import java.util.concurrent.CancellationException
+
+// ==================== Markdown 表格解析 ====================
+private sealed class MarkdownSegment {
+    data class TextBlock(val content: String) : MarkdownSegment()
+    data class TableBlock(val header: List<String>?, val rows: List<List<String>>) : MarkdownSegment()
+}
+
+private val TABLE_SEPARATOR_REGEX = Regex("""^\|\s*[-:]+(\s*\|\s*[-:]+)+\s*\|$""")
+
+private fun parseMarkdownSegments(content: String): List<MarkdownSegment> {
+    val lines = content.split('\n')
+    val segments = mutableListOf<MarkdownSegment>()
+    var textBuffer = StringBuilder()
+    var i = 0
+
+    while (i < lines.size) {
+        val line = lines[i]
+        if (TABLE_SEPARATOR_REGEX.matches(line.trim()) && i > 0) {
+            val headerLine = lines[i - 1].trim()
+            if (headerLine.startsWith("|") && headerLine.endsWith("|")) {
+                // 从 textBuffer 中移除已添加的标题行（headerLine + 它后面的 \n）
+                val bufferStr = textBuffer.toString()
+                val afterHeader = bufferStr.lastIndexOf('\n')
+                if (afterHeader >= 0) {
+                    val beforeHeader = bufferStr.lastIndexOf('\n', afterHeader - 1)
+                    val keepUpTo = if (beforeHeader >= 0) beforeHeader + 1 else 0
+                    textBuffer = StringBuilder(bufferStr.substring(0, keepUpTo))
+                } else {
+                    textBuffer = StringBuilder()
+                }
+                val headerCells = headerLine.trim('|').split('|').map { it.trim() }
+                val hasHeaderContent = headerCells.any { it.isNotBlank() }
+                val rows = mutableListOf<List<String>>()
+                var j = i + 1
+                while (j < lines.size) {
+                    val rowLine = lines[j].trim()
+                    if (rowLine.startsWith("|") && rowLine.endsWith("|")) {
+                        rows.add(rowLine.trim('|').split('|').map { it.trim() })
+                        j++
+                    } else break
+                }
+                val header = if (hasHeaderContent) headerCells else null
+                if (textBuffer.isNotEmpty()) {
+                    segments.add(MarkdownSegment.TextBlock(textBuffer.toString().trimEnd('\n')))
+                    textBuffer = StringBuilder()
+                }
+                segments.add(MarkdownSegment.TableBlock(header, rows))
+                i = j
+                continue
+            }
+        }
+        textBuffer.appendLine(line)
+        i++
+    }
+    if (textBuffer.isNotEmpty()) {
+        segments.add(MarkdownSegment.TextBlock(textBuffer.toString().trimEnd('\n')))
+    }
+    return segments
+}
+
+@Composable
+private fun MarkdownTable(
+    header: List<String>?,
+    rows: List<List<String>>,
+    primaryColor: Color,
+    baseFontSize: Float,
+) {
+    val borderWidth = 1.dp
+    val borderColor = MaterialTheme.colorScheme.outlineVariant
+    val cellTextStyle = MaterialTheme.typography.bodyMedium.copy(
+        fontFamily = LocalNoteFontFamily.current,
+        fontWeight = LocalNoteFontWeight.current,
+        fontSize = (baseFontSize * 0.9f).sp,
+    )
+    val headerTextStyle = cellTextStyle.copy(fontWeight = FontWeight.Bold, color = primaryColor)
+    val cellMinWidth = (baseFontSize * 5f).dp
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+    ) {
+        val numColumns = maxOf(header?.size ?: 0, rows.maxOfOrNull { it.size } ?: 0)
+        val minTableWidth = cellMinWidth * numColumns
+        val tableWidth = maxOf(maxWidth, minTableWidth)
+
+        Column(
+            modifier = Modifier
+                .width(tableWidth)
+                .horizontalScroll(rememberScrollState())
+                .border(borderWidth, borderColor, RoundedCornerShape(8.dp)),
+        ) {
+            if (header != null) {
+                Box(
+                    modifier = Modifier
+                        .width(tableWidth)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .drawBehind {
+                            val cellWidth = size.width / numColumns
+                            for (k in 1 until numColumns) {
+                                drawLine(borderColor, Offset(cellWidth * k, 0f), Offset(cellWidth * k, size.height))
+                            }
+                        },
+                ) {
+                    Row {
+                        header.forEach { cell ->
+                            Text(
+                                text = cell,
+                                style = headerTextStyle,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .widthIn(min = cellMinWidth)
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                            )
+                        }
+                    }
+                }
+                Box(modifier = Modifier.width(tableWidth).height(borderWidth).background(borderColor))
+            }
+            rows.forEachIndexed { rowIndex, row ->
+                if (rowIndex > 0) {
+                    Box(modifier = Modifier.width(tableWidth).height(borderWidth).background(borderColor))
+                }
+                Box(
+                    modifier = Modifier
+                        .width(tableWidth)
+                        .drawBehind {
+                            val cellWidth = size.width / numColumns
+                            for (k in 1 until numColumns) {
+                                drawLine(borderColor, Offset(cellWidth * k, 0f), Offset(cellWidth * k, size.height))
+                            }
+                        },
+                ) {
+                    Row {
+                        row.forEach { cell ->
+                            Text(
+                                text = cell,
+                                style = cellTextStyle,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .widthIn(min = cellMinWidth)
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 // ==================== 共享 Markdown 渲染引擎 ====================
 fun buildMarkdownAnnotatedString(
@@ -624,22 +778,40 @@ fun NoteDetailScreen(
                     val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
                     val baseFontSize = LocalNoteTextSize.current.value
 
-                    val annotatedContent = remember(note.content, primaryColor, highlightColor, baseFontSize) {
-                        buildMarkdownAnnotatedString(note.content, primaryColor, highlightColor, baseFontSize, isCompact = false)
-                    }
-
                     val noteContentBlock: @Composable () -> Unit = {
                         SelectionContainer {
-                            Text(
-                                text = annotatedContent,
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontFamily = LocalNoteFontFamily.current,
-                                    fontWeight = LocalNoteFontWeight.current,
-                                    fontSize = LocalNoteTextSize.current,
-                                    lineHeight = LocalNoteTextSize.current * LocalNoteLineSpacing.current
-                                ),
-                                modifier = Modifier.fillMaxWidth(),
-                            )
+                            val segments = remember(note.content) {
+                                parseMarkdownSegments(note.content)
+                            }
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                segments.forEach { segment ->
+                                    when (segment) {
+                                        is MarkdownSegment.TextBlock -> {
+                                            val annotated = remember(segment.content, primaryColor, highlightColor, baseFontSize) {
+                                                buildMarkdownAnnotatedString(segment.content, primaryColor, highlightColor, baseFontSize, isCompact = false)
+                                            }
+                                            Text(
+                                                text = annotated,
+                                                style = MaterialTheme.typography.bodyLarge.copy(
+                                                    fontFamily = LocalNoteFontFamily.current,
+                                                    fontWeight = LocalNoteFontWeight.current,
+                                                    fontSize = LocalNoteTextSize.current,
+                                                    lineHeight = LocalNoteTextSize.current * LocalNoteLineSpacing.current
+                                                ),
+                                                modifier = Modifier.fillMaxWidth(),
+                                            )
+                                        }
+                                        is MarkdownSegment.TableBlock -> {
+                                            MarkdownTable(
+                                                header = segment.header,
+                                                rows = segment.rows,
+                                                primaryColor = primaryColor,
+                                                baseFontSize = baseFontSize,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
