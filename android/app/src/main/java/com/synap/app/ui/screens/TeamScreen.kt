@@ -50,6 +50,7 @@ val creativeTeamList = listOf(
     TeamMember(
         name = "尧尧切克Now",
         socialLinks = listOf(
+            SocialLink("Blog", null, "https://yyckn.rth1.xyz/"),
             SocialLink("GitHub", null, "https://github.com/yyckn")
         )
     ),

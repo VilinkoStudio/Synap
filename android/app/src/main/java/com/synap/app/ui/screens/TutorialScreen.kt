@@ -246,6 +246,12 @@ private fun AgreementPage(onAgree: () -> Unit) {
                 .padding(vertical = 24.dp, horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Text(
+                text = stringResource(R.string.scroll_to_view_full_agreement),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
             Button(
                 onClick = onAgree,
                 enabled = hasScrolledToBottom,
