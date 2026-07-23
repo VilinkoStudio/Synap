@@ -152,7 +152,7 @@ fun SettingHomeScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { updateHomeDisplayOptions(nextTagBarEnabled = !tagBarEnabled) }
-                        .padding(16.dp),
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
@@ -183,7 +183,7 @@ fun SettingHomeScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { updateHomeDisplayOptions(nextTimeGroupsEnabled = !timeGroupsEnabled) }
-                        .padding(16.dp),
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
@@ -216,7 +216,7 @@ fun SettingHomeScreen(
                         .clickable {
                             updateHomeDisplayOptions(nextTimelineJumpToolEnabled = !timelineJumpToolEnabled)
                         }
-                        .padding(16.dp),
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
@@ -237,16 +237,27 @@ fun SettingHomeScreen(
                         onCheckedChange = { updateHomeDisplayOptions(nextTimelineJumpToolEnabled = it) },
                     )
                 }
+            }
 
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
+            Spacer(modifier = Modifier.height(24.dp))
 
+            Text(
+                text = stringResource(R.string.setting_phone_layout),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
@@ -261,12 +272,6 @@ fun SettingHomeScreen(
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = stringResource(R.string.setting_collapse_nav_buttons_desc),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
                     }
                     Switch(
                         checked = isNavCollapsed,
@@ -275,158 +280,6 @@ fun SettingHomeScreen(
                             prefs.edit().putBoolean("is_nav_collapsed", it).apply()
                         }
                     )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // ==================== 扫码方式 ====================
-            Text(
-                text = stringResource(R.string.setting_scan_method),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                // 默认
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            scanMethod = "default"
-                            prefs.edit().putString("scan_method", "default").apply()
-                        }
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.QrCodeScanner,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(end = 16.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.setting_scan_default),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = stringResource(R.string.setting_scan_default_desc),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    if (scanMethod == "default") {
-                        Icon(
-                            Icons.Filled.Check,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                }
-
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-
-                // 系统相机
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            scanMethod = "system_camera"
-                            prefs.edit().putString("scan_method", "system_camera").apply()
-                        }
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.CameraAlt,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(end = 16.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.setting_scan_system_camera),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = stringResource(R.string.setting_scan_system_camera_desc),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    if (scanMethod == "system_camera") {
-                        Icon(
-                            Icons.Filled.Check,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                }
-
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-
-                // 自定义扫码APP
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            if (scanMethod == "custom" && customScanPackage.isNotBlank()) {
-                                customScanInput = customScanPackage
-                            } else {
-                                customScanInput = ""
-                            }
-                            showCustomScanDialog = true
-                        }
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.QrCodeScanner,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(end = 16.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.setting_scan_custom),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = if (scanMethod == "custom" && customScanPackage.isNotBlank()) customScanPackage
-                                   else stringResource(R.string.setting_scan_custom_desc),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    if (scanMethod == "custom") {
-                        Icon(
-                            Icons.Filled.Check,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
                 }
             }
 

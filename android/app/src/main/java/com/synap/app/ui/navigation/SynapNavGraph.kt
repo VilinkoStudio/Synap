@@ -251,6 +251,7 @@ fun SynapNavGraph(
                         onNavigateToVersion = { navController.navigate("version") },
                         onNavigateToLab = { navController.navigate("lab") },
                         onNavigateToShortcut = { navController.navigate("shortcut") },
+                        onNavigateToScan = { navController.navigate("scan") },
                         onNavigateBack = { navController.popBackStack() },
                         draftCapacity = draftCapacity,
                         onDraftCapacityChange = onDraftCapacityChange,
@@ -261,6 +262,12 @@ fun SynapNavGraph(
 
                 composable("shortcut") {
                     SettingShortcutScreen(
+                        onNavigateBack = { navController.popBackStack() },
+                    )
+                }
+
+                composable("scan") {
+                    ScanScreen(
                         onNavigateBack = { navController.popBackStack() },
                     )
                 }

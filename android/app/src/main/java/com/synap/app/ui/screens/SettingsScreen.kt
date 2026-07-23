@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Restore
@@ -251,6 +252,7 @@ private fun FeatureSection(
     onDraftCapacityChange: (Int) -> Unit,
     onNavigateToLab: () -> Unit,
     onNavigateToShortcut: () -> Unit,
+    onNavigateToScan: () -> Unit,
     securityLockEnabled: Boolean,
     onSecurityLockToggle: (Boolean) -> Unit,
 ) {
@@ -415,6 +417,36 @@ private fun FeatureSection(
                 )
             },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        )
+
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+
+        ListItem(
+            headlineContent = {
+                Text(
+                    text = stringResource(R.string.setting_scan_method),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Filled.QrCodeScanner,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            },
+            trailingContent = {
+                Icon(
+                    Icons.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable { onNavigateToScan() },
         )
 
         HorizontalDivider(
@@ -771,6 +803,7 @@ fun SettingsScreen(
     onNavigateToVersion: () -> Unit,
     onNavigateToLab: () -> Unit,
     onNavigateToShortcut: () -> Unit,
+    onNavigateToScan: () -> Unit,
     onNavigateBack: () -> Unit,
     draftCapacity: Int,
     onDraftCapacityChange: (Int) -> Unit,
@@ -837,6 +870,7 @@ fun SettingsScreen(
                     onDraftCapacityChange = onDraftCapacityChange,
                     onNavigateToLab = onNavigateToLab,
                     onNavigateToShortcut = onNavigateToShortcut,
+                    onNavigateToScan = onNavigateToScan,
                     securityLockEnabled = securityLockEnabled,
                     onSecurityLockToggle = onSecurityLockToggle,
                 )
