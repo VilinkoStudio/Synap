@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,16 +17,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.ManageSearch
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,9 +48,14 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.synap.app.R
 import com.synap.app.ui.components.NoteCardItem
@@ -76,6 +81,9 @@ fun SearchScreen(
 ) {
     val focusRequester = remember { FocusRequester() }
     val gridState = rememberLazyStaggeredGridState()
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("synap_prefs", android.content.Context.MODE_PRIVATE) }
+    val dualColumnCards = remember { prefs.getBoolean("dual_column_cards", true) }
 
     // 进场动画后自动弹出键盘
     LaunchedEffect(Unit) {
@@ -208,7 +216,13 @@ fun SearchScreen(
                 // 无结果
                 uiState.searchResults.isEmpty() -> {
                     Text(
-                        text = stringResource(R.string.search_no_results),
+                        text = buildAnnotatedString {
+                            append("未搜索到和")
+                            withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)) {
+                                append("\"${uiState.query}\"")
+                            }
+                            append("相关的笔记")
+                        },
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.align(Alignment.Center)
@@ -217,8 +231,16 @@ fun SearchScreen(
 
                 // 展示搜索结果
                 else -> {
+                    // 分离精准搜索和模糊搜索结果
+                    val exactResults = uiState.searchResults.filter { result ->
+                        result.sources.any { it == SearchSourceBadge.Semantic }
+                    }
+                    val fuzzyResults = uiState.searchResults.filter { result ->
+                        result.sources.all { it == SearchSourceBadge.Fuzzy }
+                    }
+
                     LazyVerticalStaggeredGrid(
-                        columns = StaggeredGridCells.Adaptive(minSize = 240.dp),
+                        columns = if (dualColumnCards) StaggeredGridCells.Fixed(2) else StaggeredGridCells.Adaptive(minSize = 240.dp),
                         state = gridState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(
@@ -230,16 +252,73 @@ fun SearchScreen(
                         verticalItemSpacing = 16.dp,
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        itemsIndexed(
-                            uiState.searchResults,
-                            key = { _, result -> result.note.id },
-                        ) { index, result ->
-                            SearchResultCard(
-                                result = result,
-                                onOpenNote = onOpenNote,
-                                onToggleDeleted = onToggleDeleted,
-                                animationDelayMillis = (index.coerceAtMost(6)) * 45,
-                            )
+                        // 精准搜索标题和结果
+                        if (exactResults.isNotEmpty()) {
+                            item(
+                                key = "exact_search_header",
+                                span = StaggeredGridItemSpan.FullLine,
+                            ) {
+                                Text(
+                                    text = buildAnnotatedString {
+                                        append("以下是包含关键词")
+                                        withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)) {
+                                            append("\"${uiState.query}\"")
+                                        }
+                                        append("的搜索结果")
+                                    },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                            }
+
+                            itemsIndexed(
+                                exactResults,
+                                key = { _, result -> result.note.id },
+                            ) { index, result ->
+                                SearchResultCard(
+                                    result = result,
+                                    onOpenNote = onOpenNote,
+                                    onToggleDeleted = onToggleDeleted,
+                                    animationDelayMillis = (index.coerceAtMost(6)) * 45,
+                                    maxLines = if (dualColumnCards) 7 else 4,
+                                )
+                            }
+                        }
+
+                        // 模糊搜索标题和结果
+                        if (fuzzyResults.isNotEmpty()) {
+                            item(
+                                key = "fuzzy_search_header",
+                                span = StaggeredGridItemSpan.FullLine,
+                            ) {
+                                Spacer(modifier = Modifier.height(if (exactResults.isNotEmpty()) 16.dp else 0.dp))
+                                Text(
+                                    text = buildAnnotatedString {
+                                        append("以下是")
+                                        withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)) {
+                                            append("\"${uiState.query}\"")
+                                        }
+                                        append("的相关搜索结果")
+                                    },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                            }
+
+                            itemsIndexed(
+                                fuzzyResults,
+                                key = { _, result -> result.note.id },
+                            ) { index, result ->
+                                SearchResultCard(
+                                    result = result,
+                                    onOpenNote = onOpenNote,
+                                    onToggleDeleted = onToggleDeleted,
+                                    animationDelayMillis = ((index + exactResults.size).coerceAtMost(6)) * 45,
+                                    maxLines = if (dualColumnCards) 7 else 4,
+                                )
+                            }
                         }
                     }
                 }
@@ -254,15 +333,10 @@ private fun SearchResultCard(
     onOpenNote: (String) -> Unit,
     onToggleDeleted: (Note) -> Unit,
     animationDelayMillis: Int,
+    maxLines: Int = 4,
 ) {
     NoteCardItem(
         note = result.note,
-        backgroundDecoration = {
-            SearchSourceWatermark(
-                sources = result.sources,
-                modifier = Modifier.matchParentSize(),
-            )
-        },
         onClick = { onOpenNote(result.note.id) },
         onLongClick = { },
         isSelectionMode = false,
@@ -270,72 +344,6 @@ private fun SearchResultCard(
         onToggleDeleted = { onToggleDeleted(result.note) },
         onReply = { },
         animationDelayMillis = animationDelayMillis,
+        maxLines = maxLines,
     )
 }
-
-@Composable
-private fun SearchSourceWatermark(
-    sources: List<SearchSourceBadge>,
-    modifier: Modifier = Modifier,
-) {
-    if (sources.isEmpty()) {
-        return
-    }
-
-    Box(
-        modifier = modifier,
-    ) {
-        val leadSource = sources.first()
-        val trailSource = sources.getOrNull(1)
-
-        SearchSourceGlyph(
-            icon = leadSource.icon(),
-            tint = leadSource.tint().copy(alpha = 0.09f),
-            contentDescription = null,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 14.dp, end = 12.dp)
-                .size(64.dp),
-        )
-
-        if (trailSource != null) {
-            SearchSourceGlyph(
-                icon = trailSource.icon(),
-                tint = trailSource.tint().copy(alpha = 0.05f),
-                contentDescription = null,
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 36.dp)
-                    .size(88.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun SearchSourceGlyph(
-    icon: ImageVector,
-    tint: Color,
-    contentDescription: String?,
-    modifier: Modifier = Modifier,
-) {
-    Icon(
-        imageVector = icon,
-        contentDescription = contentDescription,
-        tint = tint,
-        modifier = modifier,
-    )
-}
-
-private fun SearchSourceBadge.icon(): ImageVector =
-    when (this) {
-        SearchSourceBadge.Semantic -> Icons.Filled.AutoAwesome
-        SearchSourceBadge.Fuzzy -> Icons.Filled.ManageSearch
-    }
-
-@Composable
-private fun SearchSourceBadge.tint(): Color =
-    when (this) {
-        SearchSourceBadge.Semantic -> MaterialTheme.colorScheme.tertiary
-        SearchSourceBadge.Fuzzy -> MaterialTheme.colorScheme.primary
-    }
