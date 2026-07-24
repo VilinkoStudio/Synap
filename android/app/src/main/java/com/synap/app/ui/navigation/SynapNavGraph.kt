@@ -157,7 +157,13 @@ fun SynapNavGraph(
                     )
                 }
 
-                composable("search") {
+                composable(
+                    route = "search",
+                    enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(400)) },
+                    exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(400)) },
+                    popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(400)) },
+                    popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(400)) },
+                ) {
                     val viewModel: HomeViewModel = hiltViewModel()
                     val uiState by viewModel.uiState.collectAsState()
                     SearchScreen(
@@ -167,7 +173,9 @@ fun SynapNavGraph(
                         onClearSearch = viewModel::clearSearch,
                         onNavigateBack = { navController.popBackStack() },
                         onOpenNote = { noteId -> navController.navigate(detailRoute(noteId)) },
-                        onToggleDeleted = viewModel::toggleDeleted
+                        onToggleDeleted = viewModel::toggleDeleted,
+                        sharedTransitionScope = this@SharedTransitionLayout,
+                        animatedVisibilityScope = this@composable
                     )
                 }
 

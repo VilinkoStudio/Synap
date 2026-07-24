@@ -118,7 +118,7 @@ fun SearchScreen(
                         if (sharedTransitionScope != null && animatedVisibilityScope != null) {
                             with(sharedTransitionScope) {
                                 it.sharedBounds(
-                                    sharedContentState = rememberSharedContentState(key = "search_bar_transform"),
+                                    sharedContentState = rememberSharedContentState(key = "search_to_fullscreen"),
                                     animatedVisibilityScope = animatedVisibilityScope
                                 )
                             }
