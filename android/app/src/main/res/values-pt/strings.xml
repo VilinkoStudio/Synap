@@ -7,6 +7,7 @@
     <string name="reply">Responder</string>
     <string name="retry">Tentar novamente</string>
     <string name="back">Voltar</string>
+    <string name="close">Fechar</string>
     <string name="clear">Limpar tudo</string>
     <string name="selected">Selecionado(s)</string>
     <string name="search_placeholder">Pesquisar notas, etiquetas...</string>

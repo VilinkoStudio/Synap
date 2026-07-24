@@ -30,8 +30,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -63,6 +61,9 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FloatingToolbarDefaults
+import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -193,7 +194,7 @@ private fun deleteCustomColor(context: Context, index: Int) {
     prefs.edit().putString("colors", newArr.toString()).apply()
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalLayoutApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun NewNoteScreen(
     uiState: EditorUiState,
@@ -467,36 +468,41 @@ fun NewNoteScreen(
         },
         bottomBar = {
             if (!isTabletDevice) {
-                Surface(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .imePadding(),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
-                    shadowElevation = 8.dp
+                        .imePadding()
+                        .navigationBarsPadding()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
-                            .padding(horizontal = 8.dp, vertical = 8.dp)
-                            .horizontalScroll(rememberScrollState()),
-                        verticalAlignment = Alignment.CenterVertically
+                    HorizontalFloatingToolbar(
+                        expanded = true,
+                        colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
+                            toolbarContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            toolbarContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        ),
                     ) {
-                        val iconColor = MaterialTheme.colorScheme.onSurface
-                        val textStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = iconColor)
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val iconColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            val textStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = iconColor)
 
-                        IconButton(onClick = { applyLinePrefix("- [ ] ") }) { Icon(Icons.Filled.CheckBox, null) }
-                        IconButton(onClick = { applyLinePrefix("- ") }) { Icon(Icons.Filled.FormatListBulleted, null) }
-                        IconButton(onClick = { applyLinePrefix("1. ") }) { Text("1.", style = textStyle) }
-                        IconButton(onClick = { applyLinePrefix("# ") }) { Text("H1", style = textStyle) }
-                        IconButton(onClick = { applyLinePrefix("## ") }) { Text("H2", style = textStyle) }
-                        IconButton(onClick = { applyLinePrefix("> ") }) { Icon(Icons.Filled.FormatQuote, null) }
-                        IconButton(onClick = { applyStyle("**", "**") }) { Icon(Icons.Filled.FormatBold, null) }
-                        IconButton(onClick = { applyStyle("*", "*") }) { Icon(Icons.Filled.FormatItalic, null) }
-                        IconButton(onClick = { applyStyle("<u>", "</u>") }) { Icon(Icons.Filled.FormatUnderlined, null) }
-                        IconButton(onClick = { applyStyle("~~", "~~") }) { Icon(Icons.Filled.FormatStrikethrough, null) }
-                        IconButton(onClick = { applyStyle("==", "==") }) { Icon(Icons.Filled.FormatColorText, null) }
+                            IconButton(onClick = { applyLinePrefix("- [ ] ") }) { Icon(Icons.Filled.CheckBox, null, tint = iconColor) }
+                            IconButton(onClick = { applyLinePrefix("- ") }) { Icon(Icons.Filled.FormatListBulleted, null, tint = iconColor) }
+                            IconButton(onClick = { applyLinePrefix("1. ") }) { Text("1.", style = textStyle) }
+                            IconButton(onClick = { applyLinePrefix("# ") }) { Text("H1", style = textStyle) }
+                            IconButton(onClick = { applyLinePrefix("## ") }) { Text("H2", style = textStyle) }
+                            IconButton(onClick = { applyLinePrefix("> ") }) { Icon(Icons.Filled.FormatQuote, null, tint = iconColor) }
+                            IconButton(onClick = { applyStyle("**", "**") }) { Icon(Icons.Filled.FormatBold, null, tint = iconColor) }
+                            IconButton(onClick = { applyStyle("*", "*") }) { Icon(Icons.Filled.FormatItalic, null, tint = iconColor) }
+                            IconButton(onClick = { applyStyle("<u>", "</u>") }) { Icon(Icons.Filled.FormatUnderlined, null, tint = iconColor) }
+                            IconButton(onClick = { applyStyle("~~", "~~") }) { Icon(Icons.Filled.FormatStrikethrough, null, tint = iconColor) }
+                            IconButton(onClick = { applyStyle("==", "==") }) { Icon(Icons.Filled.FormatColorText, null, tint = iconColor) }
+                        }
                     }
                 }
             }
@@ -506,7 +512,7 @@ fun NewNoteScreen(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(top = innerPadding.calculateTopPadding())
                 .consumeWindowInsets(innerPadding)
         ) {
             val isTablet = maxWidth >= 700.dp
@@ -699,8 +705,6 @@ fun NewNoteScreen(
                         val checkboxRegexPattern = "^-\\s+\\[([ xX])\\]\\s?"
                         val currentSelection by rememberUpdatedState(textFieldValue.selection)
 
-                        // ========== 修复 1：引入 BringIntoViewRequester 手动控制光标滚动 ==========
-                        val bringIntoViewRequester = remember { BringIntoViewRequester() }
                         val density = LocalDensity.current
 
                         LaunchedEffect(Unit) {
@@ -709,29 +713,7 @@ fun NewNoteScreen(
                             keyboardController?.show()
                         }
 
-                        // ========== 修复 2：监听光标和文字变化，计算出足够安全的区域要求组件滚动 ==========
-                        LaunchedEffect(textFieldValue.selection.start, textFieldValue.text.length) {
-                            delay(50) // 给点时间等待布局刷新和键盘弹出动画
-                            textLayoutResult?.let { layoutResult ->
-                                try {
-                                    val offset = textFieldValue.selection.start.coerceIn(0, textFieldValue.text.length)
-                                    val cursorRect = layoutResult.getCursorRect(offset)
-                                    // 核心逻辑：在光标的下方加上 120dp 的“虚拟要求可视空间”
-                                    // 这将强迫 ScrollState 把整个区域往上推，让光标完美待在键盘和候选词的上方
-                                    val paddedRect = Rect(
-                                        left = cursorRect.left,
-                                        top = cursorRect.top,
-                                        right = cursorRect.right,
-                                        bottom = cursorRect.bottom + with(density) { 120.dp.toPx() }
-                                    )
-                                    bringIntoViewRequester.bringIntoView(paddedRect)
-                                } catch (e: Exception) {
-                                    // 忽略快速输入时可能发生的短暂坐标越界
-                                }
-                            }
-                        }
-
-                        Column(modifier = Modifier.fillMaxSize().verticalScroll(textScrollState)) {
+                        Column(modifier = Modifier.fillMaxSize().verticalScroll(textScrollState).padding(bottom = 80.dp)) {
 
                             Box(modifier = Modifier.fillMaxWidth()) {
                                     if (textFieldValue.text.isEmpty()) {
@@ -809,9 +791,7 @@ fun NewNoteScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .heightIn(min = 300.dp)
-                                        .focusRequester(focusRequester)
-                                        // 绑定请求器，允许外部强制让该组件内部的某一个区域显示在屏幕上
-                                        .bringIntoViewRequester(bringIntoViewRequester),
+                                        .focusRequester(focusRequester),
                                     textStyle = MaterialTheme.typography.bodyLarge.copy(
                                         fontFamily = LocalNoteFontFamily.current,
                                         fontWeight = LocalNoteFontWeight.current,
@@ -955,7 +935,7 @@ fun NewNoteScreen(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(50.dp))
+                            Spacer(modifier = Modifier.height(LocalConfiguration.current.screenHeightDp.dp))
                         }
                     }
                 }

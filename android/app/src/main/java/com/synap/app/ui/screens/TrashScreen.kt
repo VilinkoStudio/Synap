@@ -1,5 +1,6 @@
 package com.synap.app.ui.screens
 
+import android.content.Context
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +16,7 @@ import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridS
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -30,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -38,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -59,6 +63,9 @@ fun TrashScreen(
     onRefresh: () -> Unit,
 ) {
     val gridState = rememberLazyStaggeredGridState()
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("synap_prefs", Context.MODE_PRIVATE) }
+    var showHint by remember { mutableStateOf(prefs.getBoolean("trash_hint_dismissed", false).not()) }
 
     val shouldLoadMore by remember(uiState.notes, uiState.hasMore, uiState.isLoading) {
         derivedStateOf {
@@ -120,19 +127,36 @@ fun TrashScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                shape = MaterialTheme.shapes.large,
-            ) {
-                Text(
-                    text = stringResource(R.string.trash_restore_hint),
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
+            if (showHint) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = MaterialTheme.shapes.large,
+                ) {
+                    Box {
+                        Text(
+                            text = stringResource(R.string.trash_restore_hint),
+                            modifier = Modifier.padding(start = 16.dp, end = 40.dp, top = 12.dp, bottom = 12.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                        IconButton(
+                            onClick = {
+                                showHint = false
+                                prefs.edit().putBoolean("trash_hint_dismissed", true).apply()
+                            },
+                            modifier = Modifier.align(Alignment.CenterEnd),
+                        ) {
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.close),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                        }
+                    }
+                }
             }
 
             when {

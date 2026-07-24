@@ -7,6 +7,7 @@
     <string name="reply">Répondre</string>
     <string name="retry">Réessayer</string>
     <string name="back">Retour</string>
+    <string name="close">Fermer</string>
     <string name="clear">Tout effacer</string>
     <string name="selected">Sélectionné(s)</string>
     <string name="search_placeholder">Rechercher notes, tags...</string>

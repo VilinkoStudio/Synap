@@ -737,35 +737,16 @@ fun HomeScreen(
             visible = isSelectionMode,
             enter = fadeIn() + (if (isTabletLayout) slideInHorizontally(initialOffsetX = { if (widgetAlignment == "right") it else -it }) else slideInVertically(initialOffsetY = { it })),
             exit = fadeOut() + (if (isTabletLayout) slideOutHorizontally(targetOffsetX = { if (widgetAlignment == "right") it else -it }) else slideOutVertically(targetOffsetY = { it })),
-            modifier = if (isTabletLayout) Modifier else Modifier.padding(bottom = 24.dp + bottomInset).offset(y = fabDodgeOffset)
+            modifier = if (isTabletLayout) Modifier else Modifier.padding(bottom = 16.dp + bottomInset).offset(y = fabDodgeOffset)
         ) {
-            if (isTabletLayout) {
-                Surface(
-                    shape = RoundedCornerShape(28.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    tonalElevation = 3.dp,
-                    shadowElevation = 8.dp,
-                ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        val iconTint = MaterialTheme.colorScheme.onSecondaryContainer
-                        SharedToolbarButtons(iconTint = iconTint)
-                    }
-                }
-            } else {
-                HorizontalFloatingToolbar(
-                    expanded = true,
-                    colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
-                        toolbarContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        toolbarContentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                ) {
-                    val iconTint = MaterialTheme.colorScheme.onSecondaryContainer
-                    SharedToolbarButtons(iconTint = iconTint)
-                }
+            HorizontalFloatingToolbar(
+                expanded = true,
+                colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
+                    toolbarContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    toolbarContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                ),
+            ) {
+                SharedToolbarButtons(iconTint = MaterialTheme.colorScheme.onSecondaryContainer)
             }
         }
     }
