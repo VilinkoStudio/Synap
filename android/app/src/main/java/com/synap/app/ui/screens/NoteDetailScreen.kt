@@ -51,6 +51,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingToolbarDefaults
 import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -580,20 +581,20 @@ fun NoteDetailScreen(
             )
         },
         bottomBar = {
-            // ========== 手机端：沉浸式固定底部工具栏 ==========
             if (uiState.note != null && !isLargeScreen) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(primaryColorForTheme.copy(alpha = 0.15f))
+                        .navigationBarsPadding()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
-                            .padding(horizontal = 8.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
+                    HorizontalFloatingToolbar(
+                        expanded = true,
+                        colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
+                            toolbarContainerColor = primaryColorForTheme.copy(alpha = 0.15f),
+                            toolbarContentColor = MaterialTheme.colorScheme.onSurface,
+                        ),
                     ) {
                         val iconTint = MaterialTheme.colorScheme.onSurface
 
@@ -702,7 +703,7 @@ fun NoteDetailScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(top = innerPadding.calculateTopPadding())
         ) {
             if (uiState.isLoading && uiState.note == null) {
                 Column(
@@ -743,7 +744,7 @@ fun NoteDetailScreen(
                         .fillMaxSize()
                         .background(bgColor)
                         .verticalScroll(scrollState)
-                        .padding(start = contentStartPadding, end = contentEndPadding, top = 16.dp, bottom = 16.dp),
+                        .padding(start = contentStartPadding, end = contentEndPadding, top = 16.dp, bottom = 80.dp),
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,

@@ -7,6 +7,7 @@
     <string name="reply">回覆</string>
     <string name="retry">重試</string>
     <string name="back">返回</string>
+    <string name="close">關閉</string>
     <string name="clear">清空</string>
     <string name="selected">已選擇</string>
     <string name="search_placeholder">搜尋筆記、標籤...</string>

@@ -7,6 +7,7 @@
     <string name="reply">উত্তর দিন</string>
     <string name="retry">পুনরায় চেষ্টা করুন</string>
     <string name="back">পেছনে</string>
+    <string name="close">বন্ধ করুন</string>
     <string name="clear">সব মুছুন</string>
     <string name="selected">নির্বাচিত</string>
     <string name="search_placeholder">নোট, ট্যাগ অনুসন্ধান করুন...</string>

@@ -7,6 +7,7 @@
     <string name="reply">Ответить</string>
     <string name="retry">Повторить</string>
     <string name="back">Назад</string>
+    <string name="close">Закрыть</string>
     <string name="clear">Очистить всё</string>
     <string name="selected">Выбрано</string>
     <string name="search_placeholder">Поиск заметок, тегов...</string>

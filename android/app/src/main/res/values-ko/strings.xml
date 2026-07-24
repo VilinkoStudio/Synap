@@ -7,6 +7,7 @@
     <string name="reply">답글</string>
     <string name="retry">다시 시도</string>
     <string name="back">뒤로</string>
+    <string name="close">닫기</string>
     <string name="clear">지우기</string>
     <string name="selected">선택됨</string>
     <string name="search_placeholder">노트, 태그 검색...</string>
