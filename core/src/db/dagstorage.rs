@@ -43,6 +43,17 @@ impl DagStore {
         Ok(())
     }
 
+    pub fn has_children_in_write(
+        &self,
+        tx: &WriteTransaction,
+        parent: &Uuid,
+    ) -> Result<bool, redb::Error> {
+        let table = tx.open_multimap_table(self.forward.table_def())?;
+        let mut children = table.get(parent.into_bytes())?;
+        let has_children = children.next().transpose()?.is_some();
+        Ok(has_children)
+    }
+
     pub fn unlink(
         &self,
         tx: &WriteTransaction,

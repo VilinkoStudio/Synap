@@ -59,6 +59,7 @@ impl<'a, 'b> StarmapView<'a, 'b> {
                     .reader
                     .has_next_version(&note_id)
                     .map_err(redb::Error::from)?
+                || vector.is_empty()
             {
                 continue;
             }

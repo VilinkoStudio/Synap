@@ -84,6 +84,23 @@ impl Note {
         VectorStore::new("NoteVectors", NOTE_VECTOR_INDEX.dimension())
     }
 
+    pub(crate) fn embedding_text_if_live_latest_in_write(
+        tx: &WriteTransaction,
+        note_id: &Uuid,
+    ) -> Result<Option<String>, redb::Error> {
+        let Some(block) = NOTE_STORE.get_in_write(tx, note_id.as_bytes())? else {
+            return Ok(None);
+        };
+        if NOTE_DELETE.contains_in_write(tx, note_id.as_bytes())?
+            || NOTE_EDIT.has_children_in_write(tx, note_id)?
+        {
+            return Ok(None);
+        }
+
+        let text = Self::filter_search_text(&block.content);
+        Ok((!text.trim().is_empty()).then_some(text))
+    }
+
     pub fn content(&self) -> &str {
         &self.inner.content
     }

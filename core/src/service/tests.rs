@@ -1,5 +1,11 @@
 use super::*;
-use std::{net::TcpListener, sync::mpsc, thread, time::Duration};
+use crate::nlp::embedding::{EmbeddingError, EmbeddingModel};
+use std::{
+    net::TcpListener,
+    sync::{mpsc, Arc, Condvar, Mutex as StdMutex},
+    thread,
+    time::Duration,
+};
 use tempfile::tempdir;
 use uuid::Uuid;
 
@@ -11,8 +17,14 @@ fn seed_db(path: &Path, tags: &[&str]) {
     TagWriter::init_schema(&tx).unwrap();
 
     let tag_writer = TagWriter::new(&tx);
+    let mut materialized = Vec::new();
     for tag in tags {
-        tag_writer.find_or_create(*tag).unwrap();
+        materialized.push(tag_writer.find_or_create(*tag).unwrap());
+    }
+
+    // search_tags 只返回挂有 live note 的 tag
+    if !materialized.is_empty() {
+        Note::create(&tx, "seed note".into(), materialized).unwrap();
     }
 
     tx.commit().unwrap();
@@ -168,6 +180,7 @@ fn test_semantic_search_initializes_from_existing_notes() {
             vec!["life".into()],
         )
         .unwrap();
+    assert_eq!(service.backfill_note_embeddings().unwrap(), 2);
 
     drop(service);
 
@@ -186,6 +199,7 @@ fn test_semantic_search_tracks_note_lifecycle() {
         .create_note("tokio runtime ownership".to_string(), vec!["async".into()])
         .unwrap();
 
+    assert_eq!(service.backfill_note_embeddings().unwrap(), 1);
     let initial = service.search_semantic("tokio runtime", 5).unwrap();
     assert!(initial.iter().any(|note| note.id == original.id));
 
@@ -197,6 +211,7 @@ fn test_semantic_search_tracks_note_lifecycle() {
         )
         .unwrap();
 
+    assert_eq!(service.backfill_note_embeddings().unwrap(), 1);
     let old_results = service.search_semantic("tokio runtime", 5).unwrap();
     assert!(!old_results.iter().any(|note| note.id == edited.id));
 
@@ -208,6 +223,7 @@ fn test_semantic_search_tracks_note_lifecycle() {
     assert!(!after_delete.iter().any(|note| note.id == edited.id));
 
     service.restore_note(&edited.id).unwrap();
+    assert_eq!(service.backfill_note_embeddings().unwrap(), 1);
     let after_restore = service.search_semantic("sql planner", 5).unwrap();
     assert!(after_restore.iter().any(|note| note.id == edited.id));
 }
@@ -228,9 +244,10 @@ fn test_fusion_search_combines_fuzzy_and_semantic_results() {
             vec!["life".into()],
         )
         .unwrap();
+    assert_eq!(service.backfill_note_embeddings().unwrap(), 2);
 
     let results = service
-        .search_fusion("async ownership", 5, None, Some(10))
+        .search_fusion("async ownership", 5, Some(10), Some(10))
         .unwrap();
 
     assert!(!results.is_empty());
@@ -238,6 +255,190 @@ fn test_fusion_search_combines_fuzzy_and_semantic_results() {
     assert!(results[0].score > 0.0);
     assert!(results[0].sources.contains(&SearchSourceDTO::Fuzzy));
     assert!(results[0].sources.contains(&SearchSourceDTO::Semantic));
+}
+
+#[test]
+fn test_backfill_note_embeddings_fills_pending_slots() {
+    let service = SynapService::new(None).unwrap();
+
+    let note = service
+        .create_note("pending embedding note".to_string(), vec!["async".into()])
+        .unwrap();
+
+    let before = service.search_semantic("pending embedding", 5).unwrap();
+    assert!(!before.iter().any(|item| item.id == note.id));
+
+    assert_eq!(service.backfill_note_embeddings().unwrap(), 1);
+    assert_eq!(service.backfill_note_embeddings().unwrap(), 0);
+
+    let after = service.search_semantic("pending embedding", 5).unwrap();
+    assert!(after.iter().any(|item| item.id == note.id));
+}
+
+#[test]
+fn test_stale_backfill_snapshot_cannot_restore_superseded_vector() {
+    let service = SynapService::new(None).unwrap();
+    let original = service
+        .create_note("old embedding text".to_string(), vec![])
+        .unwrap();
+    let original_id = Uuid::parse_str(&original.id).unwrap();
+    let stale_text = service
+        .with_read(|_tx, reader| Ok(reader.get_by_id(&original_id)?.unwrap().get_search_text()))
+        .unwrap();
+
+    let edited = service
+        .edit_note(&original.id, "new embedding text".to_string(), vec![])
+        .unwrap();
+    let committed = service
+        .commit_note_embedding(original_id, &stale_text, &vec![1.0; 384])
+        .unwrap();
+
+    assert!(!committed);
+    let old_vector = service
+        .with_read(|tx, _reader| service.semantic_index.get(tx, original_id.as_bytes()))
+        .unwrap();
+    assert!(old_vector.is_none());
+
+    let edited_id = Uuid::parse_str(&edited.id).unwrap();
+    let edited_vector = service
+        .with_read(|tx, _reader| service.semantic_index.get(tx, edited_id.as_bytes()))
+        .unwrap()
+        .unwrap();
+    assert!(edited_vector.is_empty());
+}
+
+struct BlockingEmbedding {
+    started: mpsc::Sender<()>,
+    release: Arc<(StdMutex<bool>, Condvar)>,
+}
+
+impl EmbeddingModel for BlockingEmbedding {
+    fn embed(&self, _text: &str) -> Result<Vec<f32>, EmbeddingError> {
+        let _ = self.started.send(());
+        let (released, wake) = &*self.release;
+        let mut released = released.lock().unwrap();
+        while !*released {
+            released = wake.wait(released).unwrap();
+        }
+        Ok(vec![1.0; 384])
+    }
+
+    fn dimension(&self) -> usize {
+        384
+    }
+}
+
+#[test]
+fn test_slow_backfill_does_not_hold_write_transaction_and_serializes_config_change() {
+    let service = Arc::new(SynapService::new(None).unwrap());
+    service
+        .create_note("slow remote embedding".to_string(), vec![])
+        .unwrap();
+
+    let (started_tx, started_rx) = mpsc::channel();
+    let release = Arc::new((StdMutex::new(false), Condvar::new()));
+    service
+        .semantic_index
+        .set_embedding_model(Arc::new(BlockingEmbedding {
+            started: started_tx,
+            release: release.clone(),
+        }));
+
+    let backfill_service = service.clone();
+    let backfill = thread::spawn(move || backfill_service.backfill_note_embeddings());
+    started_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+
+    let (config_tx, config_rx) = mpsc::channel();
+    let config_service = service.clone();
+    let config_change = thread::spawn(move || {
+        let result = config_service.set_embedding_config(EmbeddingConfigDTO {
+            provider: EmbeddingProviderDTO::LocalHash,
+            dimension: 256,
+            endpoint: None,
+            api_key: None,
+            model: None,
+            timeout_ms: None,
+        });
+        let _ = config_tx.send(result);
+    });
+    assert!(config_rx.recv_timeout(Duration::from_millis(100)).is_err());
+
+    let (create_tx, create_rx) = mpsc::channel();
+    let create_service = service.clone();
+    let create_note = thread::spawn(move || {
+        let result = create_service.create_note("write stays available".to_string(), vec![]);
+        let _ = create_tx.send(result);
+    });
+    let create_completed_while_embedding = create_rx.recv_timeout(Duration::from_secs(1));
+
+    let (released, wake) = &*release;
+    *released.lock().unwrap() = true;
+    wake.notify_all();
+
+    create_note.join().unwrap();
+    assert!(create_completed_while_embedding.unwrap().is_ok());
+    assert_eq!(backfill.join().unwrap().unwrap(), 1);
+    config_change.join().unwrap();
+    assert_eq!(config_rx.recv().unwrap().unwrap().dimension, 256);
+}
+
+#[test]
+fn test_embedding_config_default_and_change_invalidates_vectors() {
+    let service = SynapService::new(None).unwrap();
+
+    let cfg = service.get_embedding_config();
+    assert_eq!(cfg.provider, EmbeddingProviderDTO::LocalHash);
+    assert_eq!(cfg.dimension, 384);
+
+    let note = service
+        .create_note("config change ownership".to_string(), vec!["cfg".into()])
+        .unwrap();
+    assert_eq!(service.backfill_note_embeddings().unwrap(), 1);
+    assert!(service
+        .search_semantic("ownership", 5)
+        .unwrap()
+        .iter()
+        .any(|item| item.id == note.id));
+
+    // 改成另一个本地维度：应清空向量
+    let updated = service
+        .set_embedding_config(EmbeddingConfigDTO {
+            provider: EmbeddingProviderDTO::LocalHash,
+            dimension: 256,
+            endpoint: None,
+            api_key: None,
+            model: None,
+            timeout_ms: None,
+        })
+        .unwrap();
+    assert_eq!(updated.dimension, 256);
+    assert_eq!(service.get_embedding_config().dimension, 256);
+
+    let after_invalidate = service.search_semantic("ownership", 5).unwrap();
+    assert!(!after_invalidate.iter().any(|item| item.id == note.id));
+
+    let mut progress = Vec::new();
+    let filled = service
+        .backfill_note_embeddings_with_progress(&mut |p| progress.push(p))
+        .unwrap();
+    assert_eq!(filled, 1);
+    assert!(!progress.is_empty());
+    assert_eq!(
+        progress.last().unwrap().processed,
+        progress.last().unwrap().total
+    );
+    assert_eq!(progress.last().unwrap().filled, 1);
+
+    assert!(service
+        .search_semantic("ownership", 5)
+        .unwrap()
+        .iter()
+        .any(|item| item.id == note.id));
+
+    // backfill 后应整图重建 UMAP，而不是增量 upsert
+    let points = service.get_starmap().unwrap();
+    assert!(points.iter().any(|p| p.id == note.id));
+    assert!(points.iter().all(|p| p.x.is_finite() && p.y.is_finite()));
 }
 
 #[test]
@@ -262,6 +463,7 @@ fn test_get_starmap_returns_latest_visible_notes_only() {
         .unwrap();
 
     service.delete_note(&deleted.id).unwrap();
+    service.backfill_note_embeddings().unwrap();
 
     let points = service.get_starmap().unwrap();
     let ids = points

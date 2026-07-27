@@ -39,7 +39,7 @@ impl SynapService {
             Ok(())
         })?;
 
-        self.rebuild_note_embeddings()
+        self.reconcile_note_embeddings()
     }
 
     pub(crate) fn refresh_search_indexes(&self) -> Result<(), ServiceError> {
@@ -67,13 +67,22 @@ impl SynapService {
     }
 
     pub fn search_semantic(&self, query: &str, limit: usize) -> Result<Vec<NoteDTO>, ServiceError> {
-        let uuids = self.with_read(|tx, _reader| {
-            let results = self.semantic_index.search(tx, query, limit)?;
-            Ok(results
-                .into_iter()
-                .map(|item| Uuid::from_bytes(item.note_id))
-                .collect::<Vec<_>>())
-        })?;
+        let uuids = {
+            let _lifecycle = self
+                .embedding_lifecycle
+                .read()
+                .expect("embedding lifecycle lock");
+            let query_vector = self.semantic_index.embed(query)?;
+            self.with_read(|tx, _reader| {
+                let results = self
+                    .semantic_index
+                    .search_vector(tx, &query_vector, limit)?;
+                Ok(results
+                    .into_iter()
+                    .map(|item| Uuid::from_bytes(item.note_id))
+                    .collect::<Vec<_>>())
+            })?
+        };
 
         self.with_read(|_tx, reader| {
             uuids
@@ -105,8 +114,17 @@ impl SynapService {
         let semantic_limit = semantic_limit.unwrap_or(limit);
 
         let fuzzy_results = self.note_searcher.search(query, fuzzy_limit, None);
-        let semantic_results =
-            self.with_read(|tx, _reader| self.semantic_index.search(tx, query, semantic_limit))?;
+        let semantic_results = {
+            let _lifecycle = self
+                .embedding_lifecycle
+                .read()
+                .expect("embedding lifecycle lock");
+            let query_vector = self.semantic_index.embed(query)?;
+            self.with_read(|tx, _reader| {
+                self.semantic_index
+                    .search_vector(tx, &query_vector, semantic_limit)
+            })?
+        };
 
         let mut hits = HashMap::<Uuid, AggregatedSearchHit>::new();
         let fuzzy_len = fuzzy_results.items.len();

@@ -1,5 +1,6 @@
 use redb::{
-    ReadOnlyTable, ReadTransaction, ReadableTableMetadata, TableDefinition, WriteTransaction,
+    ReadOnlyTable, ReadTransaction, ReadableTable, ReadableTableMetadata, TableDefinition,
+    WriteTransaction,
 };
 
 /// 静态表定义：SetStore - 仅存储 Key 的集合，无 Value
@@ -54,6 +55,16 @@ impl<K: redb::Key + 'static> SetStore<K> {
         let table = tx.open_table(self.def)?;
         let exists = table.get(key)?.is_some();
         Ok(exists)
+    }
+
+    pub fn contains_in_write<'k>(
+        &self,
+        tx: &WriteTransaction,
+        key: impl std::borrow::Borrow<K::SelfType<'k>>,
+    ) -> Result<bool, redb::Error> {
+        let table = tx.open_table(self.def)?;
+        let contains = table.get(key)?.is_some();
+        Ok(contains)
     }
 
     /// 获取 Reader，用于读取操作

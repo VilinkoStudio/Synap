@@ -1,5 +1,6 @@
 //! Data models for Synap.
 
+pub(crate) mod config;
 pub(crate) mod crypto;
 pub(crate) mod note;
 pub(crate) mod relay_peer;

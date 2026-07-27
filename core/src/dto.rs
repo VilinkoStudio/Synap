@@ -330,3 +330,31 @@ pub struct PeerSyncStatsDTO {
     pub peer_status: Option<PeerTrustStatusDTO>,
     pub recent_sessions: Vec<SyncSessionRecordDTO>,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct EmbeddingConfigDTO {
+    pub provider: EmbeddingProviderDTO,
+    pub dimension: usize,
+    pub endpoint: Option<String>,
+    pub api_key: Option<String>,
+    pub model: Option<String>,
+    pub timeout_ms: Option<u64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum EmbeddingProviderDTO {
+    LocalHash,
+    Http,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct EmbeddingBackfillProgressDTO {
+    pub total: usize,
+    pub processed: usize,
+    pub filled: usize,
+    pub skipped: usize,
+    pub current_note_id: Option<String>,
+}

@@ -1,15 +1,16 @@
 use std::{
-    borrow::Cow,
     collections::{HashMap, HashSet},
     io::{Read, Write},
     path::Path,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
 };
 
 mod convert;
 pub mod discovery;
 pub use discovery::MdnsDiscoveryError;
+mod embedding;
 mod note_command;
+
 mod note_query;
 mod peer;
 mod relay_peer;
@@ -24,15 +25,17 @@ use crate::{
     crypto,
     db::umap::UmapCache,
     dto::{
-        LocalIdentityDTO, NoteDTO, NoteNeighborsDTO, NoteSegmentDTO, NoteSegmentDirectionDTO,
-        NoteVersionDTO, PeerDTO, PeerSyncStatsDTO, PeerTrustStatusDTO, PublicKeyInfoDTO,
-        RelayFetchStatsDTO, RelayPushStatsDTO, SearchResultDTO, SearchSourceDTO, ShareStatsDTO,
-        StarmapPointDTO, SyncSessionDTO, SyncSessionRecordDTO, SyncSessionRoleDTO, SyncStatsDTO,
-        SyncStatusDTO, SyncTransportKindDTO, TimelineDensityPointDTO, TimelineGroupDTO,
-        TimelineNotesPageDTO, TimelineSessionDTO, TimelineSessionsPageDTO,
+        EmbeddingBackfillProgressDTO, EmbeddingConfigDTO, EmbeddingProviderDTO, LocalIdentityDTO,
+        NoteDTO, NoteNeighborsDTO, NoteSegmentDTO, NoteSegmentDirectionDTO, NoteVersionDTO,
+        PeerDTO, PeerSyncStatsDTO, PeerTrustStatusDTO, PublicKeyInfoDTO, RelayFetchStatsDTO,
+        RelayPushStatsDTO, SearchResultDTO, SearchSourceDTO, ShareStatsDTO, StarmapPointDTO,
+        SyncSessionDTO, SyncSessionRecordDTO, SyncSessionRoleDTO, SyncStatsDTO, SyncStatusDTO,
+        SyncTransportKindDTO, TimelineDensityPointDTO, TimelineGroupDTO, TimelineNotesPageDTO,
+        TimelineSessionDTO, TimelineSessionsPageDTO,
     },
     error::ServiceError,
     models::{
+        config::{ConfigWriter, CoreConfig},
         crypto::{CryptoReader, CryptoWriter},
         note::{Note, NoteReader, NoteRef},
         relay_peer::{RelayPeerReader, RelayPeerRecord, RelayPeerWriter},
@@ -42,7 +45,7 @@ use crate::{
         },
         tag::{Tag, TagReader, TagWriter},
     },
-    nlp::{embedding::LocalHashEmbedding, NlpDocument, NlpTagIndex},
+    nlp::{NlpDocument, NlpTagIndex},
     search::{searcher::FuzzyIndex, semantic::SemanticIndex, types::Searchable},
     sync::{RelayInventory, RelaySyncService, ShareService, SyncPeerIdentity, SyncService},
     views::{
@@ -80,6 +83,10 @@ impl ServiceTagRecommender {
 
 pub struct SynapService {
     db: redb::Database,
+    /// Coordinates model use with atomic configuration changes.
+    embedding_lifecycle: RwLock<()>,
+    /// 强类型核心配置；落盘由 config model 负责，运行时归 service 所有。
+    config: Mutex<CoreConfig>,
     #[allow(dead_code)]
     tag_searcher: FuzzyIndex<Tag>,
     #[allow(dead_code)]

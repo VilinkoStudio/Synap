@@ -64,4 +64,7 @@ pub enum ServiceError {
 
     #[error("embedding error: {0}")]
     Embedding(#[from] crate::nlp::embedding::EmbeddingError),
+
+    #[error("config error: {0}")]
+    Config(#[from] crate::models::config::ConfigError),
 }
