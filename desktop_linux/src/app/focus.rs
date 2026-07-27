@@ -33,7 +33,6 @@ impl App {
                     "notes"
                 }
             }
-            ContentView::Settings => "settings",
         };
         self.content_stack.set_visible_child_name(child_name);
         self.rebuild_list(sender);

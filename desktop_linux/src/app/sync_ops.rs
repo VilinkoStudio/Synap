@@ -170,4 +170,172 @@ impl App {
             let _ = sender.input_sender().send(AppMsg::PeerDeleted(result));
         });
     }
+
+    pub(super) fn set_peer_status(
+        &mut self,
+        peer_id: String,
+        status: synap_core::dto::PeerTrustStatusDTO,
+        sender: &ComponentSender<Self>,
+    ) {
+        self.state.sync.is_managing_peer = true;
+        // For desktop, set_peer_status is equivalent to trust_peer when status is Trusted
+        // For other statuses, we'd need a dedicated API. For now, handle Trusted case.
+        let core = self.core.clone();
+        let sender = sender.clone();
+        gtk::glib::spawn_future_local(async move {
+            let result = match status {
+                synap_core::dto::PeerTrustStatusDTO::Trusted => {
+                    // Get the peer's public key and trust them
+                    match core.get_peers() {
+                        Ok(peers) => {
+                            if let Some(peer) = peers.iter().find(|p| p.id == peer_id) {
+                                let pk = peer.public_key.clone();
+                                let note = peer.note.clone();
+                                core.trust_peer(&pk, note)
+                            } else {
+                                Err(synap_core::error::ServiceError::NotFound(
+                                    format!("设备 {peer_id} 未找到"),
+                                ))
+                            }
+                        }
+                        Err(e) => Err(e),
+                    }
+                }
+                _ => {
+                    // For other statuses, just refresh peers
+                    Err(synap_core::error::ServiceError::Other(anyhow::anyhow!(
+                        "暂不支持设置此设备状态"
+                    )))
+                }
+            };
+            let _ = sender.input_sender().send(AppMsg::PeerTrusted(result));
+        });
+    }
+
+    pub(super) fn dismiss_pending_trust_prompt(&mut self) {
+        self.state.sync.pending_trust_peer = None;
+    }
+
+    // ── Relay operations ──
+
+    pub(super) fn update_relay_base_url(&mut self, value: &str) {
+        self.state.sync.relay_base_url = value.to_string();
+        self.state.sync.relay_status_message = None;
+    }
+
+    pub(super) fn update_relay_api_key(&mut self, value: &str) {
+        self.state.sync.relay_api_key = value.to_string();
+        self.state.sync.relay_status_message = None;
+    }
+
+    pub(super) fn save_relay_config(&mut self, sender: &ComponentSender<Self>) {
+        self.state.sync.is_relay_syncing = true;
+        self.state.sync.error_message = None;
+        self.state.sync.relay_status_message = None;
+        let core = self.core.clone();
+        let base_url = self.state.sync.relay_base_url.clone();
+        let api_key = self.state.sync.relay_api_key.clone();
+        let sender = sender.clone();
+        gtk::glib::spawn_future_local(async move {
+            let result = core.save_relay_config(&base_url, &api_key);
+            let _ = sender
+                .input_sender()
+                .send(AppMsg::RelayConfigSaved(result));
+        });
+    }
+
+    pub(super) fn finish_save_relay_config(
+        &mut self,
+        result: Result<(), synap_core::error::ServiceError>,
+    ) {
+        self.state.sync.is_relay_syncing = false;
+        match result {
+            Ok(()) => {
+                self.state.sync.relay_status_message =
+                    Some("Relay 配置已保存".to_string());
+                self.state.sync.error_message = None;
+            }
+            Err(e) => {
+                self.state.sync.error_message =
+                    Some(format!("保存 Relay 配置失败: {e}"));
+            }
+        }
+    }
+
+    pub(super) fn fetch_relay_updates(&mut self, sender: &ComponentSender<Self>) {
+        self.state.sync.is_relay_syncing = true;
+        self.state.sync.error_message = None;
+        self.state.sync.relay_status_message = None;
+        // Auto-save config before fetching (matches Android behavior)
+        let base_url = self.state.sync.relay_base_url.clone();
+        let api_key = self.state.sync.relay_api_key.clone();
+        let _ = self.core.save_relay_config(&base_url, &api_key);
+        let core = self.core.clone();
+        let sender = sender.clone();
+        gtk::glib::spawn_future_local(async move {
+            let result = core.relay_fetch_updates();
+            let _ = sender
+                .input_sender()
+                .send(AppMsg::RelayFetchCompleted(result));
+        });
+    }
+
+    pub(super) fn finish_fetch_relay_updates(
+        &mut self,
+        result: Result<synap_core::dto::RelayFetchStatsDTO, synap_core::error::ServiceError>,
+    ) {
+        self.state.sync.is_relay_syncing = false;
+        match result {
+            Ok(stats) => {
+                self.state.sync.relay_status_message = Some(format!(
+                    "拉取完成：获取 {} 封，导入 {} 封",
+                    stats.fetched_messages, stats.imported_messages
+                ));
+                self.state.sync.error_message = None;
+            }
+            Err(e) => {
+                self.state.sync.error_message =
+                    Some(format!("Relay 拉取失败: {e}"));
+            }
+        }
+    }
+
+    pub(super) fn push_relay_updates(&mut self, sender: &ComponentSender<Self>) {
+        self.state.sync.is_relay_syncing = true;
+        self.state.sync.error_message = None;
+        self.state.sync.relay_status_message = None;
+        // Auto-save config before pushing (matches Android behavior)
+        let base_url = self.state.sync.relay_base_url.clone();
+        let api_key = self.state.sync.relay_api_key.clone();
+        let _ = self.core.save_relay_config(&base_url, &api_key);
+        let core = self.core.clone();
+        let sender = sender.clone();
+        gtk::glib::spawn_future_local(async move {
+            let result = core.relay_push_updates();
+            let _ = sender
+                .input_sender()
+                .send(AppMsg::RelayPushCompleted(result));
+        });
+    }
+
+    pub(super) fn finish_push_relay_updates(
+        &mut self,
+        result: Result<synap_core::dto::RelayPushStatsDTO, synap_core::error::ServiceError>,
+    ) {
+        self.state.sync.is_relay_syncing = false;
+        match result {
+            Ok(stats) => {
+                self.state.sync.relay_status_message = Some(format!(
+                    "推送完成：投递 {}/{} 个设备",
+                    stats.posted_messages, stats.trusted_peers
+                ));
+                self.state.sync.error_message = None;
+            }
+            Err(e) => {
+                self.state.sync.error_message =
+                    Some(format!("Relay 推送失败: {e}"));
+            }
+        }
+    }
+
 }

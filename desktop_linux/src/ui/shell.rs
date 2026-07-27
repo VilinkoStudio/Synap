@@ -34,25 +34,6 @@ pub struct ContentPages {
     pub editing_hint_label: gtk::Label,
     pub editing_tags_entry: gtk::Entry,
     pub recommend_tags_box: gtk::Box,
-
-    // settings
-    pub theme_dropdown: gtk::DropDown,
-    pub sync_listener_row: adw::ActionRow,
-    pub sync_addresses_row: adw::ActionRow,
-    pub sync_identity_row: adw::ActionRow,
-    pub sync_signing_row: adw::ActionRow,
-    pub sync_error_label: gtk::Label,
-    // relay
-    pub relay_base_url_entry: gtk::Entry,
-    pub relay_api_key_entry: gtk::Entry,
-    pub relay_status_label: gtk::Label,
-    // connections
-    pub sync_host_entry: gtk::Entry,
-    pub sync_port_entry: gtk::Entry,
-    pub sync_discovered_box: gtk::Box,
-    pub sync_connections_box: gtk::Box,
-    pub sync_peers_box: gtk::Box,
-    pub sync_sessions_box: gtk::Box,
 }
 
 pub fn build_content_pages(state: &AppState, sender: &relm4::Sender<AppMsg>) -> ContentPages {
@@ -72,9 +53,6 @@ pub fn build_content_pages(state: &AppState, sender: &relm4::Sender<AppMsg>) -> 
     empty_page.set_icon_name(Some("document-new-symbolic"));
     empty_page.add_css_class("compact");
     content_stack.add_named(&empty_page, Some("empty"));
-
-    let settings_page = build_settings_page(state, sender);
-    content_stack.add_named(&settings_page.root, Some("settings"));
 
     // ── Focus page (shared reading/editing) ──
 
@@ -113,22 +91,6 @@ pub fn build_content_pages(state: &AppState, sender: &relm4::Sender<AppMsg>) -> 
         editing_hint_label: editing_overlay.hint_label,
         editing_tags_entry: editing_overlay.tags_entry,
         recommend_tags_box: editing_overlay.recommend_tags_box,
-
-        theme_dropdown: settings_page.theme_dropdown,
-        sync_listener_row: settings_page.sync_listener_row,
-        sync_addresses_row: settings_page.sync_addresses_row,
-        sync_identity_row: settings_page.sync_identity_row,
-        sync_signing_row: settings_page.sync_signing_row,
-        sync_error_label: settings_page.sync_error_label,
-        relay_base_url_entry: settings_page.relay_base_url_entry,
-        relay_api_key_entry: settings_page.relay_api_key_entry,
-        relay_status_label: settings_page.relay_status_label,
-        sync_host_entry: settings_page.sync_host_entry,
-        sync_port_entry: settings_page.sync_port_entry,
-        sync_discovered_box: settings_page.sync_discovered_box,
-        sync_connections_box: settings_page.sync_connections_box,
-        sync_peers_box: settings_page.sync_peers_box,
-        sync_sessions_box: settings_page.sync_sessions_box,
     }
 }
 
@@ -329,32 +291,29 @@ fn build_editing_overlay(sender: &relm4::Sender<AppMsg>) -> EditingOverlay {
 
 // ── Settings page ──
 
-struct SettingsPage {
-    root: gtk::ScrolledWindow,
-    theme_dropdown: gtk::DropDown,
-    sync_listener_row: adw::ActionRow,
-    sync_addresses_row: adw::ActionRow,
-    sync_identity_row: adw::ActionRow,
-    sync_signing_row: adw::ActionRow,
-    sync_error_label: gtk::Label,
+pub struct SettingsPage {
+    pub root: adw::PreferencesPage,
+    pub theme_dropdown: gtk::DropDown,
+    pub sync_listener_row: adw::ActionRow,
+    pub sync_addresses_row: adw::ActionRow,
+    pub sync_identity_row: adw::ActionRow,
+    pub sync_signing_row: adw::ActionRow,
+    pub sync_error_label: gtk::Label,
     // Relay
-    relay_base_url_entry: gtk::Entry,
-    relay_api_key_entry: gtk::Entry,
-    relay_status_label: gtk::Label,
+    pub relay_base_url_entry: gtk::Entry,
+    pub relay_api_key_entry: gtk::Entry,
+    pub relay_status_label: gtk::Label,
     // Connections
-    sync_host_entry: gtk::Entry,
-    sync_port_entry: gtk::Entry,
-    sync_discovered_box: gtk::Box,
-    sync_connections_box: gtk::Box,
-    sync_peers_box: gtk::Box,
-    sync_sessions_box: gtk::Box,
+    pub sync_host_entry: gtk::Entry,
+    pub sync_port_entry: gtk::Entry,
+    pub sync_discovered_box: gtk::Box,
+    pub sync_connections_box: gtk::Box,
+    pub sync_peers_box: gtk::Box,
+    pub sync_sessions_box: gtk::Box,
 }
 
 fn build_settings_page(state: &AppState, sender: &relm4::Sender<AppMsg>) -> SettingsPage {
     let page = adw::PreferencesPage::new();
-    let root = gtk::ScrolledWindow::new();
-    smooth_scroller(&root);
-    root.set_child(Some(&page));
 
     // ── 外观 ──
 
@@ -490,9 +449,11 @@ fn build_settings_page(state: &AppState, sender: &relm4::Sender<AppMsg>) -> Sett
     relay_buttons_box.append(&relay_save_btn);
     relay_buttons_box.append(&relay_fetch_btn);
     relay_buttons_box.append(&relay_push_btn);
+    relay_buttons_box.add_css_class("synap-relay-buttons");
     relay_group.add(&relay_buttons_box);
 
     let relay_status_label = gtk::Label::new(None);
+    relay_status_label.add_css_class("synap-relay-status");
     relay_status_label.add_css_class("success");
     relay_status_label.set_halign(gtk::Align::Start);
     relay_status_label.set_wrap(true);
@@ -574,7 +535,7 @@ fn build_settings_page(state: &AppState, sender: &relm4::Sender<AppMsg>) -> Sett
     page.add(&sessions_group);
 
     SettingsPage {
-        root,
+        root: page,
         theme_dropdown,
         sync_listener_row,
         sync_addresses_row,
@@ -591,6 +552,24 @@ fn build_settings_page(state: &AppState, sender: &relm4::Sender<AppMsg>) -> Sett
         sync_peers_box,
         sync_sessions_box,
     }
+}
+
+/// Build the settings dialog. Returns the dialog and the SettingsPage widget handles.
+pub fn build_settings_dialog(
+    state: &AppState,
+    sender: &relm4::Sender<AppMsg>,
+) -> (adw::PreferencesDialog, SettingsPage) {
+    let settings_page = build_settings_page(state, sender);
+
+    let dialog = adw::PreferencesDialog::builder()
+        .title("设置")
+        .content_width(620)
+        .content_height(680)
+        .build();
+
+    dialog.add(&settings_page.root);
+
+    (dialog, settings_page)
 }
 
 // ── Helpers ──
@@ -616,7 +595,6 @@ fn initial_content_child(state: &AppState) -> &'static str {
             }
         }
         ContentView::Trash => "notes",
-        ContentView::Settings => "settings",
     }
 }
 

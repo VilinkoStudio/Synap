@@ -77,6 +77,12 @@ pub struct App {
     toast_overlay: adw::ToastOverlay,
     overlay_split_view: adw::OverlaySplitView,
     content_stack: gtk::Stack,
+    settings_dialog: adw::PreferencesDialog,
+
+    // Header bar Stacks (set visible child manually to avoid GtkStack warning)
+    header_start_stack: gtk::Stack,
+    header_title_stack: gtk::Stack,
+    header_end_stack: gtk::Stack,
 
     // 分组的 widget 引用
     list: ListWidgets,
@@ -190,17 +196,12 @@ impl SimpleComponent for App {
                             set_margin_end: 6,
                             connect_row_selected[sender] => move |_, row| {
                                 if row.is_some() {
-                                    sender.input(AppMsg::Navigate(ContentView::Settings));
+                                    sender.input(AppMsg::OpenSettings);
                                 }
                             },
 
                             gtk::ListBoxRow {
-                                #[watch]
-                                set_css_classes: if model.state.content_view == ContentView::Settings {
-                                    &["synap-nav-row", "active"]
-                                } else {
-                                    &["synap-nav-row"]
-                                },
+                                set_css_classes: &["synap-nav-row"],
                                 set_activatable: true,
                                 gtk::Box {
                                     set_orientation: gtk::Orientation::Horizontal,
@@ -225,14 +226,10 @@ impl SimpleComponent for App {
                             set_show_end_title_buttons: true,
 
                             // ── Start: add (browse) / back (reading/editing) ──
+                            #[name(header_start_stack)]
                             pack_start = &gtk::Stack {
                                 set_transition_type: gtk::StackTransitionType::Crossfade,
                                 set_transition_duration: 150,
-                                #[watch]
-                                set_visible_child_name: match model.state.focus_mode {
-                                    FocusMode::Browse => "browse",
-                                    _ => "other",
-                                },
 
                                 add_named[Some("browse")] = &gtk::Button {
                                     set_icon_name: "list-add-symbolic",
@@ -255,23 +252,16 @@ impl SimpleComponent for App {
 
                             // ── Title: switches between modes ──
                             #[wrap(Some)]
+                            #[name(header_title_stack)]
                             set_title_widget = &gtk::Stack {
                                 set_transition_type: gtk::StackTransitionType::Crossfade,
                                 set_transition_duration: 150,
-                                #[watch]
-                                set_visible_child_name: match model.state.focus_mode {
-                                    FocusMode::Browse => "browse",
-                                    FocusMode::Reading(_) => "reading",
-                                    FocusMode::Editing(_) => "editing",
-                                },
 
                                 add_named[Some("browse")] = &adw::Clamp {
                                     set_maximum_size: 420,
                                     gtk::SearchEntry {
                                         set_placeholder_text: Some("搜索内容或标签"),
                                         set_hexpand: true,
-                                        #[watch]
-                                        set_visible: model.state.content_view != ContentView::Settings,
                                         connect_search_changed[sender] => move |entry| {
                                             sender.input(AppMsg::SearchChanged(entry.text().to_string()));
                                         }
@@ -293,15 +283,10 @@ impl SimpleComponent for App {
                             },
 
                             // ── End: action buttons per mode ──
+                            #[name(header_end_stack)]
                             pack_end = &gtk::Stack {
                                 set_transition_type: gtk::StackTransitionType::Crossfade,
                                 set_transition_duration: 150,
-                                #[watch]
-                                set_visible_child_name: match model.state.focus_mode {
-                                    FocusMode::Browse => "browse",
-                                    FocusMode::Reading(_) => "reading",
-                                    FocusMode::Editing(_) => "editing",
-                                },
 
                                 add_named[Some("browse")] = &gtk::Button {
                                     set_icon_name: "edit-clear-symbolic",
@@ -423,13 +408,21 @@ impl SimpleComponent for App {
         let pages = build_content_pages(&state, sender.input_sender());
         let content_stack = pages.content_stack.clone();
 
-        let model = App {
+        // Build settings dialog separately (not part of content stack)
+        let (settings_dialog, settings_page) =
+            crate::ui::shell::build_settings_dialog(&state, sender.input_sender());
+
+        let mut model = App {
             core: core.clone(),
             state,
             search_debounce: None,
             toast_overlay: toast_overlay.clone(),
             overlay_split_view: overlay_split_view.clone(),
             content_stack: pages.content_stack,
+            settings_dialog,
+            header_start_stack: gtk::Stack::new(),
+            header_title_stack: gtk::Stack::new(),
+            header_end_stack: gtk::Stack::new(),
 
             list: ListWidgets {
                 empty_page: pages.empty_page,
@@ -452,25 +445,32 @@ impl SimpleComponent for App {
             home_flow_box: pages.home_flow_box,
             home_tag_box: pages.home_tag_box,
             settings: SettingsWidgets {
-                theme_dropdown: pages.theme_dropdown,
-                listener_row: pages.sync_listener_row,
-                addresses_row: pages.sync_addresses_row,
-                identity_row: pages.sync_identity_row,
-                signing_row: pages.sync_signing_row,
-                error_label: pages.sync_error_label,
-                relay_base_url_entry: pages.relay_base_url_entry,
-                relay_api_key_entry: pages.relay_api_key_entry,
-                relay_status_label: pages.relay_status_label,
-                host_entry: pages.sync_host_entry,
-                port_entry: pages.sync_port_entry,
-                discovered_box: pages.sync_discovered_box,
-                connections_box: pages.sync_connections_box,
-                peers_box: pages.sync_peers_box,
-                sessions_box: pages.sync_sessions_box,
+                theme_dropdown: settings_page.theme_dropdown,
+                listener_row: settings_page.sync_listener_row,
+                addresses_row: settings_page.sync_addresses_row,
+                identity_row: settings_page.sync_identity_row,
+                signing_row: settings_page.sync_signing_row,
+                error_label: settings_page.sync_error_label,
+                relay_base_url_entry: settings_page.relay_base_url_entry,
+                relay_api_key_entry: settings_page.relay_api_key_entry,
+                relay_status_label: settings_page.relay_status_label,
+                host_entry: settings_page.sync_host_entry,
+                port_entry: settings_page.sync_port_entry,
+                discovered_box: settings_page.sync_discovered_box,
+                connections_box: settings_page.sync_connections_box,
+                peers_box: settings_page.sync_peers_box,
+                sessions_box: settings_page.sync_sessions_box,
             },
         };
 
         let widgets = view_output!();
+
+        // Set header bar Stack visible children (after widget tree is fully built)
+        model.header_start_stack = widgets.header_start_stack.clone();
+        model.header_title_stack = widgets.header_title_stack.clone();
+        model.header_end_stack = widgets.header_end_stack.clone();
+        model.update_header_stacks();
+
         model.sync_ui(&sender);
 
         // ── Global keyboard shortcuts ──
@@ -501,6 +501,10 @@ impl SimpleComponent for App {
         match msg {
             // ── Browse navigation ──
             AppMsg::Navigate(view) => self.navigate(view, &sender),
+            AppMsg::OpenSettings => {
+                self.refresh_sync(&sender);
+                self.settings_dialog.present(Some(&self.toast_overlay));
+            }
             AppMsg::SearchChanged(query) => {
                 self.state.search_query = query;
                 // Debounce search: cancel previous timer, schedule new one (200ms)
@@ -638,18 +642,40 @@ impl SimpleComponent for App {
             AppMsg::UpdateRelayBaseUrl(value) => self.update_relay_base_url(&value),
             AppMsg::UpdateRelayApiKey(value) => self.update_relay_api_key(&value),
             AppMsg::SaveRelayConfig => self.save_relay_config(&sender),
-            AppMsg::RelayConfigSaved(result) => self.finish_save_relay_config(result),
+            AppMsg::RelayConfigSaved(result) => {
+                self.finish_save_relay_config(result);
+                if self.state.sync.relay_status_message.is_some() {
+                    self.toast_overlay
+                        .add_toast(adw::Toast::new("Relay 配置已保存"));
+                }
+            }
 
             // ── Relay operations ──
             AppMsg::FetchRelayUpdates => self.fetch_relay_updates(&sender),
             AppMsg::PushRelayUpdates => self.push_relay_updates(&sender),
             AppMsg::RelayFetchCompleted(result) => {
+                let has_error = result.is_err();
                 self.finish_fetch_relay_updates(result);
                 self.refresh_sync(&sender);
+                if has_error {
+                    self.toast_overlay
+                        .add_toast(adw::Toast::new("Relay 拉取失败"));
+                } else {
+                    self.toast_overlay
+                        .add_toast(adw::Toast::new("Relay 拉取完成"));
+                }
             }
             AppMsg::RelayPushCompleted(result) => {
+                let has_error = result.is_err();
                 self.finish_push_relay_updates(result);
                 self.refresh_sync(&sender);
+                if has_error {
+                    self.toast_overlay
+                        .add_toast(adw::Toast::new("Relay 推送失败"));
+                } else {
+                    self.toast_overlay
+                        .add_toast(adw::Toast::new("Relay 推送完成"));
+                }
             }
 
             // ── Async operation results ──

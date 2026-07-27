@@ -16,12 +16,32 @@ use crate::{
 impl App {
     pub(super) fn sync_ui(&self, sender: &ComponentSender<Self>) {
         self.sync_content_stack();
+        self.update_header_stacks();
         self.sync_empty_page();
         self.sync_home_feed(sender);
         self.sync_reading(sender);
         self.sync_editing();
         self.sync_theme_dropdown();
         self.sync_settings(sender);
+    }
+
+    /// Set visible child name on header bar Stacks (after children are added).
+    pub(super) fn update_header_stacks(&self) {
+        use crate::domain::FocusMode;
+
+        let start_child = match &self.state.focus_mode {
+            FocusMode::Browse => "browse",
+            _ => "other",
+        };
+        self.header_start_stack.set_visible_child_name(start_child);
+
+        let title_child = match &self.state.focus_mode {
+            FocusMode::Browse => "browse",
+            FocusMode::Reading(_) => "reading",
+            FocusMode::Editing(_) => "editing",
+        };
+        self.header_title_stack.set_visible_child_name(title_child);
+        self.header_end_stack.set_visible_child_name(title_child);
     }
 
     fn sync_content_stack(&self) {
@@ -34,7 +54,6 @@ impl App {
             ContentView::Notes | ContentView::Trash => {
                 if is_empty { "empty" } else { "notes" }
             }
-            ContentView::Settings => "settings",
         };
         self.content_stack.set_visible_child_name(child_name);
     }
@@ -59,7 +78,6 @@ impl App {
                 "回收站中没有匹配项",
                 format!("回收站里没有与\"{}\"相关的内容。", self.state.search_query),
             ),
-            _ => ("", String::new()),
         };
         self.list.empty_page.set_title(title);
         self.list.empty_page.set_description(Some(&desc));

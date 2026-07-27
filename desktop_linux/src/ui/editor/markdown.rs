@@ -50,7 +50,7 @@ impl PangoRenderer {
                     self.push_escaped(&text);
                 }
                 Event::Code(code) => {
-                    self.output.push_str("<span font_family=\"monospace\" font_size=\"smaller\" background=\"alpha(currentColor, 0.08)\">");
+                    self.output.push_str("<span font_family=\"monospace\" font_size=\"smaller\" background=\"rgba(0, 0, 0, 0.08)\">");
                     self.push_escaped(&code);
                     self.output.push_str("</span>");
                 }

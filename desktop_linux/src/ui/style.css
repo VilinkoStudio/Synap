@@ -17,12 +17,12 @@ scrollbar slider {
     min-width: 4px;
     min-height: 4px;
     border-radius: 100px;
-    background-color: alpha(currentColor, 0.15);
+    background-color: alpha(@theme_fg_color, 0.15);
     transition: min-width 200ms ease, min-height 200ms ease, background-color 200ms ease;
 }
 
 scrollbar slider:hover {
-    background-color: alpha(currentColor, 0.3);
+    background-color: alpha(@theme_fg_color, 0.3);
     min-width: 6px;
 }
 
@@ -65,7 +65,7 @@ scrollbar.horizontal slider:hover {
 }
 
 .synap-nav-row:hover {
-    background-color: alpha(currentColor, 0.05);
+    background-color: alpha(@theme_fg_color, 0.05);
 }
 
 .synap-nav-row image {
@@ -80,7 +80,7 @@ scrollbar.horizontal slider:hover {
 }
 
 .synap-nav-row.active {
-    background-color: alpha(currentColor, 0.07);
+    background-color: alpha(@theme_fg_color, 0.07);
 }
 
 .synap-nav-row.active image {
@@ -101,7 +101,7 @@ scrollbar.horizontal slider:hover {
 }
 
 .synap-note-card:hover {
-    background-color: alpha(currentColor, 0.04);
+    background-color: alpha(@theme_fg_color, 0.04);
 }
 
 .synap-note-card label.synap-card-content {
@@ -126,7 +126,7 @@ scrollbar.horizontal slider:hover {
 
 .synap-tag-chip:hover {
     opacity: 0.7;
-    background-color: alpha(currentColor, 0.08);
+    background-color: alpha(@theme_fg_color, 0.08);
 }
 
 /* ── Section Headings ── */
@@ -156,8 +156,8 @@ button.flat {
 .synap-detail-clamp {
     margin-top: 40px;
     margin-bottom: 48px;
-    margin-start: 36px;
-    margin-end: 36px;
+    margin-left: 36px;
+    margin-right: 36px;
 }
 
 .synap-detail-article {
@@ -169,8 +169,8 @@ button.flat {
 .synap-draft-clamp {
     margin-top: 40px;
     margin-bottom: 48px;
-    margin-start: 36px;
-    margin-end: 36px;
+    margin-left: 36px;
+    margin-right: 36px;
 }
 
 .synap-draft-shell {
@@ -211,7 +211,6 @@ button.flat {
 
 .synap-recommend-tags {
     margin-top: 6px;
-    flex-wrap: wrap;
 }
 
 .synap-recommend-tags button.pill.flat {
@@ -243,4 +242,35 @@ button.flat {
 
 .synap-restore-btn:hover {
     opacity: 1;
+}
+
+/* ── Relay Status ── */
+
+.synap-relay-status {
+    font-size: 12px;
+    padding: 4px 12px;
+    margin-top: 4px;
+}
+
+.synap-relay-status.success {
+    color: @success_color;
+    opacity: 0.85;
+}
+
+.synap-relay-status.error {
+    color: @error_color;
+    opacity: 0.85;
+}
+
+/* ── Relay Buttons ── */
+
+.synap-relay-buttons {
+    margin-top: 8px;
+    margin-bottom: 4px;
+}
+
+.synap-relay-buttons button {
+    font-size: 13px;
+    padding: 4px 16px;
+    border-radius: 8px;
 }

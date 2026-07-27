@@ -41,7 +41,7 @@
 .synap-editor-code-block {
     border-radius: 8px;
     padding: 12px 16px;
-    background-color: alpha(currentColor, 0.05);
+    background-color: alpha(@theme_fg_color, 0.05);
 }
 
 .synap-editor-code-lang {
@@ -58,13 +58,13 @@
 /* ── Editor Blockquote ── */
 
 .synap-editor-blockquote {
-    padding-start: 12px;
+    padding-left: 12px;
 }
 
 .synap-editor-blockquote-bar {
-    background-color: alpha(currentColor, 0.25);
+    background-color: alpha(@theme_fg_color, 0.25);
     border-radius: 2px;
-    margin-end: 12px;
+    margin-right: 12px;
 }
 
 .synap-editor-blockquote-content {
@@ -74,7 +74,7 @@
 /* ── Editor List ── */
 
 .synap-editor-list {
-    padding-start: 4px;
+    padding-left: 4px;
 }
 
 .synap-editor-list-marker {
@@ -89,7 +89,7 @@
     margin-top: 12px;
     margin-bottom: 12px;
     min-height: 1px;
-    background-color: alpha(currentColor, 0.12);
+    background-color: alpha(@theme_fg_color, 0.12);
 }
 
 /* ── Editor Block Hover (edit mode hint) ── */
@@ -102,9 +102,8 @@
 }
 
 .synap-editor-block-editable:hover {
-    background-color: alpha(currentColor, 0.04);
-    border-color: alpha(currentColor, 0.08);
-    cursor: text;
+    background-color: alpha(@theme_fg_color, 0.04);
+    border-color: alpha(@theme_fg_color, 0.08);
 }
 
 /* ── Editor Source Edit View ── */
@@ -114,7 +113,6 @@
     line-height: 1.6;
     padding: 0;
     background: transparent;
-    caret-color: currentColor;
 }
 
 .synap-editor-source text {
@@ -135,10 +133,10 @@
 .synap-reading-tags-overlay {
     padding: 6px 14px;
     border-radius: 20px;
-    background-color: alpha(currentColor, 0.06);
+    background-color: alpha(@theme_fg_color, 0.06);
     transition: opacity 200ms ease;
 }
 
 .synap-reading-tags-overlay:hover {
-    background-color: alpha(currentColor, 0.1);
+    background-color: alpha(@theme_fg_color, 0.1);
 }

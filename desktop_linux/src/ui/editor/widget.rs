@@ -243,12 +243,12 @@ fn setup_syntax_tags(buffer: &gtk::TextBuffer) {
     add("code_inline", |t| {
         t.set_family(Some("monospace"));
         t.set_foreground(Some("#c62828"));
-        t.set_background(Some("alpha(currentColor, 0.06)"));
+        t.set_background(Some("rgba(0, 0, 0, 0.06)"));
     });
     add("code_block", |t| {
         t.set_family(Some("monospace"));
         t.set_foreground(Some("#c62828"));
-        t.set_background(Some("alpha(currentColor, 0.04)"));
+        t.set_background(Some("rgba(0, 0, 0, 0.04)"));
         t.set_left_margin(16);
     });
     add("link", |t| {

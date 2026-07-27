@@ -11,6 +11,7 @@ use synap_core::{
 pub enum AppMsg {
     // ── Browse navigation ──
     Navigate(ContentView),
+    OpenSettings,
     SearchChanged(String),
     RunSearch,
     ClearFilters,

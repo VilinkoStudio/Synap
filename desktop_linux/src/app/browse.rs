@@ -20,10 +20,6 @@ impl App {
         self.state.content_view = view;
         self.state.sync_selection();
         self.rebuild_list(sender);
-
-        if view == ContentView::Settings {
-            self.refresh_sync(sender);
-        }
     }
 
     pub(super) fn clear_filters(&mut self, sender: &ComponentSender<Self>) {
@@ -52,7 +48,6 @@ impl App {
         let cursor = match self.state.content_view {
             ContentView::Notes => self.state.home.notes_cursor.clone(),
             ContentView::Trash => self.state.home.deleted_notes_cursor.clone(),
-            _ => None,
         };
 
         if let Some(cursor) = cursor {
@@ -96,7 +91,6 @@ impl App {
                         self.state.home.deleted_notes_cursor = next_cursor;
                         self.state.home.has_more_deleted_notes = has_more;
                     }
-                    _ => {}
                 }
                 self.rebuild_list(sender);
             }

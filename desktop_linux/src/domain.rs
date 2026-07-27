@@ -7,7 +7,6 @@ use synap_core::dto::{
 pub enum ContentView {
     Notes,
     Trash,
-    Settings,
 }
 
 /// 浏览/沉浸模式
@@ -199,15 +198,10 @@ impl AppState {
             ContentView::Trash => {
                 filter_deleted_notes(&self.home.deleted_notes, &self.search_query)
             }
-            ContentView::Settings => Vec::new(),
         }
     }
 
     pub fn sync_selection(&mut self) {
-        if self.content_view == ContentView::Settings {
-            return;
-        }
-
         let visible = self.visible_notes();
 
         let is_selected_visible = self
@@ -444,13 +438,6 @@ mod tests {
     }
 
     #[test]
-    fn visible_notes_returns_empty_for_settings() {
-        let mut state = AppState::default();
-        state.content_view = ContentView::Settings;
-        assert!(state.visible_notes().is_empty());
-    }
-
-    #[test]
     fn visible_notes_filters_trash_by_query() {
         let mut state = AppState::default();
         state.home.deleted_notes = vec![
@@ -493,15 +480,6 @@ mod tests {
         state.selected_note_id = Some("nonexistent".to_string());
         state.sync_selection();
         assert_eq!(state.selected_note_id.as_deref(), Some("1"));
-    }
-
-    #[test]
-    fn sync_selection_skips_settings() {
-        let mut state = AppState::default();
-        state.content_view = ContentView::Settings;
-        state.selected_note_id = Some("old".to_string());
-        state.sync_selection();
-        assert_eq!(state.selected_note_id.as_deref(), Some("old"));
     }
 
     #[test]
