@@ -75,12 +75,14 @@ impl SynapService {
     pub fn sign_mdns_discovery(&self) -> Result<([u8; 32], [u8; 64]), ServiceError> {
         let tx = self.db.begin_read()?;
         let reader = CryptoReader::new(&tx)?;
-        let public_key = crypto::local_signing_public_key(&reader)?
-            .ok_or_else(|| ServiceError::Other(anyhow::anyhow!("local signing identity is missing")))?;
+        let public_key = crypto::local_signing_public_key(&reader)?.ok_or_else(|| {
+            ServiceError::Other(anyhow::anyhow!("local signing identity is missing"))
+        })?;
 
         let payload = mdns_signing_payload(&public_key);
-        let signature = crypto::sign_with_local_identity(&reader, &payload)?
-            .ok_or_else(|| ServiceError::Other(anyhow::anyhow!("local signing identity is missing")))?;
+        let signature = crypto::sign_with_local_identity(&reader, &payload)?.ok_or_else(|| {
+            ServiceError::Other(anyhow::anyhow!("local signing identity is missing"))
+        })?;
 
         Ok((public_key, signature))
     }
@@ -88,10 +90,7 @@ impl SynapService {
     /// Verify an mDNS discovery broadcast from TXT record hex fields.
     ///
     /// Returns the verified signing public key on success.
-    pub fn verify_mdns_discovery(
-        key_hex: &str,
-        sig_hex: &str,
-    ) -> Result<[u8; 32], ServiceError> {
+    pub fn verify_mdns_discovery(key_hex: &str, sig_hex: &str) -> Result<[u8; 32], ServiceError> {
         verify_mdns_discovery_txt(key_hex, sig_hex).map_err(Into::into)
     }
 }

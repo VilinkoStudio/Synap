@@ -9,6 +9,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 similar = "3.1.0"
 ureq = "3.3.0"
+zrip = { version = "0.8.3", features = ["dict_builder"] }
 
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

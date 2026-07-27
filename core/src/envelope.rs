@@ -1,4 +1,4 @@
-use std::{borrow::Cow, io};
+use std::{borrow::Cow, io, sync::Arc};
 
 use chacha20poly1305::{aead::Aead, KeyInit, XChaCha20Poly1305, XNonce};
 use rand::random;
@@ -16,12 +16,39 @@ pub struct EnvelopeEncryptionConfig {
     pub key: [u8; 32],
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone)]
+pub enum EnvelopeCompression {
+    Lz4,
+    Zstd {
+        level: i32,
+    },
+    ZstdWithDictionary {
+        level: i32,
+        dictionary: Arc<zrip::Dictionary>,
+    },
+}
+
+impl std::fmt::Debug for EnvelopeCompression {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Lz4 => f.write_str("Lz4"),
+            Self::Zstd { level } => f.debug_struct("Zstd").field("level", level).finish(),
+            Self::ZstdWithDictionary { level, .. } => f
+                .debug_struct("ZstdWithDictionary")
+                .field("level", level)
+                .field("dictionary", &"<configured>")
+                .finish(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct EnvelopeConfig {
     pub compression_threshold_bytes: usize,
     pub max_decompressed_bytes: usize,
     pub max_envelope_depth: usize,
     pub encryption: Option<EnvelopeEncryptionConfig>,
+    pub compression: EnvelopeCompression,
 }
 
 impl EnvelopeConfig {
@@ -30,15 +57,29 @@ impl EnvelopeConfig {
         max_decompressed_bytes: 64 * 1024 * 1024,
         max_envelope_depth: 4,
         encryption: None,
+        compression: EnvelopeCompression::Zstd { level: 1 },
     };
 
-    pub const fn with_encryption(mut self, encryption: EnvelopeEncryptionConfig) -> Self {
+    pub fn with_encryption(mut self, encryption: EnvelopeEncryptionConfig) -> Self {
         self.encryption = Some(encryption);
+        self
+    }
+
+    pub fn with_zstd(mut self, level: i32) -> Self {
+        self.compression = EnvelopeCompression::Zstd { level };
+        self
+    }
+
+    pub fn with_zstd_dictionary(mut self, level: i32, dictionary: zrip::Dictionary) -> Self {
+        self.compression = EnvelopeCompression::ZstdWithDictionary {
+            level,
+            dictionary: Arc::new(dictionary),
+        };
         self
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Envelope {
     config: EnvelopeConfig,
 }
@@ -63,6 +104,8 @@ enum EnvelopeKind {
     Plain = 0,
     Lz4 = 1,
     XChaCha20Poly1305 = 2,
+    Zstd = 3,
+    ZstdWithDictionary = 4,
 }
 
 impl TryFrom<u8> for EnvelopeKind {
@@ -73,6 +116,8 @@ impl TryFrom<u8> for EnvelopeKind {
             0 => Ok(Self::Plain),
             1 => Ok(Self::Lz4),
             2 => Ok(Self::XChaCha20Poly1305),
+            3 => Ok(Self::Zstd),
+            4 => Ok(Self::ZstdWithDictionary),
             other => Err(EnvelopeError::UnknownEnvelopeKind(other)),
         }
     }
@@ -104,6 +149,12 @@ pub enum EnvelopeError {
     #[error("lz4 decompression failed: {0}")]
     Decompress(lz4_flex::block::DecompressError),
 
+    #[error("zstd compression or decompression failed")]
+    Zstd,
+
+    #[error("envelope requires a zstd dictionary but none was provided")]
+    MissingCompressionDictionary,
+
     #[error("envelope requires an encryption key but none was provided")]
     MissingEncryptionKey,
 
@@ -121,10 +172,7 @@ pub fn encode_bytes(payload: &[u8], config: &EnvelopeConfig) -> Result<Vec<u8>, 
     let mut encoded = encode_envelope_layer(EnvelopeKind::Plain, payload, payload.len())?;
 
     if payload.len() >= config.compression_threshold_bytes {
-        let compressed = lz4_flex::block::compress(&encoded);
-        if compressed.len() + ENVELOPE_HEADER_LEN < encoded.len() {
-            encoded = encode_envelope_layer(EnvelopeKind::Lz4, &compressed, encoded.len())?;
-        }
+        encoded = compress_envelope_layer(encoded, config)?;
     }
 
     if let Some(encryption) = config.encryption {
@@ -204,6 +252,34 @@ fn decode_envelope_bytes<'a>(
             let nested = decode_envelope_bytes(&decompressed, depth + 1, config)?;
             Ok(Cow::Owned(nested.into_owned()))
         }
+        EnvelopeKind::Zstd | EnvelopeKind::ZstdWithDictionary => {
+            let expected_len = checked_decompressed_len(header.raw_len, config)?;
+            let decompressed = match header.kind {
+                EnvelopeKind::Zstd => zrip::decompress_with_limit(payload, expected_len)
+                    .map_err(|_| EnvelopeError::Zstd)?,
+                EnvelopeKind::ZstdWithDictionary => {
+                    let EnvelopeCompression::ZstdWithDictionary { dictionary, .. } =
+                        &config.compression
+                    else {
+                        return Err(EnvelopeError::MissingCompressionDictionary);
+                    };
+                    let mut context = zrip::DecompressContext::with_dict((**dictionary).clone());
+                    context
+                        .decompress_with_limit(payload, expected_len)
+                        .map_err(|_| EnvelopeError::Zstd)?
+                        .into_owned()
+                }
+                _ => unreachable!(),
+            };
+            if decompressed.len() != expected_len {
+                return Err(EnvelopeError::InvalidEnvelope(
+                    "decompressed payload length mismatch",
+                ));
+            }
+
+            let nested = decode_envelope_bytes(&decompressed, depth + 1, config)?;
+            Ok(Cow::Owned(nested.into_owned()))
+        }
         EnvelopeKind::XChaCha20Poly1305 => {
             let encryption = config
                 .encryption
@@ -271,7 +347,12 @@ fn parse_envelope(bytes: &[u8]) -> Result<(EnvelopeHeader, &[u8]), EnvelopeError
                 "plain envelope raw length mismatch",
             ));
         }
-        EnvelopeKind::Lz4 | EnvelopeKind::XChaCha20Poly1305 if raw_len == 0 => {
+        EnvelopeKind::Lz4
+        | EnvelopeKind::XChaCha20Poly1305
+        | EnvelopeKind::Zstd
+        | EnvelopeKind::ZstdWithDictionary
+            if raw_len == 0 =>
+        {
             return Err(EnvelopeError::InvalidEnvelope(
                 "wrapped envelope raw length cannot be zero",
             ));
@@ -283,6 +364,43 @@ fn parse_envelope(bytes: &[u8]) -> Result<(EnvelopeHeader, &[u8]), EnvelopeError
         EnvelopeHeader { kind, raw_len },
         &bytes[ENVELOPE_HEADER_LEN..],
     ))
+}
+
+fn compress_envelope_layer(
+    encoded: Vec<u8>,
+    config: &EnvelopeConfig,
+) -> Result<Vec<u8>, EnvelopeError> {
+    let raw_len = encoded.len();
+    let (kind, compressed) = match &config.compression {
+        EnvelopeCompression::Lz4 => (EnvelopeKind::Lz4, lz4_flex::block::compress(&encoded)),
+        EnvelopeCompression::Zstd { level } => (
+            EnvelopeKind::Zstd,
+            zrip::compress(&encoded, *level).map_err(|_| EnvelopeError::Zstd)?,
+        ),
+        EnvelopeCompression::ZstdWithDictionary { level, dictionary } => (
+            EnvelopeKind::ZstdWithDictionary,
+            zrip::compress_with_dict(&encoded, *level, dictionary)
+                .map_err(|_| EnvelopeError::Zstd)?,
+        ),
+    };
+
+    if compressed.len() + ENVELOPE_HEADER_LEN < raw_len {
+        encode_envelope_layer(kind, &compressed, raw_len)
+    } else {
+        Ok(encoded)
+    }
+}
+
+fn checked_decompressed_len(raw_len: u64, config: &EnvelopeConfig) -> Result<usize, EnvelopeError> {
+    let expected_len = usize::try_from(raw_len)
+        .map_err(|_| EnvelopeError::InvalidEnvelope("raw length does not fit usize"))?;
+    if expected_len > config.max_decompressed_bytes {
+        return Err(EnvelopeError::PayloadTooLarge {
+            actual: expected_len,
+            max: config.max_decompressed_bytes,
+        });
+    }
+    Ok(expected_len)
 }
 
 fn encode_envelope_layer(
@@ -335,6 +453,19 @@ mod tests {
         let decoded = decode_bytes(&encoded, &EnvelopeConfig::DEFAULT).unwrap();
 
         assert!(encoded.len() < payload.len() + ENVELOPE_HEADER_LEN);
+        assert_eq!(encoded[5], EnvelopeKind::Zstd as u8);
+        assert_eq!(decoded.as_ref(), payload.as_slice());
+    }
+
+    #[test]
+    fn zstd_payload_must_decode_to_original_payload() {
+        let payload = b"zstd envelope payload ".repeat(1024);
+        let config = EnvelopeConfig::DEFAULT.with_zstd(1);
+
+        let encoded = encode_bytes(&payload, &config).unwrap();
+        let decoded = decode_bytes(&encoded, &config).unwrap();
+
+        assert_eq!(encoded[5], EnvelopeKind::Zstd as u8);
         assert_eq!(decoded.as_ref(), payload.as_slice());
     }
 
