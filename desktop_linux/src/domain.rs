@@ -1,6 +1,6 @@
 use synap_core::dto::{
-    LocalIdentityDTO, NoteDTO, NoteVersionDTO, PeerDTO, PeerTrustStatusDTO,
-    SyncSessionRecordDTO, SyncSessionRoleDTO, SyncStatusDTO, SyncTransportKindDTO,
+    LocalIdentityDTO, NoteDTO, NoteVersionDTO, PeerDTO, PeerTrustStatusDTO, SyncSessionRecordDTO,
+    SyncSessionRoleDTO, SyncStatusDTO, SyncTransportKindDTO,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -364,6 +364,7 @@ mod tests {
             id: id.to_string(),
             content: content.to_string(),
             tags: tags.into_iter().map(String::from).collect(),
+            color: None,
             created_at: 1700000000000,
             deleted,
             reply_to: None,
@@ -518,12 +519,18 @@ mod tests {
 
     #[test]
     fn transport_label_relay_fetch() {
-        assert_eq!(transport_label(&SyncTransportKindDTO::RelayFetch), "Relay 拉取");
+        assert_eq!(
+            transport_label(&SyncTransportKindDTO::RelayFetch),
+            "Relay 拉取"
+        );
     }
 
     #[test]
     fn transport_label_relay_push() {
-        assert_eq!(transport_label(&SyncTransportKindDTO::RelayPush), "Relay 推送");
+        assert_eq!(
+            transport_label(&SyncTransportKindDTO::RelayPush),
+            "Relay 推送"
+        );
     }
 
     #[test]
@@ -535,4 +542,3 @@ mod tests {
         assert!(!state.is_relay_syncing);
     }
 }
-

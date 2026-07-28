@@ -97,6 +97,7 @@ mod tests {
             id: id.to_string(),
             content: content.to_string(),
             tags: tags.into_iter().map(String::from).collect(),
+            color: None,
             created_at: 1700000000000,
             deleted,
             reply_to: None,
@@ -345,11 +346,15 @@ mod tests {
         }
 
         fn relay_fetch_updates(&self) -> CoreResult<synap_core::dto::RelayFetchStatsDTO> {
-            Err(synap_core::error::ServiceError::Other(anyhow::anyhow!("not implemented")))
+            Err(synap_core::error::ServiceError::Other(anyhow::anyhow!(
+                "not implemented"
+            )))
         }
 
         fn relay_push_updates(&self) -> CoreResult<synap_core::dto::RelayPushStatsDTO> {
-            Err(synap_core::error::ServiceError::Other(anyhow::anyhow!("not implemented")))
+            Err(synap_core::error::ServiceError::Other(anyhow::anyhow!(
+                "not implemented"
+            )))
         }
     }
 
@@ -417,4 +422,3 @@ mod tests {
         assert!(result.is_err());
     }
 }
-
