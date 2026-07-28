@@ -8,10 +8,10 @@ use std::{
 use crate::error::FfiError;
 use crate::types::{
     BuildInfo, FilteredNoteStatus, LocalIdentityDTO, MdnsDiscoverySignatureDTO, NoteDTO,
-    NoteNeighborsDTO, NoteSegmentDTO, NoteSegmentDirectionDTO, NoteVersionDTO, PeerDTO,
-    RelayFetchStatsDTO, RelayPushStatsDTO, SearchResultDTO, ShareStatsDTO, StarmapPointDTO,
-    SyncSessionDTO, SyncSessionRecordDTO, TimelineDensityPointDTO, TimelineDirection,
-    TimelineNotesPageDTO, TimelineSessionsPageDTO,
+    NoteDraftDTO, NoteNeighborsDTO, NoteSegmentDTO, NoteSegmentDirectionDTO, NoteVersionDTO,
+    PeerDTO, RelayFetchStatsDTO, RelayPushStatsDTO, SearchResultDTO, ShareStatsDTO,
+    StarmapPointDTO, SyncSessionDTO, SyncSessionRecordDTO, TimelineDensityPointDTO,
+    TimelineDirection, TimelineNotesPageDTO, TimelineSessionsPageDTO,
 };
 use synap_core::dto::{
     NoteDTO as CoreNoteDTO, NoteNeighborsDTO as CoreNoteNeighborsDTO,
@@ -300,6 +300,13 @@ impl SynapService {
             .map_err(Into::into)
     }
 
+    pub fn backfill_note_embeddings(&self) -> Result<u64, FfiError> {
+        self.inner
+            .backfill_note_embeddings()
+            .map(|count| count as u64)
+            .map_err(Into::into)
+    }
+
     pub fn search_tags(&self, query: String, limit: u32) -> Result<Vec<String>, FfiError> {
         self.inner
             .search_tags(&query, limit as usize)
@@ -483,6 +490,105 @@ impl SynapService {
             .map_err(Into::into)
     }
 
+    pub fn set_note_color(
+        &self,
+        target_id: String,
+        color: Option<String>,
+    ) -> Result<NoteDTO, FfiError> {
+        self.inner
+            .set_note_color(&target_id, color)
+            .map(Self::map_note)
+            .map_err(Into::into)
+    }
+
+    pub fn draft_new(&self) -> Result<NoteDraftDTO, FfiError> {
+        self.inner.draft_new().map(Into::into).map_err(Into::into)
+    }
+
+    pub fn draft_from_note(&self, note_id: String) -> Result<NoteDraftDTO, FfiError> {
+        self.inner
+            .draft_from_note(&note_id)
+            .map(Into::into)
+            .map_err(Into::into)
+    }
+
+    pub fn draft_reply_to(&self, parent_id: String) -> Result<NoteDraftDTO, FfiError> {
+        self.inner
+            .draft_reply_to(&parent_id)
+            .map(Into::into)
+            .map_err(Into::into)
+    }
+
+    pub fn draft_get(&self, draft_id: String) -> Result<NoteDraftDTO, FfiError> {
+        self.inner
+            .draft_get(&draft_id)
+            .map(Into::into)
+            .map_err(Into::into)
+    }
+
+    pub fn draft_list(&self) -> Result<Vec<NoteDraftDTO>, FfiError> {
+        self.inner
+            .draft_list()
+            .map(|items| items.into_iter().map(Into::into).collect())
+            .map_err(Into::into)
+    }
+
+    pub fn draft_persist(&self, draft_id: String) -> Result<NoteDraftDTO, FfiError> {
+        self.inner
+            .draft_persist(&draft_id)
+            .map(Into::into)
+            .map_err(Into::into)
+    }
+
+    pub fn draft_discard(&self, draft_id: String) -> Result<(), FfiError> {
+        self.inner.draft_discard(&draft_id).map_err(Into::into)
+    }
+
+    pub fn draft_update(
+        &self,
+        draft_id: String,
+        content: Option<String>,
+        tags: Option<Vec<String>>,
+        color: Option<String>,
+        update_color: bool,
+        reply_to: Option<String>,
+        update_reply_to: bool,
+        edited_from: Option<String>,
+        update_edited_from: bool,
+        expected_revision: Option<u64>,
+    ) -> Result<NoteDraftDTO, FfiError> {
+        let color_patch = if update_color { Some(color) } else { None };
+        let reply_patch = if update_reply_to {
+            Some(reply_to)
+        } else {
+            None
+        };
+        let edited_patch = if update_edited_from {
+            Some(edited_from)
+        } else {
+            None
+        };
+        self.inner
+            .draft_update_checked(
+                &draft_id,
+                content,
+                tags,
+                color_patch,
+                reply_patch,
+                edited_patch,
+                expected_revision,
+            )
+            .map(Into::into)
+            .map_err(Into::into)
+    }
+
+    pub fn draft_commit(&self, draft_id: String) -> Result<NoteDTO, FfiError> {
+        self.inner
+            .draft_commit(&draft_id)
+            .map(Self::map_note)
+            .map_err(Into::into)
+    }
+
     pub fn delete_note(&self, target_id: String) -> Result<(), FfiError> {
         self.inner.delete_note(&target_id).map_err(Into::into)
     }
@@ -621,7 +727,6 @@ impl SynapService {
             signature: signature.to_vec(),
         })
     }
-
 }
 
 /// Verify an mDNS discovery broadcast from raw bytes (free function for UDL).
@@ -636,16 +741,10 @@ fn verify_mdns_discovery_impl(
     signing_public_key: Vec<u8>,
     signature: Vec<u8>,
 ) -> Result<bool, FfiError> {
-    let key: [u8; 32] = signing_public_key
-        .try_into()
-        .map_err(|_| FfiError::Other)?;
-    let sig: [u8; 64] = signature
-        .try_into()
-        .map_err(|_| FfiError::Other)?;
+    let key: [u8; 32] = signing_public_key.try_into().map_err(|_| FfiError::Other)?;
+    let sig: [u8; 64] = signature.try_into().map_err(|_| FfiError::Other)?;
 
-    Ok(
-        synap_core::service::discovery::verify_mdns_discovery_signature(&key, &sig).is_ok(),
-    )
+    Ok(synap_core::service::discovery::verify_mdns_discovery_signature(&key, &sig).is_ok())
 }
 
 /// Open a file-based database.
@@ -969,5 +1068,53 @@ mod tests {
 
         let version = get_version_string();
         assert_eq!(version, info.display_version);
+    }
+
+    #[test]
+    fn test_draft_memory_persist_update_and_idempotent_commit_are_exposed() {
+        let service = open_memory().unwrap();
+        let memory = service.draft_new().unwrap();
+        assert!(!memory.persisted);
+        assert_eq!(memory.revision, 0);
+
+        let memory = service
+            .draft_update(
+                memory.id.clone(),
+                Some("ffi draft".into()),
+                Some(vec!["ffi".into()]),
+                Some("#123456".into()),
+                true,
+                None,
+                false,
+                None,
+                false,
+                None,
+            )
+            .unwrap();
+        assert_eq!(memory.color.as_deref(), Some("#123456"));
+
+        let persisted = service.draft_persist(memory.id.clone()).unwrap();
+        assert!(persisted.persisted);
+        assert_eq!(persisted.revision, 1);
+        let updated = service
+            .draft_update(
+                persisted.id.clone(),
+                Some("ffi draft v2".into()),
+                None,
+                None,
+                false,
+                None,
+                false,
+                None,
+                false,
+                Some(1),
+            )
+            .unwrap();
+        assert_eq!(updated.revision, 2);
+
+        let committed = service.draft_commit(updated.id.clone()).unwrap();
+        assert_eq!(committed.content, "ffi draft v2");
+        assert_eq!(committed.color.as_deref(), Some("#123456"));
+        assert_eq!(service.draft_commit(updated.id).unwrap().id, committed.id);
     }
 }

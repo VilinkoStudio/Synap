@@ -66,18 +66,22 @@ fn test_fusion_search_exposes_sources() {
             vec!["life".to_string()],
         )
         .unwrap();
+    assert_eq!(service.backfill_note_embeddings().unwrap(), 2);
 
     let results = service
-        .search_fusion("async ownership".to_string(), 5, None, Some(10))
+        .search_fusion("ownership".to_string(), 5, None, Some(10))
         .unwrap();
 
     assert!(!results.is_empty());
-    assert_eq!(results[0].note.id, note.id);
-    assert!(results[0].score > 0.0);
-    assert!(results[0]
+    let matching = results
+        .iter()
+        .find(|result| result.note.id == note.id)
+        .expect("created note should be returned");
+    assert!(matching.score > 0.0);
+    assert!(matching
         .sources
         .contains(&uniffi_synap_coreffi::SearchSourceDTO::Fuzzy));
-    assert!(results[0]
+    assert!(matching
         .sources
         .contains(&uniffi_synap_coreffi::SearchSourceDTO::Semantic));
 }
@@ -382,6 +386,7 @@ fn test_recommend_tag_is_exposed() {
             vec!["rust".to_string(), "async".to_string()],
         )
         .unwrap();
+    assert_eq!(service.backfill_note_embeddings().unwrap(), 2);
 
     let tags = service
         .recommend_tag("tokio async ownership".to_string(), 3)

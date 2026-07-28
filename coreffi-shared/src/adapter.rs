@@ -12,7 +12,7 @@ pub use crate::service::{
 };
 pub use crate::types::{
     BuildInfo, FilteredNoteStatus, LocalIdentityDTO, MdnsDiscoverySignatureDTO, NoteBriefDTO,
-    NoteContentDiffStatsDTO, NoteDTO, NoteNeighborContextDTO, NoteNeighborsDTO,
+    NoteContentDiffStatsDTO, NoteDTO, NoteDraftDTO, NoteNeighborContextDTO, NoteNeighborsDTO,
     NoteSegmentBranchChoiceDTO, NoteSegmentDTO, NoteSegmentDirectionDTO, NoteSegmentStepDTO,
     NoteTagDiffDTO, NoteTextChangeDTO, NoteTextChangeKindDTO, NoteVersionDTO, NoteVersionDiffDTO,
     PeerDTO, PeerTrustStatusDTO, PublicKeyInfoDTO, RelayFetchStatsDTO, RelayPushStatsDTO,

@@ -19,7 +19,8 @@ use synap_core::dto::{
     SyncTransportKindDTO as CoreSyncTransportKindDto,
     TimelineDensityPointDTO as CoreTimelineDensityPointDto,
     TimelineGroupDTO as CoreTimelineGroupDto, TimelineNotesPageDTO as CoreTimelineNotesPageDto,
-    TimelineSessionDTO as CoreTimelineSessionDto, TimelineSessionsPageDTO as CoreTimelineSessionsPageDto,
+    TimelineSessionDTO as CoreTimelineSessionDto,
+    TimelineSessionsPageDTO as CoreTimelineSessionsPageDto,
 };
 use synap_core::service::FilteredNoteStatus as CoreFilteredNoteStatus;
 use synap_core::service::TimelineDirection as CoreTimelineDirection;
@@ -84,6 +85,7 @@ pub struct NoteDTO {
     pub id: String,
     pub content: String,
     pub tags: Vec<String>,
+    pub color: Option<String>,
     pub created_at: i64,
     pub deleted: bool,
     pub reply_to: Option<NoteBriefDTO>,
@@ -97,11 +99,43 @@ impl From<CoreNoteDto> for NoteDTO {
             id: note.id,
             content: note.content,
             tags: note.tags,
+            color: note.color,
             created_at: note.created_at as i64,
             deleted: note.deleted,
             reply_to: note.reply_to.map(Into::into),
             edited_from: note.edited_from.map(Into::into),
             timeline_group: note.timeline_group.map(Into::into),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoteDraftDTO {
+    pub id: String,
+    pub content: String,
+    pub tags: Vec<String>,
+    pub color: Option<String>,
+    pub reply_to: Option<String>,
+    pub edited_from: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub persisted: bool,
+    pub revision: u64,
+}
+
+impl From<synap_core::NoteDraftDTO> for NoteDraftDTO {
+    fn from(draft: synap_core::NoteDraftDTO) -> Self {
+        Self {
+            id: draft.id,
+            content: draft.content,
+            tags: draft.tags,
+            color: draft.color,
+            reply_to: draft.reply_to,
+            edited_from: draft.edited_from,
+            created_at: draft.created_at as i64,
+            updated_at: draft.updated_at as i64,
+            persisted: draft.persisted,
+            revision: draft.revision,
         }
     }
 }
@@ -800,6 +834,7 @@ mod tests {
             id: "0195f9a8-d085-7f9d-a604-469e0f91d0e3".to_string(),
             content: "Test content".to_string(),
             tags: vec!["rust".to_string(), "android".to_string()],
+            color: Some("#ff0000".to_string()),
             created_at: 1_742_165_200_000,
             deleted: false,
             reply_to: Some(CoreNoteBriefDto {
@@ -815,6 +850,7 @@ mod tests {
         assert_eq!(ffi_note.id, "0195f9a8-d085-7f9d-a604-469e0f91d0e3");
         assert_eq!(ffi_note.content, "Test content");
         assert_eq!(ffi_note.tags, vec!["rust", "android"]);
+        assert_eq!(ffi_note.color.as_deref(), Some("#ff0000"));
         assert_eq!(ffi_note.created_at, 1_742_165_200_000);
         assert!(!ffi_note.deleted);
         assert_eq!(

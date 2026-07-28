@@ -27,7 +27,7 @@ impl From<ServiceError> for FfiError {
             ServiceError::Db(_) | ServiceError::TransactionErr(_) | ServiceError::CommitErr(_) => {
                 FfiError::Database
             }
-            ServiceError::NotFound(_) => FfiError::NotFound,
+            ServiceError::NotFound(_) | ServiceError::DraftNotFound(_) => FfiError::NotFound,
             ServiceError::InvalidId | ServiceError::UuidErr(_) | ServiceError::SliceErr(_) => {
                 FfiError::InvalidId
             }
@@ -37,7 +37,10 @@ impl From<ServiceError> for FfiError {
             | ServiceError::Other(_)
             | ServiceError::ShareProtocol(_)
             | ServiceError::Embedding(_)
-            | ServiceError::Config(_) => FfiError::Other,
+            | ServiceError::Config(_)
+            | ServiceError::InvalidTagMetadata(_)
+            | ServiceError::InvalidDraft(_)
+            | ServiceError::DraftRevisionConflict { .. } => FfiError::Other,
         }
     }
 }

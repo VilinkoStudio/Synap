@@ -54,11 +54,25 @@ dictionary NoteDTO {
     string id;
     string content;
     sequence<string> tags;
+    string? color;
     i64 created_at;
     boolean deleted;
     NoteBriefDTO? reply_to;
     NoteBriefDTO? edited_from;
     TimelineGroupDTO? timeline_group;
+};
+
+dictionary NoteDraftDTO {
+    string id;
+    string content;
+    sequence<string> tags;
+    string? color;
+    string? reply_to;
+    string? edited_from;
+    i64 created_at;
+    i64 updated_at;
+    boolean persisted;
+    u64 revision;
 };
 
 dictionary NoteSegmentBranchChoiceDTO {
@@ -318,6 +332,7 @@ interface SynapService {
     [Throws=FfiError] sequence<NoteVersionDTO> get_other_versions(string note_id);
     [Throws=FfiError] sequence<NoteDTO> get_deleted_notes(string? cursor, u32? limit);
     [Throws=FfiError] sequence<StarmapPointDTO> get_starmap();
+    [Throws=FfiError] u64 backfill_note_embeddings();
     [Throws=FfiError] sequence<NoteDTO> search(string query, u32 limit);
     [Throws=FfiError] sequence<SearchResultDTO> search_fusion(
         string query,
@@ -378,6 +393,30 @@ interface SynapService {
     [Throws=FfiError] NoteDTO create_note(string content, sequence<string> tags);
     [Throws=FfiError] NoteDTO reply_note(string parent_id, string content, sequence<string> tags);
     [Throws=FfiError] NoteDTO edit_note(string target_id, string new_content, sequence<string> tags);
+    // NoteDraft staging buffer (full note entity; commit = single ledger append)
+    [Throws=FfiError] NoteDraftDTO draft_new();
+    [Throws=FfiError] NoteDraftDTO draft_from_note(string note_id);
+    [Throws=FfiError] NoteDraftDTO draft_reply_to(string parent_id);
+    [Throws=FfiError] NoteDraftDTO draft_get(string draft_id);
+    [Throws=FfiError] sequence<NoteDraftDTO> draft_list();
+    [Throws=FfiError] NoteDraftDTO draft_persist(string draft_id);
+    [Throws=FfiError] void draft_discard(string draft_id);
+    // Null fields mean "keep". For color/reply_to/edited_from: pass update_*=true to apply
+    // (null value clears). update_*=false ignores the value.
+    [Throws=FfiError] NoteDraftDTO draft_update(
+        string draft_id,
+        string? content,
+        sequence<string>? tags,
+        string? color,
+        boolean update_color,
+        string? reply_to,
+        boolean update_reply_to,
+        string? edited_from,
+        boolean update_edited_from,
+        u64? expected_revision
+    );
+    [Throws=FfiError] NoteDTO draft_commit(string draft_id);
+    [Throws=FfiError] NoteDTO set_note_color(string target_id, string? color);
     [Throws=FfiError] void delete_note(string target_id);
     [Throws=FfiError] void restore_note(string target_id);
     [Throws=FfiError] bytes export_share(sequence<string> note_ids);
