@@ -30,7 +30,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub use dto::{
     EmbeddingBackfillProgressDTO, EmbeddingConfigDTO, EmbeddingProviderDTO, LocalIdentityDTO,
-    NoteContentDiffStatsDTO, NoteDTO, NoteNeighborContextDTO, NoteNeighborsDTO,
+    NoteContentDiffStatsDTO, NoteDTO, NoteDraftDTO, NoteNeighborContextDTO, NoteNeighborsDTO,
     NoteSegmentBranchChoiceDTO, NoteSegmentDTO, NoteSegmentDirectionDTO, NoteSegmentStepDTO,
     NoteTagDiffDTO, NoteTextChangeDTO, NoteTextChangeKindDTO, NoteVersionDTO, NoteVersionDiffDTO,
     PeerDTO, PeerSyncStatsDTO, PeerTrustStatusDTO, PublicKeyInfoDTO, RelayFetchStatsDTO,

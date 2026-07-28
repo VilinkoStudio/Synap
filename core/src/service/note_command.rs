@@ -1,18 +1,131 @@
+//! Stable append-only note command base shared by classic APIs and draft commit.
+
 use super::*;
+use crate::models::tag_metadata::{split_storage_tags, TagMetadata};
+
+#[derive(Debug, Clone)]
+pub(crate) struct NoteSnapshot {
+    pub(crate) content: String,
+    pub(crate) storage_tags: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum AppendNoteCommand {
+    Create {
+        snapshot: NoteSnapshot,
+    },
+    Edit {
+        base: Uuid,
+        snapshot: NoteSnapshot,
+    },
+    Reply {
+        parent: Uuid,
+        snapshot: NoteSnapshot,
+    },
+    EditReply {
+        base: Uuid,
+        parent: Uuid,
+        snapshot: NoteSnapshot,
+    },
+}
+
+impl AppendNoteCommand {
+    pub(crate) fn edited_from(&self) -> Option<Uuid> {
+        match self {
+            Self::Edit { base, .. } | Self::EditReply { base, .. } => Some(*base),
+            Self::Create { .. } | Self::Reply { .. } => None,
+        }
+    }
+
+    fn snapshot(self) -> NoteSnapshot {
+        match self {
+            Self::Create { snapshot }
+            | Self::Edit { snapshot, .. }
+            | Self::Reply { snapshot, .. }
+            | Self::EditReply { snapshot, .. } => snapshot,
+        }
+    }
+}
 
 impl SynapService {
+    pub(crate) fn append_note_in_tx(
+        &self,
+        tx: &WriteTransaction,
+        command: AppendNoteCommand,
+    ) -> Result<Note, ServiceError> {
+        let edited_from = command.edited_from();
+        let reply_to = match &command {
+            AppendNoteCommand::Reply { parent, .. }
+            | AppendNoteCommand::EditReply { parent, .. } => Some(*parent),
+            _ => None,
+        };
+
+        if let Some(base) = edited_from {
+            if !Note::is_live_in_write(tx, &base)? {
+                return Err(ServiceError::NotFound(base.to_string()));
+            }
+        }
+        if let Some(parent) = reply_to {
+            if !Note::is_live_in_write(tx, &parent)? {
+                return Err(ServiceError::NotFound(parent.to_string()));
+            }
+        }
+
+        let snapshot = command.snapshot();
+        let tags = self.materialize_tags(tx, snapshot.storage_tags)?;
+        let note = match edited_from {
+            Some(base) => NoteRef::new(base, false).edit(tx, snapshot.content, tags)?,
+            None => Note::create(tx, snapshot.content, tags)?,
+        };
+
+        if let Some(parent) = reply_to {
+            NoteRef::new(parent, false).reply_to(tx, &note.get_id())?;
+        }
+        Ok(note)
+    }
+
+    pub(crate) fn finish_note_append(
+        &self,
+        note: Note,
+        edited_from: Option<Uuid>,
+    ) -> Result<NoteDTO, ServiceError> {
+        if let Some(previous) = edited_from {
+            self.refresh_search_indexes()?;
+            self.remove_starmap_note(previous)?;
+        } else {
+            self.note_searcher.insert(note.clone());
+            self.reserve_note_embedding(&note)?;
+            self.refresh_tag_indexes()?;
+        }
+        self.with_read(|_tx, reader| self.note_to_dto(note, reader))
+    }
+
+    fn snapshot_from_display(
+        content: String,
+        tags: Vec<String>,
+        metadata: &TagMetadata,
+    ) -> NoteSnapshot {
+        let display = Self::normalize_display_tag_inputs(tags);
+        NoteSnapshot {
+            content: content.trim().to_owned(),
+            storage_tags: Self::encode_storage_tags(display, metadata),
+        }
+    }
+
+    fn append_classic(&self, command: AppendNoteCommand) -> Result<NoteDTO, ServiceError> {
+        let edited_from = command.edited_from();
+        let note = self.with_write(|tx| self.append_note_in_tx(tx, command))?;
+        self.finish_note_append(note, edited_from)
+    }
+
     pub fn create_note(&self, content: String, tags: Vec<String>) -> Result<NoteDTO, ServiceError> {
-        let note = self.with_write(|tx| {
-            let tags = self.materialize_tags(tx, tags)?;
-            Note::create(tx, content, tags).map_err(Into::into)
-        })?;
-
-        self.note_searcher.insert(note.clone());
-        self.reserve_note_embedding(&note)?;
-        // starmap 依赖非空向量，占位阶段跳过；backfill 后补点
-        self.refresh_tag_indexes()?;
-
-        self.with_read(|_tx, reader| self.note_to_dto(note.clone(), reader))
+        let snapshot = Self::snapshot_from_display(content, tags, &TagMetadata::default());
+        if snapshot.content.is_empty() {
+            return Err(ServiceError::InvalidDraft(
+                "note content cannot be empty".into(),
+            ));
+        }
+        self.append_classic(AppendNoteCommand::Create { snapshot })
     }
 
     pub fn reply_note(
@@ -21,51 +134,62 @@ impl SynapService {
         content: String,
         tags: Vec<String>,
     ) -> Result<NoteDTO, ServiceError> {
-        let parent_id = Self::parse_id(parent_id)?;
-        let parent_ref = self.with_read(|_tx, reader| {
-            Self::require_live_note_ref(reader, parent_id, &parent_id.to_string())
-        })?;
-
-        let child = self.with_write(|tx| {
-            let tags = self.materialize_tags(tx, tags)?;
-            let child = Note::create(tx, content, tags)?;
-            parent_ref.reply_to(tx, &child.get_id())?;
-            Ok(child)
-        })?;
-
-        self.note_searcher.insert(child.clone());
-        self.reserve_note_embedding(&child)?;
-        // starmap 依赖非空向量，占位阶段跳过；backfill 后补点
-        self.refresh_tag_indexes()?;
-
-        self.with_read(|_tx, reader| self.note_to_dto(child.clone(), reader))
+        let parent = Self::parse_id(parent_id)?;
+        let snapshot = Self::snapshot_from_display(content, tags, &TagMetadata::default());
+        if snapshot.content.is_empty() {
+            return Err(ServiceError::InvalidDraft(
+                "note content cannot be empty".into(),
+            ));
+        }
+        self.append_classic(AppendNoteCommand::Reply { parent, snapshot })
     }
 
-    /// 进化操作
     pub fn edit_note(
         &self,
         target_id: &str,
-        new_content: String,
+        content: String,
         tags: Vec<String>,
     ) -> Result<NoteDTO, ServiceError> {
-        let target_id = Self::parse_id(target_id)?;
-        let note_ref = self.with_read(|_tx, reader| {
-            Self::require_live_note_ref(reader, target_id, &target_id.to_string())
+        let base = Self::parse_id(target_id)?;
+        let metadata = self.with_read(|_tx, reader| {
+            let note_ref = Self::require_live_note_ref(reader, base, target_id)?;
+            let note = note_ref
+                .hydrate(reader)?
+                .ok_or_else(|| ServiceError::NotFound(target_id.to_owned()))?;
+            Ok(split_storage_tags(Self::note_storage_tag_strings(&note, reader)?).metadata)
         })?;
-
-        let edited = self.with_write(|tx| {
-            let tags = self.materialize_tags(tx, tags)?;
-            note_ref.edit(tx, new_content, tags).map_err(Into::into)
-        })?;
-
-        self.refresh_search_indexes()?;
-        self.remove_starmap_note(target_id)?;
-        // 新版本槽位由 reconcile 预留；向量由 backfill 补全
-
-        self.with_read(|_tx, reader| self.note_to_dto(edited.clone(), reader))
+        let snapshot = Self::snapshot_from_display(content, tags, &metadata);
+        if snapshot.content.is_empty() {
+            return Err(ServiceError::InvalidDraft(
+                "note content cannot be empty".into(),
+            ));
+        }
+        self.append_classic(AppendNoteCommand::Edit { base, snapshot })
     }
 
-    /// 召唤死神
+    pub fn set_note_color(
+        &self,
+        target_id: &str,
+        color: Option<String>,
+    ) -> Result<NoteDTO, ServiceError> {
+        let base = Self::parse_id(target_id)?;
+        let (content, display_tags, mut metadata) = self.with_read(|_tx, reader| {
+            let note_ref = Self::require_live_note_ref(reader, base, target_id)?;
+            let note = note_ref
+                .hydrate(reader)?
+                .ok_or_else(|| ServiceError::NotFound(target_id.to_owned()))?;
+            let split = split_storage_tags(Self::note_storage_tag_strings(&note, reader)?);
+            Ok((
+                note.content().to_owned(),
+                split.display_tags,
+                split.metadata,
+            ))
+        })?;
+        metadata.color = crate::models::tag_metadata::parse_color_input(color.as_deref())?;
+        let snapshot = Self::snapshot_from_display(content, display_tags, &metadata);
+        self.append_classic(AppendNoteCommand::Edit { base, snapshot })
+    }
+
     pub fn delete_note(&self, target_id: &str) -> Result<(), ServiceError> {
         let uuid = Self::parse_id(target_id)?;
         let note_ref = self
@@ -89,7 +213,6 @@ impl SynapService {
             Ok(())
         })?;
         self.refresh_search_indexes()?;
-        // restore 后的槽位由 reconcile 预留；向量由 backfill 补全
         Ok(())
     }
 }

@@ -675,10 +675,7 @@ impl SynapService {
     ) -> Result<TimelineNotesPageDTO, ServiceError> {
         let limit = limit.unwrap_or(20);
 
-        let selected_tag_ids = Self::normalize_tag_inputs(selected_tags)
-            .into_iter()
-            .filter_map(|tag| Tag::id_for_content(&tag))
-            .collect::<HashSet<_>>();
+        let selected_tag_ids = Self::resolve_filter_tag_ids(selected_tags);
 
         if tag_filter_enabled && selected_tag_ids.is_empty() && !include_untagged {
             return Ok(TimelineNotesPageDTO {
@@ -710,10 +707,7 @@ impl SynapService {
         direction: TimelineDirection,
         limit: Option<usize>,
     ) -> Result<TimelineNotesPageDTO, ServiceError> {
-        let selected_tag_ids = Self::normalize_tag_inputs(selected_tags)
-            .into_iter()
-            .filter_map(|tag| Tag::id_for_content(&tag))
-            .collect::<HashSet<_>>();
+        let selected_tag_ids = Self::resolve_filter_tag_ids(selected_tags);
 
         if tag_filter_enabled && selected_tag_ids.is_empty() && !include_untagged {
             return Ok(TimelineNotesPageDTO {
@@ -768,10 +762,7 @@ impl SynapService {
         end_ms: u64,
         bucket_ms: u64,
     ) -> Result<Vec<TimelineDensityPointDTO>, ServiceError> {
-        let selected_tag_ids = Self::normalize_tag_inputs(selected_tags)
-            .into_iter()
-            .filter_map(|tag| Tag::id_for_content(&tag))
-            .collect::<HashSet<_>>();
+        let selected_tag_ids = Self::resolve_filter_tag_ids(selected_tags);
 
         if bucket_ms == 0 || end_ms <= start_ms {
             return Ok(Vec::new());

@@ -24,12 +24,34 @@ pub struct NoteDTO {
     pub id: String, // Uuid 转成标准的 36 位字符串
     // pub short_id: String, // 8位 NanoID
     pub content: String,
-    pub tags: Vec<String>, // 直接给文字，前端不关心 Tag 的内部 UUID
-    pub created_at: u64,   // 毫秒时间戳
+    pub tags: Vec<String>, // display tags only; metadata is not mixed in
+    /// Note color as `#rrggbb`, parsed from `$color(...)` / legacy `$RRGGBB` tags.
+    pub color: Option<String>,
+    pub created_at: u64, // 毫秒时间戳
     pub deleted: bool,
     pub reply_to: Option<NoteBriefDTO>,
     pub edited_from: Option<NoteBriefDTO>,
     pub timeline_group: Option<TimelineGroupDTO>,
+}
+
+/// Staging buffer entity: complete note snapshot, not yet in the main ledger.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteDraftDTO {
+    pub id: String,
+    pub content: String,
+    pub tags: Vec<String>,
+    pub color: Option<String>,
+    /// Parent note id for reply edge on commit.
+    pub reply_to: Option<String>,
+    /// Previous version id for edit edge on commit.
+    pub edited_from: Option<String>,
+    pub created_at: u64,
+    pub updated_at: u64,
+    /// False for process-local memory drafts; true after persisting to redb.
+    pub persisted: bool,
+    /// Optimistic-concurrency revision. Memory drafts use revision zero.
+    pub revision: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]

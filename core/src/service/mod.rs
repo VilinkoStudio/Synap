@@ -10,6 +10,7 @@ pub mod discovery;
 pub use discovery::MdnsDiscoveryError;
 mod embedding;
 mod note_command;
+mod note_draft;
 
 mod note_query;
 mod peer;
@@ -109,6 +110,10 @@ pub struct SynapService {
     note_searcher: FuzzyIndex<Note>,
     semantic_index: SemanticIndex,
     tag_recommender: ServiceTagRecommender,
+    /// Process-local memory drafts. Persisted drafts live in their own unindexed redb table.
+    draft_store: Mutex<crate::models::note_draft::NoteDraftMemoryStore>,
+    /// Serializes claim/receipt transitions so one draft can append at most once.
+    draft_commit_lock: Mutex<()>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -110,7 +110,7 @@ impl SynapService {
             return Ok(Vec::new());
         }
 
-        let fuzzy_limit = fuzzy_limit.unwrap_or_else(|| self.note_searcher.total_items() as usize);
+        let fuzzy_limit = fuzzy_limit.unwrap_or(limit);
         let semantic_limit = semantic_limit.unwrap_or(limit);
 
         let fuzzy_results = self.note_searcher.search(query, fuzzy_limit, None);
@@ -205,7 +205,11 @@ impl SynapService {
                     };
 
                     let content = tag.get_content().to_string();
-                    if !seen.insert(content.clone()) {
+                    if crate::models::tag_metadata::is_metadata_tag(&content) {
+                        return None;
+                    }
+                    let public = crate::models::tag_metadata::unescape_user_tag(&content);
+                    if !seen.insert(public.clone()) {
                         return None;
                     }
 
@@ -219,7 +223,7 @@ impl SynapService {
                         .any(|id| !reader.is_deleted(&id).unwrap_or(true));
 
                     if has_live_note {
-                        Some(Ok(content))
+                        Some(Ok(public))
                     } else {
                         None
                     }
@@ -260,7 +264,11 @@ impl SynapService {
                 }
 
                 if has_live_note {
-                    tags.push(tag.get_content().to_string());
+                    let content = tag.get_content();
+                    if crate::models::tag_metadata::is_metadata_tag(content) {
+                        continue;
+                    }
+                    tags.push(crate::models::tag_metadata::unescape_user_tag(content));
                 }
             }
 

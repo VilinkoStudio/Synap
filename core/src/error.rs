@@ -67,4 +67,16 @@ pub enum ServiceError {
 
     #[error("config error: {0}")]
     Config(#[from] crate::models::config::ConfigError),
+
+    #[error("invalid tag metadata: {0}")]
+    InvalidTagMetadata(String),
+
+    #[error("draft not found: {0}")]
+    DraftNotFound(String),
+
+    #[error("invalid draft: {0}")]
+    InvalidDraft(String),
+
+    #[error("draft revision conflict: expected {expected}, actual {actual}")]
+    DraftRevisionConflict { expected: u64, actual: u64 },
 }

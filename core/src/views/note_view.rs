@@ -8,6 +8,7 @@ use crate::{
     models::{
         note::{Note, NoteReader, NoteRef},
         tag::TagReader,
+        tag_metadata::split_storage_tags,
     },
 };
 
@@ -335,18 +336,20 @@ impl<'a, 'b> NoteView<'a, 'b> {
             .transpose()
     }
 
-    /// 组装 DTO
+    /// 组装 DTO：display tags + 一等 color 字段（metadata 不进入 tags）
     pub fn to_dto(&self) -> Result<NoteDTO, NoteError> {
-        let tags: Vec<String> = self
+        let storage_tags: Vec<String> = self
             .tags()?
             .iter()
             .map(|t| t.get_content().to_string())
             .collect();
+        let split = split_storage_tags(storage_tags);
 
         Ok(NoteDTO {
             id: self.note.get_id().to_string(),
             content: self.note.content().to_string(),
-            tags,
+            tags: split.display_tags,
+            color: split.metadata.color.map(|c| c.to_css_hex()),
             created_at: Self::created_at_from_id(self.note.get_id())?,
             deleted: self.note.is_deleted(),
             reply_to: self.reply_to_brief()?,

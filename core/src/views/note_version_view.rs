@@ -8,7 +8,10 @@ use crate::{
         NoteVersionDTO, NoteVersionDiffDTO,
     },
     error::NoteError,
-    models::note::{Note, NoteReader},
+    models::{
+        note::{Note, NoteReader},
+        tag_metadata::split_storage_tags,
+    },
     views::note_view::NoteView,
 };
 
@@ -30,16 +33,20 @@ impl<'a, 'b> NoteVersionView<'a, 'b> {
     pub(crate) fn to_dto(&self) -> Result<NoteVersionDTO, NoteError> {
         let base_view = NoteView::new(self.reader, self.base.clone());
         let version_view = NoteView::new(self.reader, self.version.clone());
-        let base_tags = base_view
-            .tags()?
-            .into_iter()
-            .map(|tag| tag.get_content().to_string())
-            .collect::<Vec<_>>();
-        let version_tags = version_view
-            .tags()?
-            .into_iter()
-            .map(|tag| tag.get_content().to_string())
-            .collect::<Vec<_>>();
+        let base_tags = split_storage_tags(
+            base_view
+                .tags()?
+                .into_iter()
+                .map(|tag| tag.get_content().to_string()),
+        )
+        .display_tags;
+        let version_tags = split_storage_tags(
+            version_view
+                .tags()?
+                .into_iter()
+                .map(|tag| tag.get_content().to_string()),
+        )
+        .display_tags;
         let content = Self::diff_content(self.base.content(), self.version.content());
         let content_stats =
             Self::content_diff_stats(self.base.content(), self.version.content(), &content);

@@ -376,8 +376,19 @@ impl Note {
         NOTE_DELETE.add(tx, note_id.as_bytes()).map(|_| ())
     }
 
-    fn exists_in_write(tx: &WriteTransaction, note_id: &Uuid) -> Result<bool, redb::Error> {
+    pub(crate) fn exists_in_write(
+        tx: &WriteTransaction,
+        note_id: &Uuid,
+    ) -> Result<bool, redb::Error> {
         Ok(NOTE_STORE.get_in_write(tx, note_id.as_bytes())?.is_some())
+    }
+
+    pub(crate) fn is_live_in_write(
+        tx: &WriteTransaction,
+        note_id: &Uuid,
+    ) -> Result<bool, redb::Error> {
+        Ok(Self::exists_in_write(tx, note_id)?
+            && !NOTE_DELETE.contains_in_write(tx, note_id.as_bytes())?)
     }
 
     fn validate_reply_link(

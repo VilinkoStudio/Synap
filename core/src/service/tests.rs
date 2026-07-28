@@ -6,7 +6,7 @@ use crate::models::{
 use crate::nlp::embedding::{EmbeddingError, EmbeddingModel, LocalHashEmbedding};
 use std::{
     net::TcpListener,
-    sync::{mpsc, Arc, Condvar, Mutex as StdMutex},
+    sync::{Arc, Condvar, Mutex as StdMutex, mpsc},
     thread,
     time::Duration,
 };
@@ -255,10 +255,12 @@ fn test_unsupported_embedding_cache_version_invalidates_derived_profiles() {
     drop(db);
 
     let reopened = SynapService::open(&db_path).unwrap();
-    assert!(reopened
-        .recommend_tag("rust borrowing", 1)
-        .unwrap()
-        .is_empty());
+    assert!(
+        reopened
+            .recommend_tag("rust borrowing", 1)
+            .unwrap()
+            .is_empty()
+    );
     assert_eq!(reopened.backfill_note_embeddings().unwrap(), 1);
     assert_eq!(
         reopened.recommend_tag("rust borrowing", 1).unwrap(),
@@ -561,11 +563,13 @@ fn test_embedding_config_default_and_change_invalidates_vectors() {
         .create_note("config change ownership".to_string(), vec!["cfg".into()])
         .unwrap();
     assert_eq!(service.backfill_note_embeddings().unwrap(), 1);
-    assert!(service
-        .search_semantic("ownership", 5)
-        .unwrap()
-        .iter()
-        .any(|item| item.id == note.id));
+    assert!(
+        service
+            .search_semantic("ownership", 5)
+            .unwrap()
+            .iter()
+            .any(|item| item.id == note.id)
+    );
 
     // 改成另一个本地维度：应清空向量
     let updated = service
@@ -596,11 +600,13 @@ fn test_embedding_config_default_and_change_invalidates_vectors() {
     );
     assert_eq!(progress.last().unwrap().filled, 1);
 
-    assert!(service
-        .search_semantic("ownership", 5)
-        .unwrap()
-        .iter()
-        .any(|item| item.id == note.id));
+    assert!(
+        service
+            .search_semantic("ownership", 5)
+            .unwrap()
+            .iter()
+            .any(|item| item.id == note.id)
+    );
 
     // backfill 后应整图重建 UMAP，而不是增量 upsert
     let points = service.get_starmap().unwrap();
@@ -707,10 +713,12 @@ fn test_get_notes_by_tag_returns_only_live_latest_matches() {
     assert_eq!(rust_notes.len(), 1);
     assert_eq!(rust_notes[0].id, live.id);
 
-    assert!(service
-        .get_notes_by_tag("missing", None, None)
-        .unwrap()
-        .is_empty());
+    assert!(
+        service
+            .get_notes_by_tag("missing", None, None)
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[test]
@@ -1141,10 +1149,12 @@ fn test_get_timeline_notes_page_unifies_filtering_and_cursor() {
         vec![rust_work.id.clone(), travel.id.clone()]
     );
     assert_eq!(page_one.next_cursor.as_deref(), Some(travel.id.as_str()));
-    assert!(page_one
-        .notes
-        .iter()
-        .all(|note| note.timeline_group.is_none()));
+    assert!(
+        page_one
+            .notes
+            .iter()
+            .all(|note| note.timeline_group.is_none())
+    );
 
     let page_two = service
         .get_timeline_notes_page(
@@ -1325,11 +1335,13 @@ fn test_version_queries_return_live_related_versions() {
     assert_eq!(previous[0].note.id, v1.id);
     assert_eq!(previous[0].diff.tags.added, Vec::<String>::new());
     assert_eq!(previous[0].diff.tags.removed, vec!["beta"]);
-    assert!(previous[0]
-        .diff
-        .content
-        .iter()
-        .any(|change| !matches!(change.kind, crate::dto::NoteTextChangeKindDTO::Equal)));
+    assert!(
+        previous[0]
+            .diff
+            .content
+            .iter()
+            .any(|change| !matches!(change.kind, crate::dto::NoteTextChangeKindDTO::Equal))
+    );
 
     let next = service.get_next_versions(&v1.id).unwrap();
     assert_eq!(next.len(), 2);
@@ -1338,11 +1350,13 @@ fn test_version_queries_return_live_related_versions() {
     let next_v2a = next.iter().find(|note| note.note.id == v2a.id).unwrap();
     assert_eq!(next_v2a.diff.tags.added, vec!["beta"]);
     assert_eq!(next_v2a.diff.tags.removed, Vec::<String>::new());
-    assert!(next_v2a
-        .diff
-        .content
-        .iter()
-        .any(|change| !matches!(change.kind, crate::dto::NoteTextChangeKindDTO::Equal)));
+    assert!(
+        next_v2a
+            .diff
+            .content
+            .iter()
+            .any(|change| !matches!(change.kind, crate::dto::NoteTextChangeKindDTO::Equal))
+    );
 
     let others = service.get_other_versions(&v2a.id).unwrap();
     assert_eq!(others.len(), 2);
@@ -1442,6 +1456,23 @@ fn test_recent_and_search_filter_superseded_versions_and_markdown_media() {
 
     let image_hits = service.search("AAAA", 10).unwrap();
     assert!(image_hits.is_empty());
+}
+
+#[test]
+fn test_fusion_search_default_fuzzy_limit_is_not_disabled_by_index_lag() {
+    let service = SynapService::open_memory().unwrap();
+    let note = service
+        .create_note("rust ownership search".into(), vec!["rust".into()])
+        .unwrap();
+
+    let results = service
+        .search_fusion("ownership", 5, None, Some(0))
+        .unwrap();
+    let matching = results
+        .iter()
+        .find(|result| result.note.id == note.id)
+        .expect("new note should be fuzzy-searchable immediately");
+    assert!(matching.sources.contains(&SearchSourceDTO::Fuzzy));
 }
 
 #[test]
@@ -1754,7 +1785,12 @@ fn test_get_all_tags_excludes_imported_deleted_notes_during_transaction() {
     service_a.delete_note(&note.id).unwrap();
 
     // Verify on service_a: tag should not appear
-    assert!(!service_a.get_all_tags().unwrap().contains(&"ephemeral".to_string()));
+    assert!(
+        !service_a
+            .get_all_tags()
+            .unwrap()
+            .contains(&"ephemeral".to_string())
+    );
 
     // Export and import
     let exported = service_a.export_share(&vec![note.id.clone()]).unwrap();
@@ -1762,11 +1798,447 @@ fn test_get_all_tags_excludes_imported_deleted_notes_during_transaction() {
 
     // Tag should not appear in get_all_tags
     let tags = service_b.get_all_tags().unwrap();
-    assert!(!tags.contains(&"ephemeral".to_string()),
-        "Tag should not appear for deleted note, got: {:?}", tags);
+    assert!(
+        !tags.contains(&"ephemeral".to_string()),
+        "Tag should not appear for deleted note, got: {:?}",
+        tags
+    );
 
     // Also verify via search_tags
     let search_results = service_b.search_tags("ephemeral", 10).unwrap();
-    assert!(!search_results.contains(&"ephemeral".to_string()),
-        "Tag should not appear in search_tags for deleted note, got: {:?}", search_results);
+    assert!(
+        !search_results.contains(&"ephemeral".to_string()),
+        "Tag should not appear in search_tags for deleted note, got: {:?}",
+        search_results
+    );
+}
+
+#[test]
+fn test_set_note_color_exposes_color_and_hides_metadata_from_tags() {
+    let service = SynapService::open_memory().unwrap();
+    let created = service
+        .create_note("colored".into(), vec!["rust".into(), "$price".into()])
+        .unwrap();
+
+    assert!(created.color.is_none());
+    assert_eq!(created.tags, vec!["rust".to_string(), "$price".to_string()]);
+
+    let colored = service
+        .set_note_color(&created.id, Some("#ff0000".into()))
+        .unwrap();
+    assert_eq!(colored.color.as_deref(), Some("#ff0000"));
+    assert_eq!(colored.tags, vec!["rust".to_string(), "$price".to_string()]);
+    assert!(
+        !colored
+            .tags
+            .iter()
+            .any(|t| t.contains("color") || t.starts_with("$ff"))
+    );
+
+    // metadata color tags must not leak into public tag lists
+    let all_tags = service.get_all_tags().unwrap();
+    assert!(all_tags.contains(&"rust".to_string()));
+    assert!(all_tags.contains(&"$price".to_string()));
+    assert!(
+        !all_tags
+            .iter()
+            .any(|t| t.starts_with("$color") || t == "$ff0000")
+    );
+
+    // edit preserves existing color metadata while updating display tags
+    let edited = service
+        .edit_note(&colored.id, "colored v2".into(), vec!["rust".into()])
+        .unwrap();
+    assert_eq!(edited.color.as_deref(), Some("#ff0000"));
+    assert_eq!(edited.tags, vec!["rust".to_string()]);
+
+    let cleared = service.set_note_color(&edited.id, None).unwrap();
+    assert!(cleared.color.is_none());
+    assert_eq!(cleared.tags, vec!["rust".to_string()]);
+}
+
+#[test]
+fn test_legacy_color_tag_is_read_and_upgraded_on_set() {
+    use crate::models::note::Note;
+    use crate::models::tag::TagWriter;
+    use redb::Database;
+    use tempfile::NamedTempFile;
+
+    // Seed a note with legacy Android color tag `$00ff00` directly in storage.
+    let temp = NamedTempFile::new().unwrap();
+    let path = temp.path().to_string_lossy().into_owned();
+    {
+        let db = Database::create(temp.path()).unwrap();
+        let tx = db.begin_write().unwrap();
+        Note::init_schema(&tx).unwrap();
+        TagWriter::init_schema(&tx).unwrap();
+        let writer = TagWriter::new(&tx);
+        let tags = vec![
+            writer.find_or_create("work").unwrap(),
+            writer.find_or_create("$00ff00").unwrap(),
+        ];
+        Note::create(&tx, "legacy color".into(), tags).unwrap();
+        tx.commit().unwrap();
+    }
+
+    let service = SynapService::new(Some(path)).unwrap();
+    let notes = service.get_recent_note(None, Some(10)).unwrap();
+    let note = notes.into_iter().next().expect("seeded note");
+    assert_eq!(note.color.as_deref(), Some("#00ff00"));
+    assert_eq!(note.tags, vec!["work".to_string()]);
+
+    let upgraded = service
+        .set_note_color(&note.id, Some("#0000ff".into()))
+        .unwrap();
+    assert_eq!(upgraded.color.as_deref(), Some("#0000ff"));
+    assert_eq!(upgraded.tags, vec!["work".to_string()]);
+}
+
+#[test]
+fn test_draft_commit_create_reply_and_edit_with_color() {
+    let service = SynapService::open_memory().unwrap();
+
+    // Create via draft buffer: content + tags + color in one commit.
+    let mut draft = service.draft_new().unwrap();
+    draft = service
+        .draft_update(
+            &draft.id,
+            Some("root note".into()),
+            Some(vec!["rust".into(), "$price".into()]),
+            Some(Some("#123456".into())),
+            None,
+            None,
+        )
+        .unwrap();
+    assert_eq!(draft.color.as_deref(), Some("#123456"));
+    assert!(draft.reply_to.is_none());
+    assert!(draft.edited_from.is_none());
+
+    let root = service.draft_commit(&draft.id).unwrap();
+    assert_eq!(root.content, "root note");
+    assert_eq!(root.tags, vec!["rust".to_string(), "$price".to_string()]);
+    assert_eq!(root.color.as_deref(), Some("#123456"));
+    assert!(service.get_previous_versions(&root.id).unwrap().is_empty());
+    assert!(service.draft_list().unwrap().is_empty());
+
+    // Reply draft: pointer + body committed together.
+    let reply_draft = service.draft_reply_to(&root.id).unwrap();
+    assert_eq!(reply_draft.reply_to.as_deref(), Some(root.id.as_str()));
+    service
+        .draft_update(
+            &reply_draft.id,
+            Some("child reply".into()),
+            Some(vec!["thread".into()]),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+    let child = service.draft_commit(&reply_draft.id).unwrap();
+    assert_eq!(child.content, "child reply");
+    assert_eq!(
+        child.reply_to.as_ref().map(|b| b.id.as_str()),
+        Some(root.id.as_str())
+    );
+
+    let replies = service.get_replies(&root.id, None, 10).unwrap();
+    assert_eq!(replies.len(), 1);
+    assert_eq!(replies[0].id, child.id);
+
+    // Edit draft: preserves color unless changed; single commit creates edit edge.
+    let edit_draft = service.draft_from_note(&root.id).unwrap();
+    assert_eq!(edit_draft.edited_from.as_deref(), Some(root.id.as_str()));
+    assert_eq!(edit_draft.color.as_deref(), Some("#123456"));
+    service
+        .draft_update(
+            &edit_draft.id,
+            Some("root note v2".into()),
+            Some(vec!["rust".into()]),
+            Some(Some("#00ff00".into())),
+            None,
+            None,
+        )
+        .unwrap();
+    let edited = service.draft_commit(&edit_draft.id).unwrap();
+    assert_eq!(edited.content, "root note v2");
+    assert_eq!(edited.color.as_deref(), Some("#00ff00"));
+    assert_eq!(edited.tags, vec!["rust".to_string()]);
+    assert_eq!(
+        edited.edited_from.as_ref().map(|b| b.id.as_str()),
+        Some(root.id.as_str())
+    );
+    let root_next = service.get_next_versions(&root.id).unwrap();
+    assert_eq!(root_next.len(), 1);
+    assert_eq!(root_next[0].note.id, edited.id);
+
+    let clear_draft = service.draft_from_note(&edited.id).unwrap();
+    service
+        .draft_update(
+            &clear_draft.id,
+            Some("root note v3".into()),
+            None,
+            Some(None),
+            None,
+            None,
+        )
+        .unwrap();
+    let cleared = service.draft_commit(&clear_draft.id).unwrap();
+    assert!(cleared.color.is_none());
+    assert_eq!(
+        cleared.edited_from.as_ref().map(|brief| brief.id.as_str()),
+        Some(edited.id.as_str())
+    );
+    let edited_next = service.get_next_versions(&edited.id).unwrap();
+    assert_eq!(edited_next.len(), 1);
+    assert_eq!(edited_next[0].note.id, cleared.id);
+}
+
+#[test]
+fn test_draft_discard_and_not_found() {
+    let service = SynapService::open_memory().unwrap();
+    let draft = service.draft_new().unwrap();
+    service.draft_discard(&draft.id).unwrap();
+    assert!(matches!(
+        service.draft_get(&draft.id),
+        Err(ServiceError::DraftNotFound(_))
+    ));
+    assert!(matches!(
+        service.draft_commit(&draft.id),
+        Err(ServiceError::DraftNotFound(_))
+    ));
+}
+
+#[test]
+fn test_memory_draft_does_not_enter_note_or_derived_lifecycles_before_commit() {
+    let service = SynapService::open_memory().unwrap();
+    let draft = service.draft_new().unwrap();
+    service
+        .draft_update(
+            &draft.id,
+            Some("in progress searchable text".into()),
+            Some(vec!["draft-only-tag".into()]),
+            Some(Some("#123456".into())),
+            None,
+            None,
+        )
+        .unwrap();
+
+    assert!(service.get_recent_note(None, Some(10)).unwrap().is_empty());
+    assert!(service.search("searchable", 10).unwrap().is_empty());
+    assert!(
+        !service
+            .get_all_tags()
+            .unwrap()
+            .contains(&"draft-only-tag".to_string())
+    );
+    assert!(service.get_starmap().unwrap().is_empty());
+
+    let draft_uuid = Uuid::parse_str(&draft.id).unwrap();
+    let draft_key = *draft_uuid.as_bytes();
+    service
+        .with_read(|tx, _reader| {
+            assert!(service.semantic_index.get(tx, &draft_key)?.is_none());
+            assert_eq!(crate::db::umap::UmapCache::points_count(tx)?, 0);
+            Ok(())
+        })
+        .unwrap();
+    assert!(service.build_relay_inventory().unwrap().records.is_empty());
+
+    let persisted = service.draft_persist(&draft.id).unwrap();
+    assert!(persisted.persisted);
+    assert!(service.get_recent_note(None, Some(10)).unwrap().is_empty());
+    assert!(service.search("searchable", 10).unwrap().is_empty());
+    assert!(
+        !service
+            .get_all_tags()
+            .unwrap()
+            .contains(&"draft-only-tag".to_string())
+    );
+    assert!(service.get_starmap().unwrap().is_empty());
+    service
+        .with_read(|tx, _reader| {
+            assert!(service.semantic_index.get(tx, &draft_key)?.is_none());
+            assert_eq!(crate::db::umap::UmapCache::points_count(tx)?, 0);
+            Ok(())
+        })
+        .unwrap();
+    assert!(service.build_relay_inventory().unwrap().records.is_empty());
+}
+
+#[test]
+fn test_invalid_memory_draft_update_is_atomic() {
+    let service = SynapService::open_memory().unwrap();
+    let draft = service.draft_new().unwrap();
+    let original = service
+        .draft_update(
+            &draft.id,
+            Some("original".into()),
+            Some(vec!["stable".into()]),
+            Some(Some("#123456".into())),
+            None,
+            None,
+        )
+        .unwrap();
+
+    assert!(
+        service
+            .draft_update(
+                &draft.id,
+                Some("must roll back".into()),
+                Some(vec!["must-roll-back".into()]),
+                Some(Some("not-a-color".into())),
+                None,
+                None,
+            )
+            .is_err()
+    );
+
+    let current = service.draft_get(&draft.id).unwrap();
+    assert_eq!(current.content, original.content);
+    assert_eq!(current.tags, original.tags);
+    assert_eq!(current.color, original.color);
+}
+
+#[test]
+fn test_persisted_draft_survives_reopen_and_tracks_revision() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("draft-lifecycle.redb");
+    let draft_id = {
+        let service = SynapService::open(&path).unwrap();
+        let draft = service.draft_new().unwrap();
+        service
+            .draft_update(
+                &draft.id,
+                Some("durable content".into()),
+                Some(vec!["durable".into()]),
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+        let persisted = service.draft_persist(&draft.id).unwrap();
+        assert!(persisted.persisted);
+        assert_eq!(persisted.revision, 1);
+        persisted.id
+    };
+
+    let service = SynapService::open(&path).unwrap();
+    let loaded = service.draft_get(&draft_id).unwrap();
+    assert!(loaded.persisted);
+    assert_eq!(loaded.content, "durable content");
+    assert_eq!(loaded.revision, 1);
+    let updated = service
+        .draft_update_checked(
+            &draft_id,
+            Some("durable content v2".into()),
+            None,
+            None,
+            None,
+            None,
+            Some(1),
+        )
+        .unwrap();
+    assert_eq!(updated.revision, 2);
+    assert!(matches!(
+        service.draft_update_checked(
+            &draft_id,
+            Some("stale overwrite".into()),
+            None,
+            None,
+            None,
+            None,
+            Some(1),
+        ),
+        Err(ServiceError::DraftRevisionConflict {
+            expected: 1,
+            actual: 2
+        })
+    ));
+    assert_eq!(
+        service.draft_get(&draft_id).unwrap().content,
+        "durable content v2"
+    );
+}
+
+#[test]
+fn test_invalid_commit_preserves_memory_and_persisted_drafts() {
+    let service = SynapService::open_memory().unwrap();
+    let memory = service.draft_new().unwrap();
+    assert!(matches!(
+        service.draft_commit(&memory.id),
+        Err(ServiceError::InvalidDraft(_))
+    ));
+    assert!(!service.draft_get(&memory.id).unwrap().persisted);
+
+    let persisted = service.draft_persist(&memory.id).unwrap();
+    assert!(matches!(
+        service.draft_commit(&persisted.id),
+        Err(ServiceError::InvalidDraft(_))
+    ));
+    assert!(service.draft_get(&persisted.id).unwrap().persisted);
+}
+
+#[test]
+fn test_draft_commit_is_idempotent_and_persisted_commit_is_atomic() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("draft-commit.redb");
+    let draft_id;
+    let note_id;
+    {
+        let service = SynapService::open(&path).unwrap();
+        let draft = service.draft_new().unwrap();
+        service
+            .draft_update(
+                &draft.id,
+                Some("commit once".into()),
+                Some(vec!["once".into()]),
+                Some(Some("#abcdef".into())),
+                None,
+                None,
+            )
+            .unwrap();
+        draft_id = service.draft_persist(&draft.id).unwrap().id;
+        let committed = service.draft_commit(&draft_id).unwrap();
+        note_id = committed.id.clone();
+        assert_eq!(service.draft_commit(&draft_id).unwrap().id, note_id);
+        assert!(matches!(
+            service.draft_get(&draft_id),
+            Err(ServiceError::DraftNotFound(_))
+        ));
+        assert_eq!(service.get_recent_note(None, Some(10)).unwrap().len(), 1);
+    }
+
+    let service = SynapService::open(&path).unwrap();
+    assert_eq!(service.draft_commit(&draft_id).unwrap().id, note_id);
+    assert_eq!(service.get_recent_note(None, Some(10)).unwrap().len(), 1);
+}
+
+#[test]
+fn test_concurrent_memory_draft_commit_appends_once() {
+    let service = Arc::new(SynapService::open_memory().unwrap());
+    let draft = service.draft_new().unwrap();
+    service
+        .draft_update(
+            &draft.id,
+            Some("concurrent commit".into()),
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+
+    let handles = (0..8)
+        .map(|_| {
+            let service = Arc::clone(&service);
+            let draft_id = draft.id.clone();
+            thread::spawn(move || service.draft_commit(&draft_id).unwrap().id)
+        })
+        .collect::<Vec<_>>();
+    let ids = handles
+        .into_iter()
+        .map(|handle| handle.join().unwrap())
+        .collect::<HashSet<_>>();
+    assert_eq!(ids.len(), 1);
+    assert_eq!(service.get_recent_note(None, Some(10)).unwrap().len(), 1);
 }

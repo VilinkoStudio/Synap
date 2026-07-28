@@ -36,6 +36,7 @@ impl SynapService {
         ids.iter().map(|id| Self::parse_id(id)).collect()
     }
 
+    /// Trim + dedupe raw tag strings (filter inputs / generic lists).
     pub(crate) fn normalize_tag_inputs(tags: Vec<String>) -> Vec<String> {
         let mut seen = HashSet::new();
         let mut normalized = Vec::with_capacity(tags.len());
@@ -45,7 +46,6 @@ impl SynapService {
             if trimmed.is_empty() {
                 continue;
             }
-
             if seen.insert(trimmed.to_owned()) {
                 normalized.push(trimmed.to_owned());
             }
@@ -54,17 +54,90 @@ impl SynapService {
         normalized
     }
 
+    /// Resolve public/display filter tag names to storage tag UUIDs.
+    /// Display `$foo` maps to storage `$$foo` for id lookup.
+    pub(crate) fn resolve_filter_tag_ids(selected_tags: Vec<String>) -> HashSet<Uuid> {
+        use crate::models::tag_metadata::escape_user_tag;
+
+        Self::normalize_tag_inputs(selected_tags)
+            .into_iter()
+            .filter_map(|tag| {
+                let storage = escape_user_tag(&tag)?;
+                Tag::id_for_content(&storage)
+            })
+            .collect()
+    }
+
+    /// Normalize client display tags: trim, dedupe, drop empty and raw metadata forms.
+    /// Does NOT escape `$` yet — use [`Self::encode_display_tags`] for storage strings.
+    pub(crate) fn normalize_display_tag_inputs(tags: Vec<String>) -> Vec<String> {
+        use crate::models::tag_metadata::{escape_user_tag, is_metadata_tag};
+
+        let mut seen = HashSet::new();
+        let mut normalized = Vec::with_capacity(tags.len());
+
+        for raw in tags {
+            let Some(escaped) = escape_user_tag(&raw) else {
+                continue;
+            };
+            // Clients must not smuggle metadata through the tags parameter.
+            if is_metadata_tag(&escaped) {
+                continue;
+            }
+            // Store escaped form later via encode; keep display form for dedupe key.
+            let display = raw.trim().to_owned();
+            if seen.insert(display.clone()) {
+                normalized.push(display);
+            }
+        }
+
+        normalized
+    }
+
+    /// Escape display tags + merge known metadata into storage tag strings.
+    pub(crate) fn encode_storage_tags(
+        display_tags: Vec<String>,
+        metadata: &crate::models::tag_metadata::TagMetadata,
+    ) -> Vec<String> {
+        crate::models::tag_metadata::merge_storage_tags(display_tags, metadata)
+    }
+
     pub(crate) fn materialize_tags(
         &self,
         tx: &WriteTransaction,
-        tags: Vec<String>,
+        storage_tags: Vec<String>,
     ) -> Result<Vec<Tag>, ServiceError> {
         let tag_writer = TagWriter::new(tx);
 
-        Self::normalize_tag_inputs(tags)
+        let mut seen = HashSet::new();
+        let mut normalized = Vec::with_capacity(storage_tags.len());
+        for raw in storage_tags {
+            let trimmed = raw.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            if seen.insert(trimmed.to_owned()) {
+                normalized.push(trimmed.to_owned());
+            }
+        }
+
+        normalized
             .into_iter()
             .map(|tag| tag_writer.find_or_create(tag).map_err(Into::into))
             .collect()
+    }
+
+    /// Read storage tag strings for a note (for metadata-preserving edits).
+    pub(crate) fn note_storage_tag_strings(
+        note: &Note,
+        reader: &NoteReader<'_>,
+    ) -> Result<Vec<String>, ServiceError> {
+        let view = NoteView::new(reader, note.clone());
+        Ok(view
+            .tags()?
+            .into_iter()
+            .map(|t| t.get_content().to_string())
+            .collect())
     }
 
     pub(crate) fn rebuild_tag_search(&self) -> Result<(), ServiceError> {
@@ -304,6 +377,8 @@ impl SynapService {
         ConfigWriter::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
         EmbeddingCacheMetadata::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
         TagProfileStore::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
+        crate::models::note_draft::DraftRepository::init_schema(&tx)
+            .map_err(|err| ServiceError::Db(err.into()))?;
         crypto::ensure_local_identity(&CryptoWriter::new(&tx))
             .map_err(|err| ServiceError::Db(err.into()))?;
         crypto::ensure_local_signing_identity(&CryptoWriter::new(&tx))
@@ -325,6 +400,8 @@ impl SynapService {
             note_searcher,
             semantic_index,
             tag_recommender,
+            draft_store: Mutex::new(crate::models::note_draft::NoteDraftMemoryStore::default()),
+            draft_commit_lock: Mutex::new(()),
         };
         res.initialize_derived_caches()?;
         res.init_search()?;
