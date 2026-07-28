@@ -37,6 +37,7 @@ use crate::{
     models::{
         config::{ConfigWriter, CoreConfig},
         crypto::{CryptoReader, CryptoWriter},
+        embedding_cache::EmbeddingCacheMetadata,
         note::{Note, NoteReader, NoteRef},
         relay_peer::{RelayPeerReader, RelayPeerRecord, RelayPeerWriter},
         sync_stats::{
@@ -44,8 +45,9 @@ use crate::{
             SyncStatsRecord, SyncStatsWriter, SyncTransportKind,
         },
         tag::{Tag, TagReader, TagWriter},
+        tag_profile::TagProfileStore,
     },
-    nlp::{NlpDocument, NlpTagIndex},
+    nlp::tag::TagProfileIndex,
     search::{searcher::FuzzyIndex, semantic::SemanticIndex, types::Searchable},
     sync::{RelayInventory, RelaySyncService, ShareService, SyncPeerIdentity, SyncService},
     views::{
@@ -64,7 +66,7 @@ use uuid::{Builder, Uuid};
 
 #[derive(Debug, Default)]
 struct ServiceTagRecommender {
-    index: Mutex<NlpTagIndex>,
+    index: RwLock<TagProfileIndex>,
 }
 
 impl ServiceTagRecommender {
@@ -72,12 +74,26 @@ impl ServiceTagRecommender {
         Self::default()
     }
 
-    fn rebuild(&self, docs: Vec<NlpDocument>) {
-        self.index.lock().unwrap().build(docs);
+    fn replace_if_newer(&self, index: TagProfileIndex) -> bool {
+        let mut current = self.index.write().expect("tag profile index lock");
+        if current.embedding_space() == index.embedding_space()
+            && current.generation() > index.generation()
+        {
+            return false;
+        }
+        *current = index;
+        true
     }
 
-    fn recommend_tag(&self, content: &str, limit: usize) -> Vec<String> {
-        self.index.lock().unwrap().recommend_tag(content, limit)
+    fn clear(&self) {
+        *self.index.write().expect("tag profile index lock") = TagProfileIndex::default();
+    }
+
+    fn recommend_tags(&self, query: &[f32], limit: usize) -> Vec<String> {
+        self.index
+            .read()
+            .expect("tag profile index lock")
+            .recommend_tags(query, limit)
     }
 }
 

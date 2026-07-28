@@ -1,5 +1,9 @@
 use super::*;
-use crate::nlp::embedding::{EmbeddingError, EmbeddingModel};
+use crate::models::{
+    embedding_cache::EmbeddingCacheStamp,
+    tag_profile::{TagProfileMetadata, TagProfileRecord},
+};
+use crate::nlp::embedding::{EmbeddingError, EmbeddingModel, LocalHashEmbedding};
 use std::{
     net::TcpListener,
     sync::{mpsc, Arc, Condvar, Mutex as StdMutex},
@@ -122,6 +126,7 @@ fn test_recommend_tag_returns_related_tags() {
             vec!["database".into(), "backend".into()],
         )
         .unwrap();
+    service.backfill_note_embeddings().unwrap();
 
     let tags = service.recommend_tag("tokio async ownership", 3).unwrap();
     assert!(tags.iter().any(|tag| tag == "rust"));
@@ -135,6 +140,7 @@ fn test_recommend_tag_tracks_note_lifecycle() {
     let original = service
         .create_note("tokio future runtime".to_string(), vec!["async".into()])
         .unwrap();
+    service.backfill_note_embeddings().unwrap();
 
     let initial = service.recommend_tag("tokio runtime", 3).unwrap();
     assert!(initial.iter().any(|tag| tag == "async"));
@@ -146,6 +152,7 @@ fn test_recommend_tag_tracks_note_lifecycle() {
             vec!["database".into()],
         )
         .unwrap();
+    service.backfill_note_embeddings().unwrap();
 
     let updated = service.recommend_tag("sql planner", 3).unwrap();
     assert!(updated.iter().any(|tag| tag == "database"));
@@ -158,8 +165,168 @@ fn test_recommend_tag_tracks_note_lifecycle() {
     assert!(!after_delete.iter().any(|tag| tag == "database"));
 
     service.restore_note(&edited.id).unwrap();
+    service.backfill_note_embeddings().unwrap();
     let after_restore = service.recommend_tag("sql planner", 3).unwrap();
     assert!(after_restore.iter().any(|tag| tag == "database"));
+}
+
+#[test]
+fn test_tag_profiles_persist_across_reopen_without_rebuild() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("tag-profiles.redb");
+    let service = SynapService::open(&db_path).unwrap();
+    service
+        .create_note(
+            "tokio async runtime scheduling".into(),
+            vec!["rust".into(), "async".into()],
+        )
+        .unwrap();
+    service.backfill_note_embeddings().unwrap();
+    let generation = service
+        .with_read(|tx, _| Ok(TagProfileStore::load_metadata(tx)?.unwrap().generation))
+        .unwrap();
+    assert!(generation > 0);
+    drop(service);
+
+    let reopened = SynapService::open(&db_path).unwrap();
+    let reopened_generation = reopened
+        .with_read(|tx, _| Ok(TagProfileStore::load_metadata(tx)?.unwrap().generation))
+        .unwrap();
+    assert_eq!(reopened_generation, generation);
+    let tags = reopened.recommend_tag("tokio runtime", 2).unwrap();
+    assert!(tags.iter().any(|tag| tag == "rust"));
+    assert!(tags.iter().any(|tag| tag == "async"));
+}
+
+#[test]
+fn test_legacy_note_vectors_are_adopted_into_tag_profiles() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("legacy-vectors.redb");
+    let db = Database::create(&db_path).unwrap();
+    let tx = db.begin_write().unwrap();
+    Note::init_schema(&tx).unwrap();
+    TagWriter::init_schema(&tx).unwrap();
+    let tag = TagWriter::new(&tx).find_or_create("rust").unwrap();
+    let note = Note::create(&tx, "rust ownership borrowing".into(), vec![tag]).unwrap();
+    let vector = LocalHashEmbedding::new(384)
+        .embed("rust ownership borrowing")
+        .unwrap();
+    Note::vector_index()
+        .put(&tx, note.get_id().as_bytes(), &vector)
+        .unwrap();
+    tx.commit().unwrap();
+    drop(db);
+
+    let service = SynapService::open(&db_path).unwrap();
+    let tags = service.recommend_tag("rust borrowing", 1).unwrap();
+    assert_eq!(tags, ["rust"]);
+    service
+        .with_read(|tx, _| {
+            assert!(EmbeddingCacheMetadata::load(tx)?.is_some());
+            let metadata = TagProfileStore::load_metadata(tx)?.unwrap();
+            assert_eq!(metadata.generation, 1);
+            assert_eq!(TagProfileStore::load_profiles(tx)?.len(), 1);
+            Ok(())
+        })
+        .unwrap();
+}
+
+#[test]
+fn test_unsupported_embedding_cache_version_invalidates_derived_profiles() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("embedding-version.redb");
+    let service = SynapService::open(&db_path).unwrap();
+    service
+        .create_note("rust ownership borrowing".into(), vec!["rust".into()])
+        .unwrap();
+    service.backfill_note_embeddings().unwrap();
+    assert_eq!(
+        service.recommend_tag("rust borrowing", 1).unwrap(),
+        ["rust"]
+    );
+    drop(service);
+
+    let db = Database::open(&db_path).unwrap();
+    let tx = db.begin_write().unwrap();
+    let mut incompatible = EmbeddingCacheStamp::new("local-hash:v1:384".into(), 384);
+    incompatible.schema_version += 1;
+    EmbeddingCacheMetadata::save(&tx, &incompatible).unwrap();
+    tx.commit().unwrap();
+    drop(db);
+
+    let reopened = SynapService::open(&db_path).unwrap();
+    assert!(reopened
+        .recommend_tag("rust borrowing", 1)
+        .unwrap()
+        .is_empty());
+    assert_eq!(reopened.backfill_note_embeddings().unwrap(), 1);
+    assert_eq!(
+        reopened.recommend_tag("rust borrowing", 1).unwrap(),
+        ["rust"]
+    );
+}
+
+#[test]
+fn test_interrupted_tag_profile_migration_resumes_from_building_state() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("interrupted-profile-migration.redb");
+    let service = SynapService::open(&db_path).unwrap();
+    service
+        .create_note("rust ownership borrowing".into(), vec!["rust".into()])
+        .unwrap();
+    service.backfill_note_embeddings().unwrap();
+    drop(service);
+
+    let db = Database::open(&db_path).unwrap();
+    let tx = db.begin_write().unwrap();
+    let building = TagProfileMetadata::new("local-hash:v1:384".into(), 384);
+    assert!(!building.is_ready());
+    TagProfileStore::reset(&tx, &building).unwrap();
+    tx.commit().unwrap();
+    drop(db);
+
+    let reopened = SynapService::open(&db_path).unwrap();
+    assert_eq!(
+        reopened.recommend_tag("rust borrowing", 1).unwrap(),
+        ["rust"]
+    );
+    reopened
+        .with_read(|tx, _| {
+            assert!(TagProfileStore::load_metadata(tx)?.unwrap().is_ready());
+            assert_eq!(TagProfileStore::load_profiles(tx)?.len(), 1);
+            Ok(())
+        })
+        .unwrap();
+}
+
+#[test]
+fn test_tag_recommender_rejects_older_same_space_snapshot() {
+    fn index(generation: u64) -> TagProfileIndex {
+        let metadata = TagProfileMetadata {
+            schema_version: 1,
+            algorithm_version: 1,
+            embedding_space: "local-hash:test".into(),
+            dimension: 2,
+            generation,
+        };
+        TagProfileIndex::build(
+            &metadata,
+            vec![TagProfileRecord {
+                tag_id: [1; 16],
+                name: format!("generation-{generation}"),
+                embedding_sum: vec![1.0, 0.0],
+                embedding_count: 1,
+            }],
+            None,
+        )
+    }
+
+    let recommender = ServiceTagRecommender::new();
+    assert!(recommender.replace_if_newer(index(3)));
+    assert!(!recommender.replace_if_newer(index(2)));
+    let current = recommender.index.read().unwrap();
+    assert_eq!(current.generation(), 3);
+    assert_eq!(current.recommend_tags(&[1.0, 0.0], 1), ["generation-3"]);
 }
 
 #[test]

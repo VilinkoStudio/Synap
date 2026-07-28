@@ -1,5 +1,6 @@
 use redb::{ReadTransaction, WriteTransaction};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::db::kvstore::{KvReader, KvStore};
 
@@ -102,6 +103,25 @@ impl EmbeddingConfig {
     pub fn dimension(&self) -> usize {
         match self {
             Self::LocalHash { dimension } | Self::Http { dimension, .. } => *dimension,
+        }
+    }
+
+    /// Stable identity for vectors derived from this configuration. Secrets and
+    /// transport-only settings intentionally do not participate.
+    pub(crate) fn space_fingerprint(&self) -> String {
+        match self {
+            Self::LocalHash { dimension } => format!("local-hash:v1:{dimension}"),
+            Self::Http {
+                endpoint,
+                model,
+                dimension,
+                ..
+            } => {
+                let digest = Sha256::digest(
+                    format!("{}\0{}\0{dimension}", endpoint.trim(), model.trim()).as_bytes(),
+                );
+                format!("http:v1:{digest:x}")
+            }
         }
     }
 

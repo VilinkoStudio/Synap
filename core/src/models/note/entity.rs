@@ -88,6 +88,13 @@ impl Note {
         tx: &WriteTransaction,
         note_id: &Uuid,
     ) -> Result<Option<String>, redb::Error> {
+        Ok(Self::embedding_source_if_live_latest_in_write(tx, note_id)?.map(|source| source.text))
+    }
+
+    pub(crate) fn embedding_source_if_live_latest_in_write(
+        tx: &WriteTransaction,
+        note_id: &Uuid,
+    ) -> Result<Option<EmbeddingSource>, redb::Error> {
         let Some(block) = NOTE_STORE.get_in_write(tx, note_id.as_bytes())? else {
             return Ok(None);
         };
@@ -98,7 +105,10 @@ impl Note {
         }
 
         let text = Self::filter_search_text(&block.content);
-        Ok((!text.trim().is_empty()).then_some(text))
+        Ok((!text.trim().is_empty()).then_some(EmbeddingSource {
+            text,
+            tag_ids: block.tags,
+        }))
     }
 
     pub fn content(&self) -> &str {
@@ -403,6 +413,11 @@ impl Note {
 
         Ok(())
     }
+}
+
+pub(crate) struct EmbeddingSource {
+    pub text: String,
+    pub tag_ids: Vec<Uuid>,
 }
 
 impl Searchable for Note {

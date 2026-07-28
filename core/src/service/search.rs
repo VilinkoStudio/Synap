@@ -8,7 +8,7 @@ struct AggregatedSearchHit {
 }
 
 impl SynapService {
-    fn init_search(&self) -> Result<(), ServiceError> {
+    pub(crate) fn init_search(&self) -> Result<(), ServiceError> {
         self.note_searcher.clear();
         self.tag_searcher.clear();
 
@@ -39,12 +39,12 @@ impl SynapService {
             Ok(())
         })?;
 
-        self.reconcile_note_embeddings()
+        Ok(())
     }
 
     pub(crate) fn refresh_search_indexes(&self) -> Result<(), ServiceError> {
         self.init_search()?;
-        self.rebuild_tag_recommender()
+        self.reconcile_note_embeddings()
     }
 
     /// 横向检索
@@ -229,7 +229,15 @@ impl SynapService {
     }
 
     pub fn recommend_tag(&self, content: &str, limit: usize) -> Result<Vec<String>, ServiceError> {
-        Ok(self.tag_recommender.recommend_tag(content, limit))
+        if limit == 0 || content.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+        let _lifecycle = self
+            .embedding_lifecycle
+            .read()
+            .expect("embedding lifecycle lock");
+        let query = self.semantic_index.embed(content)?;
+        Ok(self.tag_recommender.recommend_tags(&query, limit))
     }
 
     pub fn get_all_tags(&self) -> Result<Vec<String>, ServiceError> {

@@ -1,5 +1,9 @@
 use super::*;
-use crate::models::config::{ConfigWriter, EmbeddingConfig};
+use crate::models::{
+    config::{ConfigWriter, EmbeddingConfig},
+    embedding_cache::{EmbeddingCacheMetadata, EmbeddingCacheStamp},
+    tag_profile::{TagProfileDocumentRecord, TagProfileMetadata, TagProfileStore, TagProfileTag},
+};
 use crate::nlp::embedding::{EmbeddingModel, LocalHashEmbedding, OpenAiEmbeddingModel};
 use std::time::Duration;
 
@@ -59,16 +63,33 @@ impl SynapService {
             updated.validate()?;
             updated
         };
+        let embedding_stamp = EmbeddingCacheStamp::new(
+            next.embedding.space_fingerprint(),
+            next.embedding.dimension(),
+        );
+        let profile_metadata = TagProfileMetadata::new(
+            embedding_stamp.space_fingerprint.clone(),
+            embedding_stamp.dimension as usize,
+        );
 
-        self.with_write(|tx| {
+        let update_result = self.with_write(|tx| {
             ConfigWriter::new(tx).save(&next)?;
             self.semantic_index.invalidate_all(tx)?;
+            EmbeddingCacheMetadata::save(tx, &embedding_stamp)?;
+            TagProfileStore::reset(tx, &profile_metadata)?;
             crate::db::umap::UmapCache::clear_points(tx)?;
             crate::db::umap::UmapCache::clear_model(tx)?;
             Ok(())
-        })?;
+        });
+        if let Err(error) = update_result {
+            // A concurrent profile reload may have yielded to this config writer.
+            // Republish the unchanged persisted snapshot before returning failure.
+            self.reload_tag_profile_index_locked()?;
+            return Err(error);
+        }
 
         self.semantic_index.set_embedding_model(model);
+        self.tag_recommender.clear();
         *self.config.lock().expect("config lock") = next.clone();
 
         Ok(embedding_config_to_dto(&next.embedding))
@@ -80,6 +101,7 @@ impl SynapService {
         if note.get_search_text().trim().is_empty() {
             self.with_write(|tx| {
                 self.semantic_index.delete(tx, &note_id)?;
+                TagProfileStore::remove_document(tx, &note_id)?;
                 Ok(())
             })?;
             return Ok(());
@@ -87,6 +109,7 @@ impl SynapService {
 
         self.with_write(|tx| {
             self.semantic_index.reserve(tx, &note_id)?;
+            TagProfileStore::remove_document(tx, &note_id)?;
             Ok(())
         })
     }
@@ -94,8 +117,10 @@ impl SynapService {
     pub(crate) fn delete_note_embedding(&self, note_id: Uuid) -> Result<(), ServiceError> {
         self.with_write(|tx| {
             self.semantic_index.delete(tx, &note_id.into_bytes())?;
+            TagProfileStore::remove_document(tx, &note_id.into_bytes())?;
             Ok(())
-        })
+        })?;
+        self.reload_tag_profile_index()
     }
 
     /// 对齐向量表与 live 笔记：
@@ -135,17 +160,20 @@ impl SynapService {
             for note_id in &existing_ids {
                 if !live_ids.contains(note_id) {
                     self.semantic_index.delete(tx, &note_id.into_bytes())?;
+                    TagProfileStore::remove_document(tx, &note_id.into_bytes())?;
                 }
             }
 
             for note_id in &live_ids {
                 if !existing_ids.contains(note_id) {
                     self.semantic_index.reserve(tx, &note_id.into_bytes())?;
+                    TagProfileStore::remove_document(tx, &note_id.into_bytes())?;
                 }
             }
 
             Ok(())
-        })
+        })?;
+        self.reload_tag_profile_index()
     }
 
     /// 扫描空向量占位并插补 embedding（无进度回调）。
@@ -211,12 +239,19 @@ impl SynapService {
         for (note_id, text) in pending {
             let current_note_id = Some(note_id.to_string());
 
-            let filled = match text.as_deref() {
-                Some(text) => {
-                    let vector = self.semantic_index.embed(text)?;
-                    self.commit_note_embedding(note_id, text, &vector)?
+            let filled_result = match text.as_deref() {
+                Some(text) => self
+                    .semantic_index
+                    .embed(text)
+                    .and_then(|vector| self.commit_note_embedding(note_id, text, &vector)),
+                None => self.reconcile_pending_note_embedding(note_id),
+            };
+            let filled = match filled_result {
+                Ok(filled) => filled,
+                Err(error) => {
+                    self.reload_tag_profile_index_locked()?;
+                    return Err(error);
                 }
-                None => self.reconcile_pending_note_embedding(note_id)?,
             };
 
             processed += 1;
@@ -238,6 +273,7 @@ impl SynapService {
         // 有任意向量变化就整图重建 UMAP；即使 filled=0（只删了无效槽），
         // 也在 model 缺失时由 get_starmap/ensure 懒建。
         if filled_count > 0 || skipped > 0 {
+            self.reload_tag_profile_index_locked()?;
             self.rebuild_starmap_full_cache()?;
         }
 
@@ -251,16 +287,48 @@ impl SynapService {
         vector: &[f32],
     ) -> Result<bool, ServiceError> {
         self.with_write(
-            |tx| match Note::embedding_text_if_live_latest_in_write(tx, &note_id)? {
-                Some(current_text) if current_text == expected_text => self
-                    .semantic_index
-                    .put_embedding(tx, &note_id.into_bytes(), vector),
+            |tx| match Note::embedding_source_if_live_latest_in_write(tx, &note_id)? {
+                Some(source) if source.text == expected_text => {
+                    let stored =
+                        self.semantic_index
+                            .put_embedding(tx, &note_id.into_bytes(), vector)?;
+                    if !stored {
+                        TagProfileStore::remove_document(tx, &note_id.into_bytes())?;
+                        return Ok(false);
+                    }
+
+                    let tag_writer = TagWriter::new(tx);
+                    let mut tags = Vec::with_capacity(source.tag_ids.len());
+                    for tag_id in source.tag_ids {
+                        let tag = tag_writer.get_by_id(&tag_id)?.ok_or_else(|| {
+                            redb::Error::Io(std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                "note references a missing tag",
+                            ))
+                        })?;
+                        tags.push(TagProfileTag {
+                            id: tag_id.into_bytes(),
+                            name: tag.get_content().to_owned(),
+                        });
+                    }
+                    TagProfileStore::upsert_document(
+                        tx,
+                        &note_id.into_bytes(),
+                        TagProfileDocumentRecord {
+                            tags,
+                            embedding: vector.to_vec(),
+                        },
+                    )?;
+                    Ok(true)
+                }
                 Some(_) => {
                     self.semantic_index.reserve(tx, &note_id.into_bytes())?;
+                    TagProfileStore::remove_document(tx, &note_id.into_bytes())?;
                     Ok(false)
                 }
                 None => {
                     self.semantic_index.delete(tx, &note_id.into_bytes())?;
+                    TagProfileStore::remove_document(tx, &note_id.into_bytes())?;
                     Ok(false)
                 }
             },
@@ -274,6 +342,7 @@ impl SynapService {
             } else {
                 self.semantic_index.delete(tx, &note_id.into_bytes())?;
             }
+            TagProfileStore::remove_document(tx, &note_id.into_bytes())?;
             Ok(false)
         })
     }

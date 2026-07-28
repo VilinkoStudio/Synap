@@ -1,4 +1,8 @@
 use super::*;
+use crate::models::{
+    embedding_cache::EmbeddingCacheStamp,
+    tag_profile::{TagProfileDocumentRecord, TagProfileMetadata, TagProfileTag},
+};
 
 impl SynapService {
     /// 封装只读事务的生命周期
@@ -116,61 +120,159 @@ impl SynapService {
         self.with_write(|wtx| StarmapView::persist_snapshot(wtx, &snapshot))
     }
 
-    pub(crate) fn note_to_nlp_document(
-        note: Note,
-        reader: &NoteReader<'_>,
-    ) -> Result<Option<NlpDocument>, ServiceError> {
-        if note.is_deleted() {
-            return Ok(None);
-        }
-
-        let id = note.get_id().to_string();
-        let content = note.content().to_string();
-        let tags = NoteView::new(reader, note)
-            .tags()?
-            .into_iter()
-            .map(|tag| tag.get_content().to_string())
-            .collect::<Vec<_>>();
-
-        if tags.is_empty() {
-            return Ok(None);
-        }
-
-        Ok(Some(NlpDocument::new(id, content, tags)))
+    fn expected_embedding_stamp(&self) -> EmbeddingCacheStamp {
+        let config = self.config.lock().expect("config lock");
+        EmbeddingCacheStamp::new(
+            config.embedding.space_fingerprint(),
+            config.embedding.dimension(),
+        )
     }
 
-    pub(crate) fn collect_tag_recommendation_docs(&self) -> Result<Vec<NlpDocument>, ServiceError> {
-        self.with_read(|_tx, reader| {
+    fn expected_tag_profile_metadata(&self) -> TagProfileMetadata {
+        let stamp = self.expected_embedding_stamp();
+        TagProfileMetadata::new(stamp.space_fingerprint, stamp.dimension as usize)
+    }
+
+    /// Adopts compatible legacy vectors and invalidates derived state when the
+    /// persisted embedding space or cache format no longer matches.
+    pub(crate) fn initialize_derived_caches(&self) -> Result<(), ServiceError> {
+        let expected_embedding = self.expected_embedding_stamp();
+        let expected_profiles = self.expected_tag_profile_metadata();
+        let (embedding_stamp, legacy_vectors_compatible, profile_metadata) =
+            self.with_read(|tx, _reader| {
+                let stamp = EmbeddingCacheMetadata::load(tx)?;
+                let mut compatible = true;
+                if stamp.is_none() {
+                    for item in Note::vector_index().iter(tx)? {
+                        let (_, vector) = item.map_err(redb::Error::from)?;
+                        if !vector.is_empty()
+                            && (vector.len() != expected_embedding.dimension as usize
+                                || vector.iter().any(|value| !value.is_finite()))
+                        {
+                            compatible = false;
+                            break;
+                        }
+                    }
+                }
+                Ok((stamp, compatible, TagProfileStore::load_metadata(tx)?))
+            })?;
+
+        let embedding_incompatible = embedding_stamp
+            .as_ref()
+            .is_some_and(|stamp| !stamp.is_compatible_with(&expected_embedding))
+            || (embedding_stamp.is_none() && !legacy_vectors_compatible);
+        let profiles_incompatible = profile_metadata.as_ref().is_none_or(|metadata| {
+            !metadata.is_compatible_with(&expected_profiles) || !metadata.is_ready()
+        });
+
+        self.with_write(|tx| {
+            if embedding_incompatible {
+                self.semantic_index.invalidate_all(tx)?;
+                UmapCache::clear_points(tx)?;
+                UmapCache::clear_model(tx)?;
+            }
+            if embedding_stamp.is_none() || embedding_incompatible {
+                EmbeddingCacheMetadata::save(tx, &expected_embedding)?;
+            }
+            if profiles_incompatible || embedding_incompatible {
+                TagProfileStore::reset(tx, &expected_profiles)?;
+            }
+            Ok(())
+        })?;
+
+        self.reconcile_note_embeddings()?;
+        if profiles_incompatible || embedding_incompatible {
+            self.rebuild_tag_profiles_from_vectors()?;
+        }
+        self.reload_tag_profile_index()
+    }
+
+    /// Migration/recovery path only: joins live latest notes with already
+    /// persisted NoteVectors and publishes a complete profile snapshot.
+    pub(crate) fn rebuild_tag_profiles_from_vectors(&self) -> Result<(), ServiceError> {
+        let expected = self.expected_tag_profile_metadata();
+        let documents = self.with_read(|tx, reader| {
             let timeline = TimelineView::new(reader);
-            let mut docs = Vec::new();
+            let mut documents = Vec::new();
 
             for note_ref_res in timeline.recent_refs()? {
                 let note_ref = note_ref_res.map_err(ServiceError::from)?;
-                if !Self::is_latest_version(reader, note_ref)? {
+                if note_ref.is_deleted() || !Self::is_latest_version(reader, note_ref)? {
                     continue;
                 }
-
                 let note = note_ref
                     .hydrate(reader)?
                     .ok_or(ServiceError::NotFound(note_ref.get_id().to_string()))?;
-                if let Some(doc) = Self::note_to_nlp_document(note, reader)? {
-                    docs.push(doc);
+                let Some(vector) = self
+                    .semantic_index
+                    .get(tx, &note.get_id().into_bytes())?
+                    .filter(|vector| !SemanticIndex::is_pending(vector))
+                else {
+                    continue;
+                };
+                if vector.len() != expected.dimension as usize {
+                    continue;
                 }
+                let tags = NoteView::new(reader, note.clone())
+                    .tags()?
+                    .into_iter()
+                    .map(|tag| TagProfileTag {
+                        id: tag.get_id().into_bytes(),
+                        name: tag.get_content().to_owned(),
+                    })
+                    .collect::<Vec<_>>();
+                if tags.is_empty() {
+                    continue;
+                }
+                documents.push((
+                    note.get_id().into_bytes(),
+                    TagProfileDocumentRecord {
+                        tags,
+                        embedding: vector,
+                    },
+                ));
             }
+            Ok(documents)
+        })?;
 
-            Ok(docs)
+        self.with_write(|tx| {
+            TagProfileStore::replace_all(tx, &expected, documents)?;
+            Ok(())
         })
     }
 
-    pub(crate) fn rebuild_tag_recommender(&self) -> Result<(), ServiceError> {
-        let docs = self.collect_tag_recommendation_docs()?;
-        self.tag_recommender.rebuild(docs);
+    pub(crate) fn reload_tag_profile_index(&self) -> Result<(), ServiceError> {
+        let _lifecycle = match self.embedding_lifecycle.try_read() {
+            Ok(guard) => guard,
+            Err(std::sync::TryLockError::WouldBlock) => return Ok(()),
+            Err(std::sync::TryLockError::Poisoned(error)) => {
+                panic!("embedding lifecycle lock: {error}")
+            }
+        };
+        self.reload_tag_profile_index_locked()
+    }
+
+    /// Caller must hold either side of embedding_lifecycle, which prevents an
+    /// old embedding-space snapshot from being published across config changes.
+    pub(crate) fn reload_tag_profile_index_locked(&self) -> Result<(), ServiceError> {
+        let snapshot = self.with_read(|tx, _reader| {
+            let metadata = TagProfileStore::load_metadata(tx)?;
+            let profiles = TagProfileStore::load_profiles(tx)?;
+            let preference = TagProfileStore::load_preference_model(tx)?;
+            Ok(metadata.map(|metadata| (metadata, profiles, preference)))
+        })?;
+        let index = snapshot
+            .map(|(metadata, profiles, preference)| {
+                TagProfileIndex::build(&metadata, profiles, preference)
+            })
+            .unwrap_or_default();
+        self.tag_recommender.replace_if_newer(index);
         Ok(())
     }
 
     pub(crate) fn refresh_tag_indexes(&self) -> Result<(), ServiceError> {
         self.rebuild_tag_search()?;
-        self.rebuild_tag_recommender()
+        self.reload_tag_profile_index()
     }
 
     //传None代表临时文件
@@ -200,6 +302,8 @@ impl SynapService {
         RelayPeerWriter::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
         SyncStatsWriter::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
         ConfigWriter::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
+        EmbeddingCacheMetadata::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
+        TagProfileStore::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
         crypto::ensure_local_identity(&CryptoWriter::new(&tx))
             .map_err(|err| ServiceError::Db(err.into()))?;
         crypto::ensure_local_signing_identity(&CryptoWriter::new(&tx))
@@ -222,7 +326,8 @@ impl SynapService {
             semantic_index,
             tag_recommender,
         };
-        res.refresh_search_indexes()?;
+        res.initialize_derived_caches()?;
+        res.init_search()?;
         Ok(res)
     }
 

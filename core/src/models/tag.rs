@@ -140,6 +140,11 @@ impl<'a> TagWriter<'a> {
         Ok(())
     }
 
+    pub(crate) fn get_by_id(&self, id: &Uuid) -> Result<Option<Tag>, redb::Error> {
+        let block = TAG_STORE.get_in_write(self.tx, id.as_bytes())?;
+        Ok(block.map(|inner| Tag { id: *id, inner }))
+    }
+
     /// Tag 是不可变块：只创建新实体，或读取已存在的同内容实体。
     pub fn find_or_create(&self, content: impl AsRef<str>) -> Result<Tag, redb::Error> {
         let normalized = Tag::normalize_content(content.as_ref()).ok_or_else(|| {
