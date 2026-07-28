@@ -63,9 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.synap.app.R
-import com.synap.app.data.service.DraftRecord
-import com.synap.app.data.service.DraftStore
-import com.synap.app.ui.util.NoteColorUtil
+import com.synap.app.data.model.NoteDraftRecord
 import kotlinx.coroutines.CancellationException
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -74,21 +72,20 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DraftScreen(
+    drafts: List<NoteDraftRecord>,
     onNavigateBack: () -> Unit,
-    onDraftClick: (DraftRecord) -> Unit,
+    onDraftClick: (NoteDraftRecord) -> Unit,
+    onDelete: (String) -> Unit,
+    onClear: () -> Unit,
+    onRefresh: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val draftStore = remember { DraftStore(context) }
-    var drafts by remember { mutableStateOf(draftStore.list()) }
     var showMessage by remember { mutableStateOf(true) }
     var showClearDialog by remember { mutableStateOf(false) }
 
-    // 每次重组时读取最新容量
-    val capacity = draftStore.getCapacity()
     val currentCount = drafts.size
 
     fun refreshDrafts() {
-        drafts = draftStore.list()
+        onRefresh()
     }
 
     // 自动刷新草稿箱数据
@@ -128,7 +125,7 @@ fun DraftScreen(
                 },
                 actions = {
                     Text(
-                        text = "$currentCount/$capacity",
+                        text = currentCount.toString(),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -199,7 +196,7 @@ fun DraftScreen(
                             draft = draft,
                             onClick = { onDraftClick(draft) },
                             onDelete = {
-                                draftStore.delete(draft.id)
+                                onDelete(draft.id)
                                 refreshDrafts()
                             },
                         )
@@ -218,7 +215,7 @@ fun DraftScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        draftStore.clear()
+                        onClear()
                         refreshDrafts()
                         showClearDialog = false
                     },
@@ -241,7 +238,7 @@ fun DraftScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DraftCard(
-    draft: DraftRecord,
+    draft: NoteDraftRecord,
     onClick: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -346,12 +343,12 @@ private fun DraftCard(
 
                 val dateFormat = SimpleDateFormat("yyyy年MM月dd日 HH:mm:ss", Locale.getDefault())
                 Text(
-                    text = "编辑于${dateFormat.format(Date(draft.savedAt))}",
+                    text = "编辑于${dateFormat.format(Date(draft.updatedAt))}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
-                val displayTags = NoteColorUtil.filterDisplayTags(draft.tags)
+                val displayTags = draft.tags
                 if (displayTags.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(

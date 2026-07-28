@@ -17,6 +17,7 @@ data class Note(
     val id: String,
     val content: String,
     val tags: List<String>,
+    val color: String? = null,
     val timestamp: Long,
     val parentSummary: String? = null,
     val isDeleted: Boolean = false,

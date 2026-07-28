@@ -2,6 +2,7 @@ package com.synap.app.data.repository
 
 import com.synap.app.data.model.NoteFeedFilter
 import com.synap.app.data.model.NoteNeighborsRecord
+import com.synap.app.data.model.NoteDraftRecord
 import com.synap.app.data.model.NoteRecord
 import com.synap.app.data.model.NoteSegmentDirection
 import com.synap.app.data.model.NoteSegmentRecord
@@ -13,6 +14,11 @@ import com.synap.app.data.model.TimelineDirection
 import com.synap.app.data.model.TimelineDensityPointRecord
 import com.synap.app.data.portal.CursorPortal
 import com.synap.app.data.service.SynapServiceApi
+import com.synap.app.data.service.LegacyDraftStore
+import com.synap.app.data.service.LegacyDraftOrigin
+import com.synap.app.data.service.LegacyDraftImportTarget
+import com.synap.app.data.service.colorCss
+import com.synap.app.data.service.migrateLegacyDraftRecords
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.SharedFlow
@@ -84,6 +90,8 @@ interface SynapRepository {
 
     suspend fun search(query: String, limit: UInt = 50u): List<NoteRecord>
 
+    suspend fun backfillNoteEmbeddings(): ULong
+
     suspend fun searchFusion(
         query: String,
         limit: UInt = 50u,
@@ -115,6 +123,35 @@ interface SynapRepository {
 
     suspend fun editNote(targetId: String, newContent: String, tags: List<String>): NoteRecord
 
+    suspend fun setNoteColor(targetId: String, color: String?): NoteRecord
+
+    suspend fun createDraft(): NoteDraftRecord
+
+    suspend fun createEditDraft(noteId: String): NoteDraftRecord
+
+    suspend fun createReplyDraft(parentId: String): NoteDraftRecord
+
+    suspend fun getDraft(draftId: String): NoteDraftRecord
+
+    suspend fun listDrafts(): List<NoteDraftRecord>
+
+    fun draftCapacity(): Int
+
+    suspend fun persistDraft(draftId: String): NoteDraftRecord
+
+    suspend fun discardDraft(draftId: String)
+
+    suspend fun updateDraft(
+        draftId: String,
+        content: String? = null,
+        tags: List<String>? = null,
+        color: String? = null,
+        updateColor: Boolean = false,
+        expectedRevision: ULong? = null,
+    ): NoteDraftRecord
+
+    suspend fun commitDraft(draftId: String): NoteRecord
+
     suspend fun deleteNote(targetId: String)
 
     suspend fun restoreNote(targetId: String)
@@ -124,11 +161,13 @@ interface SynapRepository {
 class SynapRepositoryImpl @Inject constructor(
     private val service: SynapServiceApi,
     private val mutationStore: SynapMutationStore,
+    private val legacyDraftStore: LegacyDraftStore,
 ) : SynapRepository {
     override val mutations: SharedFlow<SynapMutation> = mutationStore.mutations
 
     override suspend fun initialize() {
         service.initialize().unwrap()
+        migrateLegacyDrafts()
     }
 
     override suspend fun shutdown() {
@@ -263,6 +302,9 @@ class SynapRepositoryImpl @Inject constructor(
     override suspend fun search(query: String, limit: UInt): List<NoteRecord> =
         service.search(query, limit).unwrap()
 
+    override suspend fun backfillNoteEmbeddings(): ULong =
+        service.backfillNoteEmbeddings().unwrap()
+
     override suspend fun searchFusion(
         query: String,
         limit: UInt,
@@ -319,6 +361,70 @@ class SynapRepositoryImpl @Inject constructor(
         return edited
     }
 
+    override suspend fun setNoteColor(targetId: String, color: String?): NoteRecord {
+        val edited = service.setNoteColor(targetId, color).unwrap()
+        mutationStore.emit(SynapMutation.Edited(oldId = targetId, newId = edited.id))
+        return edited
+    }
+
+    override suspend fun createDraft(): NoteDraftRecord = service.draftNew().unwrap()
+
+    override suspend fun createEditDraft(noteId: String): NoteDraftRecord =
+        service.draftFromNote(noteId).unwrap()
+
+    override suspend fun createReplyDraft(parentId: String): NoteDraftRecord =
+        service.draftReplyTo(parentId).unwrap()
+
+    override suspend fun getDraft(draftId: String): NoteDraftRecord =
+        service.draftGet(draftId).unwrap()
+
+    override suspend fun listDrafts(): List<NoteDraftRecord> =
+        if (draftCapacity() == 0) emptyList() else service.draftList().unwrap()
+
+    override fun draftCapacity(): Int = legacyDraftStore.getCapacity()
+
+    override suspend fun persistDraft(draftId: String): NoteDraftRecord {
+        val capacity = draftCapacity()
+        check(capacity > 0) { "Draft persistence is disabled" }
+        val persisted = service.draftPersist(draftId).unwrap()
+        service.draftList().unwrap()
+            .asSequence()
+            .filter(NoteDraftRecord::persisted)
+            .drop(capacity)
+            .forEach { stale -> service.draftDiscard(stale.id).unwrap() }
+        return persisted
+    }
+
+    override suspend fun discardDraft(draftId: String) {
+        service.draftDiscard(draftId).unwrap()
+    }
+
+    override suspend fun updateDraft(
+        draftId: String,
+        content: String?,
+        tags: List<String>?,
+        color: String?,
+        updateColor: Boolean,
+        expectedRevision: ULong?,
+    ): NoteDraftRecord = service
+        .draftUpdate(draftId, content, tags, color, updateColor, expectedRevision)
+        .unwrap()
+
+    override suspend fun commitDraft(draftId: String): NoteRecord {
+        val draft = getDraft(draftId)
+        val note = service.draftCommit(draftId).unwrap()
+        when {
+            draft.editedFrom != null -> mutationStore.emit(
+                SynapMutation.Edited(oldId = draft.editedFrom, newId = note.id),
+            )
+            draft.replyTo != null -> mutationStore.emit(
+                SynapMutation.Replied(parentId = draft.replyTo, noteId = note.id),
+            )
+            else -> mutationStore.emit(SynapMutation.Created(note.id))
+        }
+        return note
+    }
+
     override suspend fun deleteNote(targetId: String) {
         service.deleteNote(targetId).unwrap()
         mutationStore.emit(SynapMutation.Deleted(targetId))
@@ -327,6 +433,36 @@ class SynapRepositoryImpl @Inject constructor(
     override suspend fun restoreNote(targetId: String) {
         service.restoreNote(targetId).unwrap()
         mutationStore.emit(SynapMutation.Restored(targetId))
+    }
+
+    private suspend fun migrateLegacyDrafts() {
+        migrateLegacyDraftRecords(
+            // Core timestamps each imported update; oldest-first preserves legacy ordering.
+            records = legacyDraftStore.listAll().asReversed(),
+            target = object : LegacyDraftImportTarget {
+                override suspend fun create(origin: LegacyDraftOrigin): String =
+                    when (origin) {
+                        LegacyDraftOrigin.Create -> createDraft()
+                        is LegacyDraftOrigin.Reply -> createReplyDraft(origin.parentId)
+                        is LegacyDraftOrigin.Edit -> createEditDraft(origin.noteId)
+                    }.id
+
+                override suspend fun updateAndPersist(
+                    draftId: String,
+                    legacy: com.synap.app.data.service.DraftRecord,
+                ) {
+                    val updated = updateDraft(
+                    draftId = draftId,
+                    content = legacy.content,
+                    tags = legacy.tags,
+                    color = legacy.colorCss(),
+                    updateColor = true,
+                )
+                    persistDraft(updated.id)
+                }
+            },
+            onMigrated = legacyDraftStore::delete,
+        )
     }
 
     private fun <T> Result<T>.unwrap(): T = getOrElse { throw it }

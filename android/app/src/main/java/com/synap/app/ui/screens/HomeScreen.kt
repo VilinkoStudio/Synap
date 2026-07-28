@@ -118,7 +118,6 @@ import com.synap.app.R
 import com.synap.app.ui.components.ShareExportSheet
 import com.synap.app.ui.components.HomeTimelineFeed
 import com.synap.app.ui.model.Note
-import com.synap.app.ui.util.NoteColorUtil
 import com.synap.app.ui.viewmodel.HomeUiState
 import com.synap.app.ui.viewmodel.TimelineBrowserUiState
 import kotlinx.coroutines.delay
@@ -479,28 +478,10 @@ fun HomeScreen(
                 label = { Text(stringResource(R.string.home_filter_untagged), maxLines = 1, overflow = TextOverflow.Ellipsis) }
             )
             uiState.availableTags.forEach { tag ->
-                val isColorTag = NoteColorUtil.isColorTag(tag)
-                val colorName = if (isColorTag) NoteColorUtil.colorTagToDisplayName(tag) else null
-                val tagColor = if (isColorTag) NoteColorUtil.parseNoteColor(listOf(tag)) else null
-
                 FilterChip(
                     selected = !isAllSelected && tag !in uiState.unselectedTags,
                     onClick = { onToggleTagFilter(tag) },
-                    label = {
-                        if (isColorTag && tagColor != null) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(12.dp)
-                                        .background(tagColor, CircleShape)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(colorName ?: tag, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                        } else {
-                            Text(tag, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
+                    label = { Text(tag, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 )
             }
         }
@@ -523,28 +504,10 @@ fun HomeScreen(
                 item { FilterChip(selected = isAllSelected, onClick = onToggleAllTags, label = { Text(stringResource(R.string.home_filter_all), maxLines = 1, overflow = TextOverflow.Ellipsis) }) }
                 item { FilterChip(selected = !isAllSelected && !uiState.isUntaggedUnselected, onClick = onToggleUntaggedFilter, label = { Text(stringResource(R.string.home_filter_untagged), maxLines = 1, overflow = TextOverflow.Ellipsis) }) }
                 items(uiState.availableTags) { tag ->
-                    val isColorTag = NoteColorUtil.isColorTag(tag)
-                    val colorName = if (isColorTag) NoteColorUtil.colorTagToDisplayName(tag) else null
-                    val tagColor = if (isColorTag) NoteColorUtil.parseNoteColor(listOf(tag)) else null
-
                     FilterChip(
                         selected = !isAllSelected && tag !in uiState.unselectedTags,
                         onClick = { onToggleTagFilter(tag) },
-                        label = {
-                            if (isColorTag && tagColor != null) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(12.dp)
-                                            .background(tagColor, CircleShape)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(colorName ?: tag, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                }
-                            } else {
-                                Text(tag, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
+                        label = { Text(tag, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                     )
                 }
             }

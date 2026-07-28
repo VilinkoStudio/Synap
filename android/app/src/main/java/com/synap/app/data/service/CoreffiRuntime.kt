@@ -16,6 +16,7 @@ import com.synap.app.data.model.LocalIdentity
 import com.synap.app.data.model.MdnsDiscoverySignature
 import com.synap.app.data.model.NoteFeedFilter
 import com.synap.app.data.model.NoteFeedStatus
+import com.synap.app.data.model.NoteDraftRecord
 import com.synap.app.data.model.NoteNeighborsRecord
 import com.synap.app.data.model.NoteRecord
 import com.synap.app.data.model.NoteSegmentDirection
@@ -327,6 +328,9 @@ class CoreffiRuntime @Inject constructor(
     override suspend fun getStarmap(): Result<List<StarmapPointRecord>> =
         withService { service -> service.getStarmap().toStarmapPoints() }
 
+    override suspend fun backfillNoteEmbeddings(): Result<ULong> =
+        withService { service -> service.backfillNoteEmbeddings() }
+
     override suspend fun search(query: String, limit: UInt): Result<List<NoteRecord>> =
         withService { service -> service.search(query, limit).toNoteRecords() }
 
@@ -465,6 +469,55 @@ class CoreffiRuntime @Inject constructor(
     ): Result<NoteRecord> =
         withService { service -> service.editNote(targetId, newContent, tags).toNoteRecord() }
 
+    override suspend fun setNoteColor(targetId: String, color: String?): Result<NoteRecord> =
+        withService { service -> service.setNoteColor(targetId, color).toNoteRecord() }
+
+    override suspend fun draftNew(): Result<NoteDraftRecord> =
+        withService { service -> service.draftNew().toNoteDraftRecord() }
+
+    override suspend fun draftFromNote(noteId: String): Result<NoteDraftRecord> =
+        withService { service -> service.draftFromNote(noteId).toNoteDraftRecord() }
+
+    override suspend fun draftReplyTo(parentId: String): Result<NoteDraftRecord> =
+        withService { service -> service.draftReplyTo(parentId).toNoteDraftRecord() }
+
+    override suspend fun draftGet(draftId: String): Result<NoteDraftRecord> =
+        withService { service -> service.draftGet(draftId).toNoteDraftRecord() }
+
+    override suspend fun draftList(): Result<List<NoteDraftRecord>> =
+        withService { service -> service.draftList().map { it.toNoteDraftRecord() } }
+
+    override suspend fun draftPersist(draftId: String): Result<NoteDraftRecord> =
+        withService { service -> service.draftPersist(draftId).toNoteDraftRecord() }
+
+    override suspend fun draftDiscard(draftId: String): Result<Unit> =
+        withService { service -> service.draftDiscard(draftId) }
+
+    override suspend fun draftUpdate(
+        draftId: String,
+        content: String?,
+        tags: List<String>?,
+        color: String?,
+        updateColor: Boolean,
+        expectedRevision: ULong?,
+    ): Result<NoteDraftRecord> = withService { service ->
+        service.draftUpdate(
+            draftId,
+            content,
+            tags,
+            color,
+            updateColor,
+            null,
+            false,
+            null,
+            false,
+            expectedRevision,
+        ).toNoteDraftRecord()
+    }
+
+    override suspend fun draftCommit(draftId: String): Result<NoteRecord> =
+        withService { service -> service.draftCommit(draftId).toNoteRecord() }
+
     override suspend fun deleteNote(targetId: String): Result<Unit> =
         withService { service -> service.deleteNote(targetId) }
 
@@ -514,6 +567,20 @@ class CoreffiRuntime @Inject constructor(
         )
     }
 }
+
+private fun com.fuwaki.synap.bindings.uniffi.synap_coreffi.NoteDraftDto.toNoteDraftRecord() =
+    NoteDraftRecord(
+        id = id,
+        content = content,
+        tags = tags,
+        color = color,
+        replyTo = replyTo,
+        editedFrom = editedFrom,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        persisted = persisted,
+        revision = revision,
+    )
 
 private class FfiSyncTransportAdapter(
     private val transport: SyncTransportChannel,

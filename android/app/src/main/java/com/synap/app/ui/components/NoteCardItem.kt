@@ -314,7 +314,7 @@ fun NoteCardItem(
 
     var isPressed by remember { mutableStateOf(false) }
 
-    val noteColor = NoteColorUtil.parseNoteColor(note.tags)
+    val noteColor = NoteColorUtil.parseCssHex(note.color)
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val cardBackgroundColor = when {
         note.isDeleted -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
@@ -494,7 +494,7 @@ fun NoteCardItem(
                                     modifier = Modifier.horizontalScroll(rememberScrollState()),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    val displayTags = NoteColorUtil.filterDisplayTags(note.tags)
+                                    val displayTags = note.tags
                                     displayTags.take(5).forEach { tag ->
                                         Surface(
                                             color = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.secondaryContainer,

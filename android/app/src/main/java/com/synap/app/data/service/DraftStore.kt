@@ -7,6 +7,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.roundToInt
 
 data class DraftRecord(
     val id: String = UUID.randomUUID().toString(),
@@ -22,8 +23,36 @@ data class DraftRecord(
     val status: String = "pending", // "editing", "pending", "read"
 )
 
+internal sealed interface LegacyDraftOrigin {
+    data object Create : LegacyDraftOrigin
+    data class Reply(val parentId: String) : LegacyDraftOrigin
+    data class Edit(val noteId: String) : LegacyDraftOrigin
+}
+
+internal fun DraftRecord.origin(): LegacyDraftOrigin = when {
+    mode == "edit" && !editNoteId.isNullOrBlank() -> LegacyDraftOrigin.Edit(editNoteId)
+    mode == "reply" && !parentId.isNullOrBlank() -> LegacyDraftOrigin.Reply(parentId)
+    else -> LegacyDraftOrigin.Create
+}
+
+internal fun DraftRecord.colorCss(): String? {
+    val hue = noteColorHue ?: return null
+    val normalized = ((hue % 360f) + 360f) % 360f
+    val sector = normalized / 60f
+    val x = (1f - kotlin.math.abs(sector % 2f - 1f)) * 255f
+    val (red, green, blue) = when (sector.toInt()) {
+        0 -> Triple(255f, x, 0f)
+        1 -> Triple(x, 255f, 0f)
+        2 -> Triple(0f, 255f, x)
+        3 -> Triple(0f, x, 255f)
+        4 -> Triple(x, 0f, 255f)
+        else -> Triple(255f, 0f, x)
+    }
+    return "#%02x%02x%02x".format(red.roundToInt(), green.roundToInt(), blue.roundToInt())
+}
+
 @Singleton
-class DraftStore @Inject constructor(
+class LegacyDraftStore @Inject constructor(
     @ApplicationContext context: Context,
 ) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -31,28 +60,6 @@ class DraftStore @Inject constructor(
 
     fun getCapacity(): Int {
         return settingsPrefs.getInt(KEY_CAPACITY, DEFAULT_CAPACITY)
-    }
-
-    fun setCapacity(capacity: Int) {
-        settingsPrefs.edit().putInt(KEY_CAPACITY, capacity).apply()
-    }
-
-    fun isEnabled(): Boolean {
-        return getCapacity() > 0
-    }
-
-    fun list(): List<DraftRecord> {
-        if (!isEnabled()) return emptyList()
-        val raw = prefs.getString(KEY_DRAFTS, null) ?: return emptyList()
-        val array = runCatching { JSONArray(raw) }.getOrNull() ?: return emptyList()
-        return buildList {
-            for (index in 0 until array.length()) {
-                val item = array.optJSONObject(index) ?: continue
-                add(item.toDraftRecord())
-            }
-        }
-        .filter { it.status != "editing" } // 过滤掉编辑中的草稿
-        .sortedByDescending { it.savedAt }
     }
 
     fun listAll(): List<DraftRecord> {
@@ -66,52 +73,10 @@ class DraftStore @Inject constructor(
         }.sortedByDescending { it.savedAt }
     }
 
-    fun save(draft: DraftRecord): DraftRecord {
-        if (!isEnabled()) return draft
-        val current = listAll().toMutableList()
-        val capacity = getCapacity()
-
-        // Check if draft with same ID exists, update it
-        val existingIndex = current.indexOfFirst { it.id == draft.id }
-        if (existingIndex != -1) {
-            current[existingIndex] = draft
-        } else {
-            // Add new draft
-            current.add(draft)
-        }
-
-        // Sort by time descending and trim to capacity
-        val trimmed = current.sortedByDescending { it.savedAt }.take(capacity)
-
-        saveList(trimmed)
-        return draft
-    }
-
     fun delete(id: String) {
         val current = listAll().toMutableList()
         current.removeAll { it.id == id }
         saveList(current)
-    }
-
-    fun updateStatus(id: String, status: String) {
-        val current = listAll().toMutableList()
-        val index = current.indexOfFirst { it.id == id }
-        if (index != -1) {
-            current[index] = current[index].copy(status = status)
-            saveList(current)
-        }
-    }
-
-    fun getLatestDraft(): DraftRecord? {
-        return listAll().firstOrNull()
-    }
-
-    fun clear() {
-        prefs.edit().remove(KEY_DRAFTS).apply()
-    }
-
-    fun count(): Int {
-        return list().size
     }
 
     private fun saveList(records: List<DraftRecord>) {
@@ -129,9 +94,9 @@ class DraftStore @Inject constructor(
         } ?: emptyList(),
         noteColorHue = if (has("noteColorHue")) optDouble("noteColorHue").toFloat() else null,
         mode = optString("mode", "create"),
-        parentId = optString("parentId", null),
-        parentSummary = optString("parentSummary", null),
-        editNoteId = optString("editNoteId", null),
+        parentId = optString("parentId").takeIf(String::isNotBlank),
+        parentSummary = optString("parentSummary").takeIf(String::isNotBlank),
+        editNoteId = optString("editNoteId").takeIf(String::isNotBlank),
         savedAt = optLong("savedAt", System.currentTimeMillis()),
         reason = optString("reason", "auto"),
         status = optString("status", "pending"),

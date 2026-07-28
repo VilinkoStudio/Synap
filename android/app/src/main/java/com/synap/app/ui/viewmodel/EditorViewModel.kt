@@ -4,8 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.synap.app.data.repository.SynapRepository
-import com.synap.app.data.service.DraftRecord
-import com.synap.app.data.service.DraftStore
+import com.synap.app.data.model.NoteDraftRecord
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -19,6 +18,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import com.synap.app.ui.util.NoteColorUtil
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 sealed interface EditorMode {
     data object Create : EditorMode
@@ -28,6 +29,10 @@ sealed interface EditorMode {
 
 sealed interface EditorEvent {
     data class Saved(val noteId: String, val mode: EditorMode) : EditorEvent
+    data object DraftPersisted : EditorEvent
+    data class DraftDiscarded(val navigateHome: Boolean) : EditorEvent
+    data object Closed : EditorEvent
+    data object OpenDrafts : EditorEvent
 }
 
 data class EditorUiState(
@@ -35,6 +40,7 @@ data class EditorUiState(
     val content: String = "",
     val tags: List<String> = emptyList(),
     val noteColorHue: Float? = null,
+    val noteColorCss: String? = null,
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val isRecommendingTags: Boolean = false,
@@ -46,9 +52,8 @@ data class EditorUiState(
 class EditorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: SynapRepository,
-    private val draftStore: DraftStore,
 ) : ViewModel() {
-    private val mode: EditorMode = when {
+    private var mode: EditorMode = when {
         !savedStateHandle.get<String>("editNoteId").isNullOrBlank() -> {
             EditorMode.Edit(checkNotNull(savedStateHandle["editNoteId"]))
         }
@@ -60,8 +65,10 @@ class EditorViewModel @Inject constructor(
         }
         else -> EditorMode.Create
     }
+    private val restoredDraftId: String? = savedStateHandle["draftId"]
 
-    private val _uiState = MutableStateFlow(EditorUiState(mode = mode, isLoading = mode is EditorMode.Edit))
+    private val initialContentArgument: String? = savedStateHandle["initialContent"]
+    private val _uiState = MutableStateFlow(EditorUiState(mode = mode, isLoading = true))
     val uiState: StateFlow<EditorUiState> = _uiState.asStateFlow()
     private val _events = MutableSharedFlow<EditorEvent>()
     val events = _events.asSharedFlow()
@@ -69,35 +76,78 @@ class EditorViewModel @Inject constructor(
     private var recommendedTagCandidates: List<String> = emptyList()
     private var lastRecommendedContent: String? = null
     private var autoSaveJob: Job? = null
-    private var currentDraftId: String? = null
+    private var currentDraft: NoteDraftRecord? = null
+    private val draftMutationMutex = Mutex()
     private var initialContent: String = ""
     private var hasBeenModified = false
 
     init {
-        if (mode is EditorMode.Edit) {
-            viewModelScope.launch {
-                runCatching {
-                    repository.getNote(mode.noteId)
-                }.fold(
-                    onSuccess = { note ->
-                        val colorHue = NoteColorUtil.extractColorHue(note.tags)
-                        val displayTags = NoteColorUtil.filterDisplayTags(note.tags)
-                        _uiState.value = _uiState.value.copy(
-                            content = note.content,
-                            tags = displayTags,
-                            noteColorHue = colorHue,
+        viewModelScope.launch {
+            runCatching {
+                val draft = restoredDraftId?.let { repository.getDraft(it) } ?: when (val currentMode = mode) {
+                    EditorMode.Create -> repository.createDraft()
+                    is EditorMode.Reply -> repository.createReplyDraft(currentMode.parentId)
+                    is EditorMode.Edit -> repository.createEditDraft(currentMode.noteId)
+                }
+                val initialContent = initialContentArgument?.takeIf(String::isNotBlank)
+                if (initialContent != null && mode !is EditorMode.Edit) {
+                    repository.updateDraft(draft.id, content = initialContent)
+                } else {
+                    draft
+                }
+            }.fold(
+                onSuccess = ::bindDraft,
+                onFailure = { throwable ->
+                    _uiState.update {
+                        it.copy(
                             isLoading = false,
-                            errorMessage = null,
+                            errorMessage = throwable.message ?: "Failed to create draft",
                         )
-                        scheduleTagRecommendations(note.content)
-                    },
-                    onFailure = { throwable ->
-                        _uiState.value = _uiState.value.copy(
-                            isLoading = false,
-                            errorMessage = throwable.message ?: "Failed to load note",
-                        )
-                    },
-                )
+                    }
+                },
+            )
+        }
+    }
+
+    private fun bindDraft(draft: NoteDraftRecord) {
+        mode = when {
+            draft.editedFrom != null -> EditorMode.Edit(draft.editedFrom)
+            draft.replyTo != null -> EditorMode.Reply(draft.replyTo, null)
+            else -> EditorMode.Create
+        }
+        currentDraft = draft
+        initialContent = draft.content
+        _uiState.update {
+            it.copy(
+                mode = mode,
+                content = draft.content,
+                tags = draft.tags,
+                noteColorHue = NoteColorUtil.extractHueFromCss(draft.color),
+                noteColorCss = draft.color,
+                isLoading = false,
+                errorMessage = null,
+            )
+        }
+        scheduleTagRecommendations(draft.content)
+    }
+
+    private fun synchronizeDraft() {
+        viewModelScope.launch {
+            runCatching {
+                draftMutationMutex.withLock {
+                    val draft = currentDraft ?: return@withLock null
+                    val state = _uiState.value
+                    repository.updateDraft(
+                        draftId = draft.id,
+                        content = state.content,
+                        tags = state.tags,
+                        color = state.noteColorCss,
+                        updateColor = true,
+                        expectedRevision = draft.revision.takeIf { draft.persisted },
+                    ).also { currentDraft = it }
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(errorMessage = throwable.message ?: "Failed to update draft") }
             }
         }
     }
@@ -108,6 +158,7 @@ class EditorViewModel @Inject constructor(
             hasBeenModified = true
         }
         scheduleTagRecommendations(value)
+        synchronizeDraft()
         scheduleAutoSave()
     }
 
@@ -125,6 +176,7 @@ class EditorViewModel @Inject constructor(
             )
         }
         hasBeenModified = true
+        synchronizeDraft()
         scheduleAutoSave()
     }
 
@@ -144,6 +196,7 @@ class EditorViewModel @Inject constructor(
             }
         }
         hasBeenModified = true
+        synchronizeDraft()
         scheduleAutoSave()
     }
 
@@ -160,12 +213,19 @@ class EditorViewModel @Inject constructor(
             }
         }
         hasBeenModified = true
+        synchronizeDraft()
         scheduleAutoSave()
     }
 
     fun setNoteColorHue(hue: Float?) {
-        _uiState.update { it.copy(noteColorHue = hue) }
+        _uiState.update {
+            it.copy(
+                noteColorHue = hue,
+                noteColorCss = hue?.let(NoteColorUtil::hueToCssHex),
+            )
+        }
         hasBeenModified = true
+        synchronizeDraft()
         scheduleAutoSave()
     }
 
@@ -177,16 +237,23 @@ class EditorViewModel @Inject constructor(
         }
 
         val state = uiState.value
-        val storageTags = NoteColorUtil.prepareStorageTags(state.tags, state.noteColorHue)
 
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, errorMessage = null) }
 
             runCatching {
-                when (val currentMode = state.mode) {
-                    EditorMode.Create -> repository.createNote(content, storageTags)
-                    is EditorMode.Reply -> repository.replyToNote(currentMode.parentId, content, storageTags)
-                    is EditorMode.Edit -> repository.editNote(currentMode.noteId, content, storageTags)
+                draftMutationMutex.withLock {
+                    val draft = currentDraft ?: error("Draft is not ready")
+                    val synchronized = repository.updateDraft(
+                        draftId = draft.id,
+                        content = state.content,
+                        tags = state.tags,
+                        color = state.noteColorCss,
+                        updateColor = true,
+                        expectedRevision = draft.revision.takeIf { draft.persisted },
+                    )
+                    currentDraft = synchronized
+                    repository.commitDraft(synchronized.id)
                 }
             }.fold(
                 onSuccess = { note ->
@@ -213,65 +280,137 @@ class EditorViewModel @Inject constructor(
     }
 
     fun saveDraftManually() {
-        saveDraft("manual")
+        if (repository.draftCapacity() == 0) {
+            _uiState.update { it.copy(errorMessage = "Draft persistence is disabled") }
+            return
+        }
+        autoSaveJob?.cancel()
+        viewModelScope.launch {
+            runCatching {
+                draftMutationMutex.withLock {
+                    val draft = currentDraft ?: error("Draft is not ready")
+                    val state = _uiState.value
+                    val synchronized = repository.updateDraft(
+                        draftId = draft.id,
+                        content = state.content,
+                        tags = state.tags,
+                        color = state.noteColorCss,
+                        updateColor = true,
+                        expectedRevision = draft.revision.takeIf { draft.persisted },
+                    )
+                    currentDraft = if (synchronized.persisted) {
+                        synchronized
+                    } else {
+                        repository.persistDraft(synchronized.id)
+                    }
+                }
+            }.fold(
+                onSuccess = { _events.emit(EditorEvent.DraftPersisted) },
+                onFailure = { throwable ->
+                    _uiState.update {
+                        it.copy(errorMessage = throwable.message ?: "Failed to persist draft")
+                    }
+                },
+            )
+        }
     }
 
     private fun scheduleAutoSave() {
         autoSaveJob?.cancel()
         autoSaveJob = viewModelScope.launch {
             delay(AUTO_SAVE_DEBOUNCE_MS)
-            saveDraft("auto")
+            persistCurrentDraft()
         }
     }
 
-    private fun saveDraft(reason: String) {
-        if (!draftStore.isEnabled()) return
-        val state = uiState.value
-        val content = state.content.trim()
-        if (content.isEmpty()) return
-
-        val draft = DraftRecord(
-            id = currentDraftId ?: java.util.UUID.randomUUID().toString(),
-            content = content,
-            tags = state.tags,
-            noteColorHue = state.noteColorHue,
-            mode = when (state.mode) {
-                EditorMode.Create -> "create"
-                is EditorMode.Reply -> "reply"
-                is EditorMode.Edit -> "edit"
-            },
-            parentId = (state.mode as? EditorMode.Reply)?.parentId,
-            parentSummary = (state.mode as? EditorMode.Reply)?.parentSummary,
-            editNoteId = (state.mode as? EditorMode.Edit)?.noteId,
-            savedAt = System.currentTimeMillis(),
-            reason = reason,
-            status = "editing", // 自动保存的草稿状态为编辑中
-        )
-
-        if (currentDraftId == null) {
-            currentDraftId = draft.id
+    private fun persistCurrentDraft() {
+        if (_uiState.value.content.trim().isEmpty() || repository.draftCapacity() == 0) return
+        viewModelScope.launch {
+            runCatching {
+                draftMutationMutex.withLock {
+                    val draft = currentDraft ?: return@withLock
+                    if (!draft.persisted) {
+                        currentDraft = repository.persistDraft(draft.id)
+                    }
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(errorMessage = throwable.message ?: "Failed to persist draft") }
+            }
         }
-
-        draftStore.save(draft)
     }
 
     private fun clearCurrentDraft() {
-        currentDraftId?.let { draftStore.delete(it) }
-        currentDraftId = null
+        currentDraft = null
     }
 
     fun getCurrentDraftId(): String? {
-        return currentDraftId
+        return currentDraft?.id
     }
 
-    fun isContentMatchingLatestDraft(): Boolean {
-        val latestDraft = draftStore.getLatestDraft() ?: return false
-        val currentContent = uiState.value.content.trim()
-        return latestDraft.content.trim() == currentContent && currentContent.isNotEmpty()
+    fun discardCurrentDraft(navigateHome: Boolean = false) {
+        autoSaveJob?.cancel()
+        val draftId = currentDraft?.id ?: return
+        viewModelScope.launch {
+            runCatching {
+                draftMutationMutex.withLock {
+                    repository.discardDraft(draftId)
+                    currentDraft = null
+                }
+            }.fold(
+                onSuccess = { _events.emit(EditorEvent.DraftDiscarded(navigateHome)) },
+                onFailure = { throwable ->
+                    _uiState.update {
+                        it.copy(errorMessage = throwable.message ?: "Failed to discard draft")
+                    }
+                },
+            )
+        }
     }
 
-    fun markDraftAsRead(draftId: String) {
-        draftStore.updateStatus(draftId, "read")
+    fun close() {
+        autoSaveJob?.cancel()
+        val draft = currentDraft ?: return
+        if (draft.persisted) {
+            viewModelScope.launch { _events.emit(EditorEvent.Closed) }
+        } else {
+            discardCurrentDraft()
+        }
+    }
+
+    fun openDrafts() {
+        autoSaveJob?.cancel()
+        viewModelScope.launch {
+            runCatching {
+                draftMutationMutex.withLock {
+                    val draft = currentDraft ?: error("Draft is not ready")
+                    val state = _uiState.value
+                    if (state.content.trim().isEmpty()) {
+                        repository.discardDraft(draft.id)
+                        currentDraft = null
+                    } else {
+                        check(repository.draftCapacity() > 0) {
+                            "Draft persistence is disabled"
+                        }
+                        val synchronized = repository.updateDraft(
+                            draftId = draft.id,
+                            content = state.content,
+                            tags = state.tags,
+                            color = state.noteColorCss,
+                            updateColor = true,
+                            expectedRevision = draft.revision.takeIf { draft.persisted },
+                        )
+                        currentDraft = repository.persistDraft(synchronized.id)
+                    }
+                }
+            }.fold(
+                onSuccess = { _events.emit(EditorEvent.OpenDrafts) },
+                onFailure = { throwable ->
+                    _uiState.update {
+                        it.copy(errorMessage = throwable.message ?: "Failed to open drafts")
+                    }
+                },
+            )
+        }
     }
 
     private fun scheduleTagRecommendations(content: String) {

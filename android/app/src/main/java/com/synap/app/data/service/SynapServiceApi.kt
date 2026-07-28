@@ -4,6 +4,7 @@ import com.synap.app.data.model.NoteFeedFilter
 import com.synap.app.data.model.LocalIdentity
 import com.synap.app.data.model.MdnsDiscoverySignature
 import com.synap.app.data.model.NoteRecord
+import com.synap.app.data.model.NoteDraftRecord
 import com.synap.app.data.model.NoteNeighborsRecord
 import com.synap.app.data.model.NoteSegmentDirection
 import com.synap.app.data.model.NoteSegmentRecord
@@ -100,6 +101,8 @@ interface SynapServiceApi {
 
     suspend fun getStarmap(): Result<List<StarmapPointRecord>>
 
+    suspend fun backfillNoteEmbeddings(): Result<ULong>
+
     suspend fun search(query: String, limit: UInt): Result<List<NoteRecord>>
 
     suspend fun searchFusion(
@@ -156,6 +159,33 @@ interface SynapServiceApi {
     suspend fun replyNote(parentId: String, content: String, tags: List<String>): Result<NoteRecord>
 
     suspend fun editNote(targetId: String, newContent: String, tags: List<String>): Result<NoteRecord>
+
+    suspend fun setNoteColor(targetId: String, color: String?): Result<NoteRecord>
+
+    suspend fun draftNew(): Result<NoteDraftRecord>
+
+    suspend fun draftFromNote(noteId: String): Result<NoteDraftRecord>
+
+    suspend fun draftReplyTo(parentId: String): Result<NoteDraftRecord>
+
+    suspend fun draftGet(draftId: String): Result<NoteDraftRecord>
+
+    suspend fun draftList(): Result<List<NoteDraftRecord>>
+
+    suspend fun draftPersist(draftId: String): Result<NoteDraftRecord>
+
+    suspend fun draftDiscard(draftId: String): Result<Unit>
+
+    suspend fun draftUpdate(
+        draftId: String,
+        content: String? = null,
+        tags: List<String>? = null,
+        color: String? = null,
+        updateColor: Boolean = false,
+        expectedRevision: ULong? = null,
+    ): Result<NoteDraftRecord>
+
+    suspend fun draftCommit(draftId: String): Result<NoteRecord>
 
     suspend fun deleteNote(targetId: String): Result<Unit>
 

@@ -534,7 +534,7 @@ fun NoteDetailScreen(
         }
     }
 
-    val noteColor = uiState.note?.let { NoteColorUtil.parseNoteColor(it.tags) }
+    val noteColor = uiState.note?.let { NoteColorUtil.parseCssHex(it.color) }
     val primaryColorForTheme = noteColor ?: MaterialTheme.colorScheme.primary
 
     val prefs = remember { context.getSharedPreferences("synap_prefs", android.content.Context.MODE_PRIVATE) }
@@ -760,7 +760,7 @@ fun NoteDetailScreen(
                             modifier = Modifier.horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            NoteColorUtil.filterDisplayTags(note.tags).forEach { tag ->
+                            note.tags.forEach { tag ->
                                 Surface(
                                     color = MaterialTheme.colorScheme.secondaryContainer,
                                     shape = MaterialTheme.shapes.small,
@@ -1091,7 +1091,7 @@ private fun RelationSection(
                             lineHeight = baseFontSize.sp * LocalNoteLineSpacing.current
                         ),
                     )
-                    val relationDisplayTags = NoteColorUtil.filterDisplayTags(note.tags)
+                    val relationDisplayTags = note.tags
                     if (relationDisplayTags.isNotEmpty()) {
                         Text(
                             text = relationDisplayTags.joinToString(" · "),
@@ -1185,7 +1185,7 @@ private fun VersionCard(
                 ),
             )
 
-            val versionDisplayTags = NoteColorUtil.filterDisplayTags(note.tags)
+            val versionDisplayTags = note.tags
             if (versionDisplayTags.isNotEmpty()) {
                 Text(
                     text = versionDisplayTags.joinToString(" · "),

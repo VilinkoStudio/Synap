@@ -26,6 +26,7 @@ fun NoteRecord.toUiNote(
     id = id,
     content = content,
     tags = tags,
+    color = color,
     timestamp = createdAt,
     parentSummary = parentSummary,
     isDeleted = isDeleted,
