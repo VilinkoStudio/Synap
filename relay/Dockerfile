@@ -5,7 +5,9 @@ COPY Cargo.toml Cargo.lock ./
 COPY cli ./cli
 COPY corenet ./corenet
 COPY core ./core
+COPY coreffi-shared ./coreffi-shared
 COPY coreffi ./coreffi
+COPY coreffi-uniffi029 ./coreffi-uniffi029
 COPY desktop_linux ./desktop_linux
 COPY relay ./relay
 COPY web ./web

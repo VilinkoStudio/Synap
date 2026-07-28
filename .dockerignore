@@ -9,6 +9,10 @@
 !core/**
 !coreffi/
 !coreffi/**
+!coreffi-shared/
+!coreffi-shared/**
+!coreffi-uniffi029/
+!coreffi-uniffi029/**
 !desktop_linux/
 !desktop_linux/**
 !relay/
