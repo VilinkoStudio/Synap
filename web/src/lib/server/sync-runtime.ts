@@ -323,7 +323,7 @@ async function ensureDiscoveryStarted(port: number, service?: any) {
       txt
     });
     browser = bonjour.find({ type: SERVICE_TYPE, protocol: 'tcp' });
-    browser.on('up', (found) => {
+    browser.on('up', async (found) => {
       if (found.name === name) return;
       const host = firstRoutableAddress(found.addresses ?? []);
       if (!host || !found.port) return;
@@ -457,4 +457,3 @@ function hexToBytes(hex: string): Uint8Array | null {
     return null;
   }
 }
-
