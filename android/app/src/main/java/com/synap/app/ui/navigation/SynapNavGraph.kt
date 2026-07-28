@@ -68,8 +68,6 @@ fun SynapNavGraph(
     hasSeenAgreement: Boolean,
     onAgreementAccepted: () -> Unit,
     databaseActivity: MainActivity?,
-    draftCapacity: Int,
-    onDraftCapacityChange: (Int) -> Unit,
     securityLockEnabled: Boolean,
     onSecurityLockToggle: (Boolean) -> Unit,
     shouldLock: Boolean,
@@ -77,10 +75,6 @@ fun SynapNavGraph(
 ) {
     val navController = rememberNavController()
     val startDestination = remember { if (hasSeenAgreement) "home" else "tutorial" }
-    val draftListViewModel: DraftListViewModel = hiltViewModel()
-    val draftState by draftListViewModel.uiState.collectAsState()
-    LaunchedEffect(draftCapacity) { draftListViewModel.refresh() }
-
     SharedTransitionLayout {
         Box(modifier = Modifier.fillMaxSize()) {
             NavHost(
@@ -123,6 +117,8 @@ fun SynapNavGraph(
                         onOpenSettings = { navController.navigate("settings") },
                         onComposeNote = { navController.navigate(editorRoute()) },
                         onOpenNote = { noteId -> navController.navigate(detailRoute(noteId)) },
+                        onOpenDraft = { draftId -> navController.navigate(editorRoute(draftId = draftId)) },
+                        onOpenRelatedNote = { noteId -> navController.navigate(detailRoute(noteId)) },
                         onReplyToNote = { noteId, summary -> navController.navigate(editorRoute(parentId = noteId, parentSummary = summary)) },
                         onToggleDeleted = viewModel::toggleDeleted,
                         onOpenSearch = { navController.navigate("search") },
@@ -262,8 +258,6 @@ fun SynapNavGraph(
                         onNavigateToShortcut = { navController.navigate("shortcut") },
                         onNavigateToScan = { navController.navigate("scan") },
                         onNavigateBack = { navController.popBackStack() },
-                        draftCapacity = draftCapacity,
-                        onDraftCapacityChange = onDraftCapacityChange,
                         securityLockEnabled = securityLockEnabled,
                         onSecurityLockToggle = onSecurityLockToggle,
                     )
@@ -387,33 +381,11 @@ fun SynapNavGraph(
                     LaunchedEffect(viewModel) {
                         viewModel.events.collect { event ->
                             if (event is EditorEvent.Saved) {
-                                draftListViewModel.refresh()
                                 navController.popBackStack("home", inclusive = false)
                                 navController.navigate(detailRoute(event.noteId))
                             }
-                            if (event is EditorEvent.DraftPersisted) {
-                                draftListViewModel.refresh()
-                                navController.navigate("home") {
-                                    popUpTo("home") { inclusive = true }
-                                }
-                            }
-                            if (event is EditorEvent.DraftDiscarded) {
-                                draftListViewModel.refresh()
-                                if (event.navigateHome) {
-                                    navController.navigate("home") {
-                                        popUpTo("home") { inclusive = true }
-                                    }
-                                } else {
-                                    navController.popBackStack()
-                                }
-                            }
                             if (event is EditorEvent.Closed) {
                                 navController.popBackStack()
-                            }
-                            if (event is EditorEvent.OpenDrafts) {
-                                draftListViewModel.refresh()
-                                navController.popBackStack("home", inclusive = false)
-                                navController.navigate("drafts")
                             }
                         }
                     }
@@ -427,30 +399,11 @@ fun SynapNavGraph(
                         onRemoveTag = viewModel::removeTag,
                         onNoteColorHueChange = viewModel::setNoteColorHue,
                         onSave = viewModel::save,
-                        onNavigateToDrafts = viewModel::openDrafts,
-                        draftCount = draftState.drafts.size,
-                        hasUnsavedChanges = viewModel.hasUnsavedChanges(),
-                        onSaveDraft = viewModel::saveDraftManually,
-                        onDiscardDraft = { viewModel.discardCurrentDraft(navigateHome = true) },
                         sharedTransitionScope = this@SharedTransitionLayout,
                         animatedVisibilityScope = this@composable
                     )
                 }
 
-                composable("drafts") {
-                    DraftScreen(
-                        drafts = draftState.drafts,
-                        onNavigateBack = { navController.popBackStack() },
-                        onDraftClick = { draft ->
-                            navController.navigate(editorRoute(draftId = draft.id)) {
-                                popUpTo("drafts") { inclusive = true }
-                            }
-                        },
-                        onDelete = draftListViewModel::delete,
-                        onClear = draftListViewModel::clear,
-                        onRefresh = draftListViewModel::refresh,
-                    )
-                }
             }
 
             if (shouldLock) {

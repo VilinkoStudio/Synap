@@ -22,6 +22,8 @@ import com.synap.app.data.service.migrateLegacyDraftRecords
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 sealed interface SynapMutation {
     data class Created(val noteId: String) : SynapMutation
@@ -34,6 +36,7 @@ sealed interface SynapMutation {
 
 interface SynapRepository {
     val mutations: SharedFlow<SynapMutation>
+    val draftChanges: SharedFlow<Unit>
 
     suspend fun initialize()
 
@@ -135,8 +138,6 @@ interface SynapRepository {
 
     suspend fun listDrafts(): List<NoteDraftRecord>
 
-    fun draftCapacity(): Int
-
     suspend fun persistDraft(draftId: String): NoteDraftRecord
 
     suspend fun discardDraft(draftId: String)
@@ -164,6 +165,8 @@ class SynapRepositoryImpl @Inject constructor(
     private val legacyDraftStore: LegacyDraftStore,
 ) : SynapRepository {
     override val mutations: SharedFlow<SynapMutation> = mutationStore.mutations
+    private val mutableDraftChanges = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    override val draftChanges: SharedFlow<Unit> = mutableDraftChanges.asSharedFlow()
 
     override suspend fun initialize() {
         service.initialize().unwrap()
@@ -378,25 +381,17 @@ class SynapRepositoryImpl @Inject constructor(
     override suspend fun getDraft(draftId: String): NoteDraftRecord =
         service.draftGet(draftId).unwrap()
 
-    override suspend fun listDrafts(): List<NoteDraftRecord> =
-        if (draftCapacity() == 0) emptyList() else service.draftList().unwrap()
-
-    override fun draftCapacity(): Int = legacyDraftStore.getCapacity()
+    override suspend fun listDrafts(): List<NoteDraftRecord> = service.draftList().unwrap()
 
     override suspend fun persistDraft(draftId: String): NoteDraftRecord {
-        val capacity = draftCapacity()
-        check(capacity > 0) { "Draft persistence is disabled" }
         val persisted = service.draftPersist(draftId).unwrap()
-        service.draftList().unwrap()
-            .asSequence()
-            .filter(NoteDraftRecord::persisted)
-            .drop(capacity)
-            .forEach { stale -> service.draftDiscard(stale.id).unwrap() }
+        mutableDraftChanges.emit(Unit)
         return persisted
     }
 
     override suspend fun discardDraft(draftId: String) {
         service.draftDiscard(draftId).unwrap()
+        mutableDraftChanges.emit(Unit)
     }
 
     override suspend fun updateDraft(
@@ -406,13 +401,20 @@ class SynapRepositoryImpl @Inject constructor(
         color: String?,
         updateColor: Boolean,
         expectedRevision: ULong?,
-    ): NoteDraftRecord = service
-        .draftUpdate(draftId, content, tags, color, updateColor, expectedRevision)
-        .unwrap()
+    ): NoteDraftRecord {
+        val updated = service
+            .draftUpdate(draftId, content, tags, color, updateColor, expectedRevision)
+            .unwrap()
+        if (updated.persisted) {
+            mutableDraftChanges.emit(Unit)
+        }
+        return updated
+    }
 
     override suspend fun commitDraft(draftId: String): NoteRecord {
         val draft = getDraft(draftId)
         val note = service.draftCommit(draftId).unwrap()
+        mutableDraftChanges.emit(Unit)
         when {
             draft.editedFrom != null -> mutationStore.emit(
                 SynapMutation.Edited(oldId = draft.editedFrom, newId = note.id),

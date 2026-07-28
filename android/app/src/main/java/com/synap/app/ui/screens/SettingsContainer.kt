@@ -55,8 +55,6 @@ fun SettingsContainer(
     onNavigateToShortcut: () -> Unit,
     onNavigateToScan: () -> Unit,
     onNavigateBack: () -> Unit,
-    draftCapacity: Int,
-    onDraftCapacityChange: (Int) -> Unit,
     securityLockEnabled: Boolean,
     onSecurityLockToggle: (Boolean) -> Unit,
 ) {
@@ -199,8 +197,6 @@ fun SettingsContainer(
         onNavigateToShortcut = onNavigateToShortcut,
         onNavigateToScan = onNavigateToScan,
         onNavigateBack = onNavigateBack,
-        draftCapacity = draftCapacity,
-        onDraftCapacityChange = onDraftCapacityChange,
         securityLockEnabled = securityLockEnabled,
         onSecurityLockToggle = onSecurityLockToggle,
     )

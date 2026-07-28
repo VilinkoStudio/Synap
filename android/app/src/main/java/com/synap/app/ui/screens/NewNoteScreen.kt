@@ -54,9 +54,6 @@ import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.FormatStrikethrough
 import androidx.compose.material.icons.filled.FormatUnderlined
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -204,11 +201,6 @@ fun NewNoteScreen(
     onRemoveTag: (Int) -> Unit,
     onNoteColorHueChange: (Float?) -> Unit,
     onSave: () -> Unit,
-    onNavigateToDrafts: () -> Unit,
-    draftCount: Int,
-    hasUnsavedChanges: Boolean,
-    onSaveDraft: () -> Unit,
-    onDiscardDraft: () -> Unit,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
 ) {
@@ -300,20 +292,13 @@ fun NewNoteScreen(
         action()
     }
 
-    var showUnsavedDialog by remember { mutableStateOf(false) }
-    var showBackDialog by remember { mutableStateOf(false) }
-
     var backProgress by remember { mutableFloatStateOf(0f) }
     var selectedTab by remember { mutableIntStateOf(0) }
     val isTabletDevice = LocalConfiguration.current.screenWidthDp >= 700
 
     fun handleBackNavigation() {
-        if (hasUnsavedChanges) {
-            backProgress = 0f // 归位预返回手势动画
-            showBackDialog = true
-        } else {
-            onNavigateBack()
-        }
+        backProgress = 0f
+        onNavigateBack()
     }
 
     PredictiveBackHandler { progressFlow ->
@@ -396,18 +381,7 @@ fun NewNoteScreen(
                             )
                         }
                     }
-                    // Draft box icon
                     if (isTabletDevice) {
-                        TextButton(
-                            onClick = { hideKeyboardAndNavigate { onNavigateToDrafts() } },
-                            colors = ButtonDefaults.textButtonColors(
-                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        ) {
-                            Icon(Icons.Filled.Inventory2, "草稿箱", modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            if (draftCount > 0) Text("$draftCount", style = MaterialTheme.typography.labelMedium) else Text("草稿箱", style = MaterialTheme.typography.labelMedium)
-                        }
                         TextButton(
                             onClick = { hideKeyboardAndNavigate { onSave() } },
                             enabled = !uiState.isSaving && !uiState.isLoading,
@@ -420,19 +394,6 @@ fun NewNoteScreen(
                             Text("保存", style = MaterialTheme.typography.labelMedium)
                         }
                     } else {
-                        if (draftCount > 0) {
-                            BadgedBox(
-                                badge = { Badge { Text("$draftCount") } }
-                            ) {
-                                IconButton(onClick = { hideKeyboardAndNavigate { onNavigateToDrafts() } }) {
-                                    Icon(Icons.Filled.Inventory2, "草稿箱")
-                                }
-                            }
-                        } else {
-                            IconButton(onClick = { hideKeyboardAndNavigate { onNavigateToDrafts() } }) {
-                                Icon(Icons.Filled.Inventory2, "草稿箱")
-                            }
-                        }
                         IconButton(onClick = { hideKeyboardAndNavigate { onSave() } }, enabled = !uiState.isSaving && !uiState.isLoading) {
                             if (uiState.isSaving) CircularProgressIndicator(modifier = Modifier.size(24.dp)) else Icon(Icons.Filled.Check, "保存")
                         }
@@ -1150,102 +1111,6 @@ fun NewNoteScreen(
                         saveCustomColor(context, CustomColor(hue, name))
                         customColors = loadCustomColors(context)
                         showAddPresetDialog = false
-                    }
-                )
-            }
-
-            // 未保存提示弹窗
-            if (showBackDialog) {
-                AlertDialog(
-                    onDismissRequest = { showBackDialog = false },
-                    title = { Text(stringResource(R.string.unsaved_title)) },
-                    text = {
-                        Column {
-                            Text(stringResource(R.string.unsaved_message))
-                            Spacer(modifier = Modifier.height(12.dp))
-                            // 笔记卡片预览
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.background,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Text(
-                                        text = uiState.content.take(200),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        maxLines = 4,
-                                        overflow = TextOverflow.Ellipsis,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                    )
-                                    val displayTags = uiState.tags
-                                    if (displayTags.isNotEmpty()) {
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = displayTags.joinToString(" · "),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    confirmButton = {},
-                    dismissButton = {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = {
-                                    showBackDialog = false
-                                    onSave()
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(stringResource(R.string.save))
-                            }
-                            Button(
-                                onClick = {
-                                    showBackDialog = false
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                            ) {
-                                Text(stringResource(R.string.unsaved_continue_editing))
-                            }
-                            Button(
-                                onClick = {
-                                    showBackDialog = false
-                                    onSaveDraft()
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                            ) {
-                                Text(stringResource(R.string.unsaved_save_to_draft))
-                            }
-                            Button(
-                                onClick = {
-                                    showBackDialog = false
-                                    onDiscardDraft()
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.error,
-                                    contentColor = MaterialTheme.colorScheme.onError
-                                )
-                            ) {
-                                Text(stringResource(R.string.unsaved_discard))
-                            }
-                        }
                     }
                 )
             }

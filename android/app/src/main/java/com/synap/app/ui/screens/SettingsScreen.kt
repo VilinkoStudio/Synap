@@ -24,11 +24,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Link
@@ -41,8 +39,6 @@ import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
@@ -248,8 +244,6 @@ private fun AppearanceSection(
 
 @Composable
 private fun FeatureSection(
-    draftCapacity: Int,
-    onDraftCapacityChange: (Int) -> Unit,
     onNavigateToLab: () -> Unit,
     onNavigateToShortcut: () -> Unit,
     onNavigateToScan: () -> Unit,
@@ -264,10 +258,6 @@ private fun FeatureSection(
             onSecurityLockToggle(true)
         }
     }
-    var expanded by remember { mutableStateOf(false) }
-    val capacities = listOf(0, 5, 10, 20, 50, 100)
-    val capacityLabels = listOf(stringResource(R.string.draft_capacity_off), "5", "10", "20", "50", "100")
-
     Text(
         text = stringResource(R.string.setting_feature),
         style = MaterialTheme.typography.titleSmall,
@@ -280,75 +270,6 @@ private fun FeatureSection(
             .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-            ListItem(
-                headlineContent = {
-                    Text(
-                        text = stringResource(R.string.draft_capacity),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                },
-                supportingContent = {
-                    Text(
-                        text = if (draftCapacity == 0) stringResource(R.string.draft_capacity_summary_off) else stringResource(R.string.draft_capacity_summary_on, draftCapacity),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-                leadingContent = {
-                    Icon(
-                        imageVector = Icons.Filled.Inventory2,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                },
-                trailingContent = {
-                    Icon(
-                        Icons.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                modifier = Modifier.clickable { expanded = true },
-            )
-
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-            ) {
-                capacities.forEachIndexed { index, capacity ->
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = capacityLabels[index],
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = if (draftCapacity == capacity) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            )
-                        },
-                        onClick = {
-                            onDraftCapacityChange(capacity)
-                            expanded = false
-                        },
-                        trailingIcon = if (draftCapacity == capacity) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Filled.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        } else null,
-                    )
-                }
-            }
-        }
-
-        HorizontalDivider(
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-            modifier = Modifier.padding(horizontal = 16.dp),
-        )
-
         // 快捷记笔记入口
         ListItem(
             headlineContent = {
@@ -805,8 +726,6 @@ fun SettingsScreen(
     onNavigateToShortcut: () -> Unit,
     onNavigateToScan: () -> Unit,
     onNavigateBack: () -> Unit,
-    draftCapacity: Int,
-    onDraftCapacityChange: (Int) -> Unit,
     securityLockEnabled: Boolean,
     onSecurityLockToggle: (Boolean) -> Unit,
 ) {
@@ -866,8 +785,6 @@ fun SettingsScreen(
 
             val functionContent: @Composable () -> Unit = {
                 FeatureSection(
-                    draftCapacity = draftCapacity,
-                    onDraftCapacityChange = onDraftCapacityChange,
                     onNavigateToLab = onNavigateToLab,
                     onNavigateToShortcut = onNavigateToShortcut,
                     onNavigateToScan = onNavigateToScan,

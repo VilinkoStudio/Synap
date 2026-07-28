@@ -2,6 +2,7 @@ package com.synap.app.ui.model
 
 import com.synap.app.data.model.NoteRecord
 import com.synap.app.data.model.NoteBriefRecord
+import com.synap.app.data.model.NoteDraftRecord
 import com.synap.app.data.model.NoteVersionRecord
 import com.synap.app.data.model.ReplyItem
 import com.synap.app.data.model.TimelineGroupRecord
@@ -10,6 +11,26 @@ fun NoteBriefRecord.toUiNoteBrief(): NoteBrief = NoteBrief(
     id = id,
     contentPreview = contentPreview,
     createdAt = createdAt,
+)
+
+fun NoteRecord.toUiNoteBrief(): NoteBrief = NoteBrief(
+    id = id,
+    contentPreview = content.take(120),
+    createdAt = createdAt,
+)
+
+fun NoteDraftRecord.toUiNote(
+    replyTo: NoteBrief? = null,
+    editedFrom: NoteBrief? = null,
+): Note = Note(
+    id = id,
+    content = content,
+    tags = tags,
+    color = color,
+    timestamp = updatedAt,
+    replyTo = replyTo,
+    editedFrom = editedFrom,
+    draftId = id,
 )
 
 fun TimelineGroupRecord.toUiTimelineGroup(): TimelineGroup = TimelineGroup(

@@ -24,7 +24,11 @@ data class Note(
     val replyTo: NoteBrief? = null,
     val editedFrom: NoteBrief? = null,
     val timelineGroup: TimelineGroup? = null,
+    val draftId: String? = null,
 )
+
+val Note.isDraft: Boolean
+    get() = draftId != null
 
 data class NoteVersionDiffStats(
     val insertedChars: UInt,

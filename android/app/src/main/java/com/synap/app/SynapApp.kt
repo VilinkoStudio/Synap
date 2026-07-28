@@ -95,7 +95,6 @@ fun SynapApp(activity: MainActivity?) {
 
     var handedness by remember { mutableStateOf(prefs.getString("handedness", "靠右") ?: "靠右") }
     var hasSeenAgreement by remember { mutableStateOf(prefs.getBoolean("hasSeenAgreement", false)) }
-    var draftCapacity by remember { mutableIntStateOf(prefs.getInt("draftCapacity", 20)) }
     var securityLockEnabled by remember { mutableStateOf(prefs.getBoolean("securityLockEnabled", false)) }
     var shouldLock by remember { mutableStateOf(securityLockEnabled) }
 
@@ -198,7 +197,6 @@ fun SynapApp(activity: MainActivity?) {
                             hasSeenAgreement = hasSeenAgreement,
                             onAgreementAccepted = { hasSeenAgreement = true; prefs.edit().putBoolean("hasSeenAgreement", true).apply() },
                             databaseActivity = activity,
-                            draftCapacity = draftCapacity, onDraftCapacityChange = { draftCapacity = it; prefs.edit().putInt("draftCapacity", it).apply() },
                             securityLockEnabled = securityLockEnabled, onSecurityLockToggle = { securityLockEnabled = it; prefs.edit().putBoolean("securityLockEnabled", it).apply() },
                             shouldLock = shouldLock, onUnlock = { shouldLock = false },
                         )

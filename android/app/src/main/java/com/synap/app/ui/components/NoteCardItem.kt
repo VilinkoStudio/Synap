@@ -8,6 +8,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -305,6 +306,7 @@ fun NoteCardItem(
     isSelected: Boolean,
     onToggleDeleted: () -> Unit,
     onReply: () -> Unit,
+    onOpenRelatedNote: ((String) -> Unit)? = null,
     animationDelayMillis: Int = 0,
     maxLines: Int = 4,
     sharedTransitionScope: SharedTransitionScope? = null,
@@ -332,7 +334,7 @@ fun NoteCardItem(
 
             when (dismissValue) {
                 SwipeToDismissBoxValue.StartToEnd -> true
-                SwipeToDismissBoxValue.EndToStart -> !note.isDeleted
+                SwipeToDismissBoxValue.EndToStart -> !note.isDeleted && note.draftId == null
                 SwipeToDismissBoxValue.Settled -> true
             }
         },
@@ -347,7 +349,7 @@ fun NoteCardItem(
                     dismissState.snapTo(SwipeToDismissBoxValue.Settled)
                 }
                 SwipeToDismissBoxValue.EndToStart -> {
-                    if (!note.isDeleted) {
+                    if (!note.isDeleted && note.draftId == null) {
                         onReply()
                     }
                     dismissState.snapTo(SwipeToDismissBoxValue.Settled)
@@ -362,7 +364,7 @@ fun NoteCardItem(
         SwipeToDismissBox(
             state = dismissState,
             enableDismissFromStartToEnd = !isSelectionMode,
-            enableDismissFromEndToStart = !note.isDeleted && !isSelectionMode,
+            enableDismissFromEndToStart = !note.isDeleted && note.draftId == null && !isSelectionMode,
             modifier = Modifier.pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) {
@@ -400,7 +402,7 @@ fun NoteCardItem(
                             contentDescription = null,
                         )
                     }
-                    if (!note.isDeleted) {
+                    if (!note.isDeleted && note.draftId == null) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.CenterEnd,
@@ -424,7 +426,7 @@ fun NoteCardItem(
                         onLongClick = onLongClick
                     )
                     .let { cardModifier ->
-                        if (sharedTransitionScope != null && animatedVisibilityScope != null && !note.isDeleted) {
+                        if (sharedTransitionScope != null && animatedVisibilityScope != null && !note.isDeleted && note.draftId == null) {
                             with(sharedTransitionScope) {
                                 cardModifier.sharedBounds(
                                     sharedContentState = rememberSharedContentState(key = "note_card_${note.id}"),
@@ -473,7 +475,30 @@ fun NoteCardItem(
                                     text = "\u56DE\u590D\u81EA\u201C${replyContext}\u201D",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(top = 8.dp),
+                                    modifier = Modifier
+                                        .padding(top = 8.dp)
+                                        .let { relationModifier ->
+                                            note.replyTo?.id?.takeIf { onOpenRelatedNote != null }?.let { relatedId ->
+                                                relationModifier.clickable { onOpenRelatedNote?.invoke(relatedId) }
+                                            } ?: relationModifier
+                                        },
+                                )
+                            }
+
+                            note.editedFrom?.let { origin ->
+                                Text(
+                                    text = "编辑自“${origin.contentPreview}”",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .padding(top = 8.dp)
+                                        .let { relationModifier ->
+                                            if (onOpenRelatedNote != null) {
+                                                relationModifier.clickable { onOpenRelatedNote(origin.id) }
+                                            } else {
+                                                relationModifier
+                                            }
+                                        },
                                 )
                             }
 
@@ -488,12 +513,31 @@ fun NoteCardItem(
                                     text = timeLabel,
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(end = 12.dp),
+                                    modifier = Modifier
+                                        .padding(end = 12.dp)
+                                        .let { relationModifier ->
+                                            note.editedFrom?.id?.takeIf { onOpenRelatedNote != null }?.let { relatedId ->
+                                                relationModifier.clickable { onOpenRelatedNote?.invoke(relatedId) }
+                                            } ?: relationModifier
+                                        },
                                 )
                                 Row(
                                     modifier = Modifier.horizontalScroll(rememberScrollState()),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
+                                    if (note.draftId != null) {
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                            shape = MaterialTheme.shapes.small,
+                                        ) {
+                                            Text(
+                                                text = "未保存",
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                style = MaterialTheme.typography.labelSmall,
+                                            )
+                                        }
+                                    }
                                     val displayTags = note.tags
                                     displayTags.take(5).forEach { tag ->
                                         Surface(
@@ -525,7 +569,7 @@ fun NoteCardItem(
 
         // Checkbox overlay at right side with gradient
         AnimatedVisibility(
-            visible = isSelectionMode,
+            visible = isSelectionMode && note.draftId == null,
             enter = androidx.compose.animation.fadeIn(),
             exit = androidx.compose.animation.fadeOut(),
             modifier = Modifier.matchParentSize()

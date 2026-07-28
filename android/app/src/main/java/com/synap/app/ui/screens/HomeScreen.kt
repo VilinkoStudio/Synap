@@ -118,6 +118,7 @@ import com.synap.app.R
 import com.synap.app.ui.components.ShareExportSheet
 import com.synap.app.ui.components.HomeTimelineFeed
 import com.synap.app.ui.model.Note
+import com.synap.app.ui.model.committedSelectedNoteIds
 import com.synap.app.ui.viewmodel.HomeUiState
 import com.synap.app.ui.viewmodel.TimelineBrowserUiState
 import kotlinx.coroutines.delay
@@ -141,6 +142,8 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     onComposeNote: () -> Unit,
     onOpenNote: (String) -> Unit,
+    onOpenDraft: (String) -> Unit,
+    onOpenRelatedNote: (String) -> Unit,
     onReplyToNote: (String, String) -> Unit,
     onToggleDeleted: (Note) -> Unit,
     onOpenSearch: () -> Unit,
@@ -181,6 +184,7 @@ fun HomeScreen(
     var selectedNoteIds by rememberSaveable { mutableStateOf(setOf<String>()) }
 
     var showMultiDeleteDialog by remember { mutableStateOf(false) }
+    var draftToDiscard by remember { mutableStateOf<Note?>(null) }
     var noteToCopy by remember { mutableStateOf<Note?>(null) }
     var showNavMenu by remember { mutableStateOf(false) }
 
@@ -255,6 +259,9 @@ fun HomeScreen(
         uiState.notes
             .distinctBy { it.id }
             .filter { it.id !in pendingDeleteNoteIds }
+    }
+    val selectedCommittedNoteIds = remember(displayNotes, selectedNoteIds) {
+        committedSelectedNoteIds(displayNotes, selectedNoteIds)
     }
 
     fun deleteSelectedNotes() {
@@ -369,6 +376,29 @@ fun HomeScreen(
         )
     }
 
+    draftToDiscard?.let { draft ->
+        AlertDialog(
+            onDismissRequest = { draftToDiscard = null },
+            title = { Text("删除未保存笔记？") },
+            text = { Text("这条未保存笔记不会进入回收站，删除后无法恢复。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        draftToDiscard = null
+                        onToggleDeleted(draft)
+                    },
+                ) {
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { draftToDiscard = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
     noteToCopy?.let { note ->
         AlertDialog(
             onDismissRequest = { noteToCopy = null },
@@ -400,9 +430,9 @@ fun HomeScreen(
         )
     }
 
-    if (showShareBottomSheet && selectedNoteIds.isNotEmpty()) {
+    if (showShareBottomSheet && selectedCommittedNoteIds.isNotEmpty()) {
         ShareExportSheet(
-            noteIds = selectedNoteIds.toList(),
+            noteIds = selectedCommittedNoteIds.toList(),
             onDismiss = { showShareBottomSheet = false },
             exportShare = onExportShare,
         )
@@ -565,8 +595,16 @@ fun HomeScreen(
                     onToggleSelection = ::toggleSelection,
                     onEnterSelectionMode = { id -> isSelectionMode = true; toggleSelection(id) },
                     onOpenNote = onOpenNote,
+                    onOpenDraft = onOpenDraft,
+                    onOpenRelatedNote = onOpenRelatedNote,
                     onToggleDeleted = { note ->
-                        if (!note.isDeleted) showUndoForDeletedNote(note) else onToggleDeleted(note)
+                        if (note.draftId != null) {
+                            draftToDiscard = note
+                        } else if (!note.isDeleted) {
+                            showUndoForDeletedNote(note)
+                        } else {
+                            onToggleDeleted(note)
+                        }
                     },
                     onReplyToNote = onReplyToNote,
                     sharedTransitionScope = sharedTransitionScope,

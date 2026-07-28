@@ -38,6 +38,8 @@ fun HomeTimelineFeed(
     onToggleSelection: (String) -> Unit,
     onEnterSelectionMode: (String) -> Unit,
     onOpenNote: (String) -> Unit,
+    onOpenDraft: (String) -> Unit,
+    onOpenRelatedNote: (String) -> Unit,
     onToggleDeleted: (Note) -> Unit,
     onReplyToNote: (String, String) -> Unit,
     hasMore: Boolean,
@@ -96,15 +98,23 @@ fun HomeTimelineFeed(
                 NoteCardItem(
                     note = note,
                     onClick = {
-                        if (isSelectionMode) onToggleSelection(note.id) else onOpenNote(note.id)
+                        when {
+                            isSelectionMode && note.draftId == null -> onToggleSelection(note.id)
+                            isSelectionMode -> Unit
+                            note.draftId != null -> onOpenDraft(note.draftId)
+                            else -> onOpenNote(note.id)
+                        }
                     },
                     onLongClick = {
-                        if (!isSelectionMode) onEnterSelectionMode(note.id)
+                        if (!isSelectionMode && note.draftId == null) onEnterSelectionMode(note.id)
                     },
                     isSelectionMode = isSelectionMode,
                     isSelected = selectedNoteIds.contains(note.id),
                     onToggleDeleted = { onToggleDeleted(note) },
-                    onReply = { onReplyToNote(note.id, note.content) },
+                    onReply = {
+                        if (note.draftId == null) onReplyToNote(note.id, note.content)
+                    },
+                    onOpenRelatedNote = onOpenRelatedNote,
                     animationDelayMillis = (index.coerceAtMost(8)) * 35,
                     maxLines = if (dualColumnCards) 7 else 4,
                     sharedTransitionScope = sharedTransitionScope,

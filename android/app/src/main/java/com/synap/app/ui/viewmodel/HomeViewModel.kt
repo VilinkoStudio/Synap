@@ -12,8 +12,11 @@ import com.synap.app.data.portal.PortalState
 import com.synap.app.data.repository.SynapRepository
 import com.synap.app.ui.model.HomeDisplayPrefs
 import com.synap.app.ui.model.Note
+import com.synap.app.ui.model.matchesHomeTagFilter
+import com.synap.app.ui.model.mergeHomeFeedNotes
 import com.synap.app.ui.model.SearchResultNote
 import com.synap.app.ui.model.toUiNote
+import com.synap.app.ui.model.toUiNoteBrief
 import com.synap.app.ui.model.toUiSearchResultNote
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -75,6 +78,10 @@ private data class HomeFilterState(
     val isUntaggedUnselected: Boolean,
     val showTagBar: Boolean,
 ) {
+    fun includes(note: Note): Boolean {
+        return note.matchesHomeTagFilter(showTagBar, unselectedTags, isUntaggedUnselected)
+    }
+
     fun toFeedFilter(): NoteFeedFilter {
         val selectedTags = availableTags.filterNot { it in unselectedTags }
         return NoteFeedFilter(
@@ -141,6 +148,7 @@ class HomeViewModel @Inject constructor(
         )
     )
     private val timelinePortalState = MutableStateFlow(PortalState<NoteRecord>())
+    private val persistedDraftNotes = MutableStateFlow<List<Note>>(emptyList())
     private var timelinePortal: CursorPortal<NoteRecord>? = null
     private var timelinePortalKey: Pair<NoteFeedFilter, TimelineAnchor?>? = null
     private val browserSelectedDate = MutableStateFlow(LocalDate.now())
@@ -179,12 +187,14 @@ class HomeViewModel @Inject constructor(
 
     private val homeFeedState = combine(
         timelinePortalState,
+        persistedDraftNotes,
         filterState,
-    ) { timeline, currentFilterState ->
+    ) { timeline, drafts, currentFilterState ->
         val homeNotes = timeline.items.map { record -> record.toUiNote() }
+        val visibleDrafts = drafts.filter { draft -> currentFilterState.includes(draft) }
 
         HomeFeedState(
-            notes = homeNotes,
+            notes = mergeHomeFeedNotes(homeNotes, visibleDrafts),
             isLoading = timeline.isLoading,
             hasMore = timeline.hasMore,
             showTagBar = currentFilterState.showTagBar,
@@ -277,6 +287,12 @@ class HomeViewModel @Inject constructor(
                 }
             }
         }
+        viewModelScope.launch {
+            repository.draftChanges.collect {
+                refreshDrafts()
+                refreshAvailableTags()
+            }
+        }
     }
 
     fun updateQuery(value: String) {
@@ -301,6 +317,7 @@ class HomeViewModel @Inject constructor(
 
     fun refresh() {
         viewModelScope.launch {
+            refreshDrafts()
             refreshAvailableTags()
             refreshHomeFeed()
         }
@@ -340,7 +357,9 @@ class HomeViewModel @Inject constructor(
     fun toggleDeleted(note: Note) {
         viewModelScope.launch {
             runCatching {
-                if (note.isDeleted) {
+                if (note.draftId != null) {
+                    repository.discardDraft(note.draftId)
+                } else if (note.isDeleted) {
                     repository.restoreNote(note.id)
                 } else {
                     repository.deleteNote(note.id)
@@ -514,13 +533,39 @@ class HomeViewModel @Inject constructor(
 
     private suspend fun refreshAvailableTags() {
         runCatching {
-            repository.getAllTags()
+            (repository.getAllTags() + persistedDraftNotes.value.flatMap(Note::tags)).distinct().sorted()
         }.onSuccess { tags ->
             availableTags.value = tags
             unselectedTags.value = unselectedTags.value.intersect(tags.toSet())
             feedError.value = null
         }.onFailure { throwable ->
             feedError.value = throwable.message ?: "Unable to load tags"
+        }
+    }
+
+    private suspend fun refreshDrafts() {
+        runCatching {
+            val drafts = repository.listDrafts().filter { it.persisted }
+            val relatedNotes = drafts
+                .flatMap { listOfNotNull(it.replyTo, it.editedFrom) }
+                .distinct()
+                .mapNotNull { noteId ->
+                    runCatching { repository.getNote(noteId).toUiNoteBrief() }
+                        .getOrNull()
+                        ?.let { noteId to it }
+                }
+                .toMap()
+            drafts.map { draft ->
+                draft.toUiNote(
+                    replyTo = draft.replyTo?.let(relatedNotes::get),
+                    editedFrom = draft.editedFrom?.let(relatedNotes::get),
+                )
+            }
+        }.onSuccess { drafts ->
+            persistedDraftNotes.value = drafts
+            feedError.value = null
+        }.onFailure { throwable ->
+            feedError.value = throwable.message ?: "Unable to load drafts"
         }
     }
 

@@ -56,11 +56,6 @@ class LegacyDraftStore @Inject constructor(
     @ApplicationContext context: Context,
 ) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    private val settingsPrefs = context.getSharedPreferences("synap_settings", Context.MODE_PRIVATE)
-
-    fun getCapacity(): Int {
-        return settingsPrefs.getInt(KEY_CAPACITY, DEFAULT_CAPACITY)
-    }
 
     fun listAll(): List<DraftRecord> {
         val raw = prefs.getString(KEY_DRAFTS, null) ?: return emptyList()
@@ -119,7 +114,5 @@ class LegacyDraftStore @Inject constructor(
     companion object {
         private const val PREFS_NAME = "drafts"
         private const val KEY_DRAFTS = "draft_list"
-        private const val KEY_CAPACITY = "draftCapacity"
-        private const val DEFAULT_CAPACITY = 20
     }
 }
