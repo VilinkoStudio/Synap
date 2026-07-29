@@ -82,8 +82,6 @@
     <string name="home_filter_untagged">Без тегов</string>
     <string name="content_desc_search">Поиск</string>
     <string name="content_desc_settings">Настройки</string>
-    <string name="starmap_title">Звездная карта</string>
-    <string name="starmap_points_label">Звездные точки</string>
     <string name="edit_hint_reply">Ответ на</string>
     <string name="notedetail_title">Детали заметки</string>
     <string name="notedetail_errorMessage">Заметка не существует</string>

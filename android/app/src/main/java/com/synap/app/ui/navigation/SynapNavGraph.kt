@@ -136,21 +136,9 @@ fun SynapNavGraph(
                     )
                 }
 
-                composable("starmap") {
-                    val viewModel: StarmapViewModel = hiltViewModel()
-                    val uiState by viewModel.uiState.collectAsState()
-
-                    StarmapScreen(
-                        uiState = uiState,
-                        onNavigateBack = { navController.popBackStack() },
-                        onRefresh = viewModel::refresh,
-                    )
-                }
-
                 composable("lab") {
                     LaboratoryScreen(
                         onNavigateBack = { navController.popBackStack() },
-                        onOpenStarmap = { navController.navigate("starmap") },
                     )
                 }
 

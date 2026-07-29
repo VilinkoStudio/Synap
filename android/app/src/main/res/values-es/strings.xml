@@ -82,8 +82,6 @@
     <string name="home_filter_untagged">Sin clasificar</string>
     <string name="content_desc_search">Buscar</string>
     <string name="content_desc_settings">Ajustes</string>
-    <string name="starmap_title">Mapa estelar</string>
-    <string name="starmap_points_label">Puntos estelares</string>
     <string name="edit_hint_reply">Respuesta a</string>
     <string name="notedetail_title">Detalles de la nota</string>
     <string name="notedetail_errorMessage">La nota no existe</string>

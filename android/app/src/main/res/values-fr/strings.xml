@@ -82,8 +82,6 @@
     <string name="home_filter_untagged">Non classé</string>
     <string name="content_desc_search">Chercher</string>
     <string name="content_desc_settings">Paramètres</string>
-    <string name="starmap_title">Carte stellaire</string>
-    <string name="starmap_points_label">Points stellaires</string>
     <string name="edit_hint_reply">Réponse à</string>
     <string name="notedetail_title">Détails de la note</string>
     <string name="notedetail_errorMessage">La note n\'existe pas</string>

@@ -77,8 +77,6 @@ impl SynapService {
             self.semantic_index.invalidate_all(tx)?;
             EmbeddingCacheMetadata::save(tx, &embedding_stamp)?;
             TagProfileStore::reset(tx, &profile_metadata)?;
-            crate::db::umap::UmapCache::clear_points(tx)?;
-            crate::db::umap::UmapCache::clear_model(tx)?;
             Ok(())
         });
         if let Err(error) = update_result {
@@ -177,16 +175,11 @@ impl SynapService {
     }
 
     /// 扫描空向量占位并插补 embedding（无进度回调）。
-    ///
-    /// 向量补全后会 **整图重建** UMAP（不再逐点增量更新）。
     pub fn backfill_note_embeddings(&self) -> Result<usize, ServiceError> {
         self.backfill_note_embeddings_with_progress(&mut |_| {})
     }
 
     /// 扫描空向量占位并插补 embedding，每条处理后回调进度。
-    ///
-    /// 全部向量写完后执行一次 starmap 全量重建；配置变更 / 批量重填后
-    /// 旧 anchors 与增量投影都不可靠。
     pub fn backfill_note_embeddings_with_progress(
         &self,
         on_progress: &mut EmbeddingBackfillProgressCallback<'_>,
@@ -270,11 +263,8 @@ impl SynapService {
             });
         }
 
-        // 有任意向量变化就整图重建 UMAP；即使 filled=0（只删了无效槽），
-        // 也在 model 缺失时由 get_starmap/ensure 懒建。
         if filled_count > 0 || skipped > 0 {
             self.reload_tag_profile_index_locked()?;
-            self.rebuild_starmap_full_cache()?;
         }
 
         Ok(filled_count)

@@ -177,12 +177,6 @@ dictionary TimelineSessionsPageDTO {
     string? next_cursor;
 };
 
-dictionary StarmapPointDTO {
-    string id;
-    float x;
-    float y;
-};
-
 dictionary ShareStatsDTO {
     u64 records;
     u64 records_applied;
@@ -331,7 +325,6 @@ interface SynapService {
     [Throws=FfiError] sequence<NoteVersionDTO> get_next_versions(string note_id);
     [Throws=FfiError] sequence<NoteVersionDTO> get_other_versions(string note_id);
     [Throws=FfiError] sequence<NoteDTO> get_deleted_notes(string? cursor, u32? limit);
-    [Throws=FfiError] sequence<StarmapPointDTO> get_starmap();
     [Throws=FfiError] u64 backfill_note_embeddings();
     [Throws=FfiError] sequence<NoteDTO> search(string query, u32 limit);
     [Throws=FfiError] sequence<SearchResultDTO> search_fusion(

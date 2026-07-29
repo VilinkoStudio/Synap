@@ -82,8 +82,6 @@
     <string name="home_filter_untagged">Nicht klassifiziert</string>
     <string name="content_desc_search">Suchen</string>
     <string name="content_desc_settings">Einstellungen</string>
-    <string name="starmap_title">Sternenkarte</string>
-    <string name="starmap_points_label">Sternpunkte</string>
     <string name="edit_hint_reply">Antwort auf</string>
     <string name="notedetail_title">Notizdetails</string>
     <string name="notedetail_errorMessage">Notiz existiert nicht</string>

@@ -82,8 +82,6 @@
     <string name="home_filter_untagged">अवर्गीकृत</string>
     <string name="content_desc_search">खोजें</string>
     <string name="content_desc_settings">सेटिंग्स</string>
-    <string name="starmap_title">स्टारमैप</string>
-    <string name="starmap_points_label">स्टार पॉइंट्स</string>
     <string name="edit_hint_reply">का उत्तर दें</string>
     <string name="notedetail_title">नोट विवरण</string>
     <string name="notedetail_errorMessage">नोट मौजूद नहीं है</string>

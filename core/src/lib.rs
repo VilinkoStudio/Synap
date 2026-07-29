@@ -34,7 +34,7 @@ pub use dto::{
     NoteSegmentBranchChoiceDTO, NoteSegmentDTO, NoteSegmentDirectionDTO, NoteSegmentStepDTO,
     NoteTagDiffDTO, NoteTextChangeDTO, NoteTextChangeKindDTO, NoteVersionDTO, NoteVersionDiffDTO,
     PeerDTO, PeerSyncStatsDTO, PeerTrustStatusDTO, PublicKeyInfoDTO, RelayFetchStatsDTO,
-    RelayPushStatsDTO, SearchResultDTO, SearchSourceDTO, ShareStatsDTO, StarmapPointDTO,
+    RelayPushStatsDTO, SearchResultDTO, SearchSourceDTO, ShareStatsDTO,
     SyncSessionDTO, SyncSessionRecordDTO, SyncSessionRoleDTO, SyncStatsDTO, SyncStatusDTO,
     SyncTransportKindDTO, TimelineGroupDTO, TimelineNotesPageDTO, TimelineSessionDTO,
     TimelineSessionsPageDTO,

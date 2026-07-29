@@ -15,7 +15,6 @@ import com.synap.app.data.model.RelayFetchStats
 import com.synap.app.data.model.RelayPushStats
 import com.synap.app.data.model.SearchResultRecord
 import com.synap.app.data.model.ShareImportStats
-import com.synap.app.data.model.StarmapPointRecord
 import com.synap.app.data.model.SyncSession
 import com.synap.app.data.model.SyncSessionRecord
 import com.synap.app.data.model.TimelineDirection
@@ -98,8 +97,6 @@ interface SynapServiceApi {
     suspend fun getOtherVersions(noteId: String): Result<List<NoteVersionRecord>>
 
     suspend fun getDeletedNotes(cursor: String?, limit: UInt?): Result<List<NoteRecord>>
-
-    suspend fun getStarmap(): Result<List<StarmapPointRecord>>
 
     suspend fun backfillNoteEmbeddings(): Result<ULong>
 

@@ -16,7 +16,7 @@ pub use crate::types::{
     NoteSegmentBranchChoiceDTO, NoteSegmentDTO, NoteSegmentDirectionDTO, NoteSegmentStepDTO,
     NoteTagDiffDTO, NoteTextChangeDTO, NoteTextChangeKindDTO, NoteVersionDTO, NoteVersionDiffDTO,
     PeerDTO, PeerTrustStatusDTO, PublicKeyInfoDTO, RelayFetchStatsDTO, RelayPushStatsDTO,
-    SearchResultDTO, SearchSourceDTO, ShareStatsDTO, StarmapPointDTO, SyncSessionDTO,
+    SearchResultDTO, SearchSourceDTO, ShareStatsDTO, SyncSessionDTO,
     SyncSessionRecordDTO, SyncSessionRoleDTO, SyncStatsDTO, SyncStatusDTO, SyncTransportKindDTO,
     TimelineDensityPointDTO, TimelineDirection, TimelineGroupDTO, TimelineNotesPageDTO,
     TimelineSessionDTO, TimelineSessionsPageDTO,

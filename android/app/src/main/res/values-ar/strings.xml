@@ -82,8 +82,6 @@
     <string name="home_filter_untagged">غير مصنف</string>
     <string name="content_desc_search">بحث</string>
     <string name="content_desc_settings">الإعدادات</string>
-    <string name="starmap_title">خريطة النجوم</string>
-    <string name="starmap_points_label">نقاط النجوم</string>
     <string name="edit_hint_reply">رد على</string>
     <string name="notedetail_title">تفاصيل الملاحظة</string>
     <string name="notedetail_errorMessage">الملاحظة غير موجودة</string>

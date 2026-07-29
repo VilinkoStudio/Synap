@@ -1,4 +1,8 @@
-//! Type-state note drafts. Draft storage is local-only and has no derived indexes.
+//! Type-state note drafts. Local-only staging before ledger append; no derived indexes.
+//!
+//! Flow: Memory (process-local) → optional `persist` → redb → `commit` emits a note and a
+//! [`DraftCommitReceipt`]. Edges are *intent* here (`origin` / `reply_to`); real
+//! `NOTE_EDIT` / `NOTE_LINK` edges are written only at commit via `AppendNoteCommand`.
 
 use crate::{
     db::{kvstore::KvStore, types::BlockId},
@@ -40,20 +44,27 @@ impl DraftId {
     }
 }
 
+/// Edit lineage intent for a draft. Orthogonal to [`DraftData::reply_to`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum DraftOrigin {
     New,
+    /// Commit should create a new version of `base` (`NOTE_EDIT`).
     Edit { base: Uuid },
 }
 
+/// Editable draft payload. Display tags and structured metadata are kept separate;
+/// they are merged into storage tags only when building a `NoteSnapshot` at commit.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct DraftData {
     id: DraftId,
     content: String,
+    /// User-facing tags only (no `$meta` forms).
     tags: Vec<String>,
     color: Option<NoteColor>,
+    /// Preserved `$kind(...)` entries so edit round-trips do not drop unknown kinds.
     unknown_meta: Vec<UnknownMeta>,
     origin: DraftOrigin,
+    /// Optional reply parent; may combine with [`DraftOrigin::Edit`] (EditReply).
     reply_to: Option<Uuid>,
     created_at_ms: u64,
     updated_at_ms: u64,
@@ -143,14 +154,17 @@ impl DraftData {
     }
 }
 
+/// Process-local draft: no optimistic concurrency.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Memory;
 
+/// redb-backed draft; `revision` is the optimistic-concurrency token.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Persisted {
     revision: u64,
 }
 
+/// Type-state wrapper: [`NoteDraftMemory`] vs [`PersistedNoteDraft`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct NoteDraft<S> {
     data: DraftData,
@@ -202,9 +216,12 @@ struct StoredDraftRecord {
     revision: u64,
 }
 
+/// Idempotency record: `draft_id → committed note` after a successful commit.
+/// Survives draft deletion so `draft_commit` retries return the same note.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct DraftCommitReceipt {
     pub(crate) note_id: Uuid,
+    /// Needed so receipt retries still take the edit branch of `finish_note_append`.
     pub(crate) edited_from: Option<Uuid>,
 }
 
@@ -296,6 +313,7 @@ impl DraftRepository {
         DRAFT_COMMIT_RECEIPTS.reader(tx)?.get(id.as_key())
     }
 
+    /// Drop the persisted draft (if any) and store a commit receipt under the same draft id.
     pub(crate) fn finish_commit(
         tx: &WriteTransaction,
         id: DraftId,

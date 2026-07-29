@@ -1,27 +1,43 @@
 //! Stable append-only note command base shared by classic APIs and draft commit.
+//!
+//! Pipeline: build a [`NoteSnapshot`] (content only) → wrap as [`AppendNoteCommand`]
+//! (content + optional edit/reply edges) → [`SynapService::append_note_in_tx`] writes
+//! the note block / DAG edges → [`SynapService::finish_note_append`] updates derived indexes.
+//! Classic APIs (`create_note` / `edit_note` / …) and `draft_commit` both end here.
 
 use super::*;
 use crate::models::tag_metadata::{split_storage_tags, TagMetadata};
 
+/// Frozen note body ready for ledger append. No relationship edges.
+///
+/// `storage_tags` are already merged (display tags + `$color(...)` / unknown `$kind(...)`).
+/// Edges (`edit_from` / `reply_to`) live on [`AppendNoteCommand`], not here.
 #[derive(Debug, Clone)]
 pub(crate) struct NoteSnapshot {
     pub(crate) content: String,
     pub(crate) storage_tags: Vec<String>,
 }
 
+/// One append-only ledger write: a snapshot plus 0–2 relationship edges.
+///
+/// Variants are the product of optional `base` (NOTE_EDIT) and optional `parent`
+/// (NOTE_LINK). Prefer thinking in those two options when extending this type.
 #[derive(Debug, Clone)]
 pub(crate) enum AppendNoteCommand {
     Create {
         snapshot: NoteSnapshot,
     },
+    /// New version of `base` (`NOTE_EDIT: base → new`).
     Edit {
         base: Uuid,
         snapshot: NoteSnapshot,
     },
+    /// Child of `parent` (`NOTE_LINK: parent → new`).
     Reply {
         parent: Uuid,
         snapshot: NoteSnapshot,
     },
+    /// Both edges: edit lineage and reply parent.
     EditReply {
         base: Uuid,
         parent: Uuid,
@@ -48,6 +64,8 @@ impl AppendNoteCommand {
 }
 
 impl SynapService {
+    /// Shared write kernel. Validates live targets, materializes tags, creates or
+    /// edits a note block, then optionally attaches a reply edge. No index side effects.
     pub(crate) fn append_note_in_tx(
         &self,
         tx: &WriteTransaction,
@@ -84,14 +102,15 @@ impl SynapService {
         Ok(note)
     }
 
+    /// Post-commit derived-state updates. Create reserves embedding / tag indexes;
+    /// edit refreshes search indexes.
     pub(crate) fn finish_note_append(
         &self,
         note: Note,
         edited_from: Option<Uuid>,
     ) -> Result<NoteDTO, ServiceError> {
-        if let Some(previous) = edited_from {
+        if let Some(_previous) = edited_from {
             self.refresh_search_indexes()?;
-            self.remove_starmap_note(previous)?;
         } else {
             self.note_searcher.insert(note.clone());
             self.reserve_note_embedding(&note)?;
@@ -100,6 +119,8 @@ impl SynapService {
         self.with_read(|_tx, reader| self.note_to_dto(note, reader))
     }
 
+    /// Normalize display tags + merge metadata into a ledger-ready snapshot.
+    /// Caller must still reject empty content where required.
     fn snapshot_from_display(
         content: String,
         tags: Vec<String>,
@@ -112,6 +133,7 @@ impl SynapService {
         }
     }
 
+    /// Convenience path for classic APIs: one write tx, then finish indexes (no draft/receipt).
     fn append_classic(&self, command: AppendNoteCommand) -> Result<NoteDTO, ServiceError> {
         let edited_from = command.edited_from();
         let note = self.with_write(|tx| self.append_note_in_tx(tx, command))?;
@@ -200,7 +222,6 @@ impl SynapService {
         })?;
         self.refresh_search_indexes()?;
         self.delete_note_embedding(uuid)?;
-        self.remove_starmap_note(uuid)?;
         Ok(())
     }
 

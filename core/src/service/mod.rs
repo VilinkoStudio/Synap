@@ -16,7 +16,6 @@ mod note_query;
 mod peer;
 mod relay_peer;
 mod search;
-mod starmap;
 mod support;
 mod sync;
 #[cfg(test)]
@@ -24,12 +23,11 @@ mod tests;
 
 use crate::{
     crypto,
-    db::umap::UmapCache,
     dto::{
         EmbeddingBackfillProgressDTO, EmbeddingConfigDTO, EmbeddingProviderDTO, LocalIdentityDTO,
         NoteDTO, NoteNeighborsDTO, NoteSegmentDTO, NoteSegmentDirectionDTO, NoteVersionDTO,
         PeerDTO, PeerSyncStatsDTO, PeerTrustStatusDTO, PublicKeyInfoDTO, RelayFetchStatsDTO,
-        RelayPushStatsDTO, SearchResultDTO, SearchSourceDTO, ShareStatsDTO, StarmapPointDTO,
+        RelayPushStatsDTO, SearchResultDTO, SearchSourceDTO, ShareStatsDTO,
         SyncSessionDTO, SyncSessionRecordDTO, SyncSessionRoleDTO, SyncStatsDTO, SyncStatusDTO,
         SyncTransportKindDTO, TimelineDensityPointDTO, TimelineGroupDTO, TimelineNotesPageDTO,
         TimelineSessionDTO, TimelineSessionsPageDTO,
@@ -55,7 +53,6 @@ use crate::{
         note_segment_view::{NoteSegmentDirection, NoteSegmentView},
         note_version_view::NoteVersionView,
         note_view::NoteView,
-        starmap::StarmapView,
         timeline_view::{SessionDetectionConfig, SessionSpan, TimelineView},
     },
 };

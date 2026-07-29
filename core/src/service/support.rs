@@ -154,45 +154,6 @@ impl SynapService {
         })
     }
 
-    pub(crate) fn ensure_starmap_model_ready(&self) -> Result<(), ServiceError> {
-        let snapshot = self.with_read(|tx, reader| {
-            let view = StarmapView::new(tx, reader);
-            if view.needs_initial_model()? {
-                return Ok(Some(view.build_full_snapshot()?));
-            }
-            Ok(None)
-        })?;
-
-        let Some(snapshot) = snapshot else {
-            return Ok(());
-        };
-
-        self.with_write(|wtx| StarmapView::persist_snapshot(wtx, &snapshot))
-    }
-
-    pub(crate) fn remove_starmap_note(&self, note_id: Uuid) -> Result<(), ServiceError> {
-        let model = self.with_read(|tx, reader| {
-            let view = StarmapView::new(tx, reader);
-            view.remove_note_from_model(note_id)
-        })?;
-
-        self.with_write(|wtx| {
-            UmapCache::delete_point(wtx, &note_id.into_bytes())?;
-            if let Some(model) = model {
-                StarmapView::persist_model(wtx, &model)?;
-            } else {
-                UmapCache::clear_model(wtx)?;
-            }
-            Ok(())
-        })
-    }
-
-    pub(crate) fn rebuild_starmap_full_cache(&self) -> Result<(), ServiceError> {
-        let snapshot =
-            self.with_read(|tx, reader| StarmapView::new(tx, reader).build_full_snapshot())?;
-        self.with_write(|wtx| StarmapView::persist_snapshot(wtx, &snapshot))
-    }
-
     fn expected_embedding_stamp(&self) -> EmbeddingCacheStamp {
         let config = self.config.lock().expect("config lock");
         EmbeddingCacheStamp::new(
@@ -241,8 +202,6 @@ impl SynapService {
         self.with_write(|tx| {
             if embedding_incompatible {
                 self.semantic_index.invalidate_all(tx)?;
-                UmapCache::clear_points(tx)?;
-                UmapCache::clear_model(tx)?;
             }
             if embedding_stamp.is_none() || embedding_incompatible {
                 EmbeddingCacheMetadata::save(tx, &expected_embedding)?;
@@ -369,7 +328,6 @@ impl SynapService {
             .begin_write()
             .map_err(|err| ServiceError::Db(err.into()))?;
         Note::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
-        UmapCache::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
         TagWriter::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
         CryptoWriter::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;
         RelayPeerWriter::init_schema(&tx).map_err(|err| ServiceError::Db(err.into()))?;

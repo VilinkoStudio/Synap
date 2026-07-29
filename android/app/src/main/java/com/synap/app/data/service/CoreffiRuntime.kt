@@ -27,7 +27,6 @@ import com.synap.app.data.model.RelayFetchStats
 import com.synap.app.data.model.RelayPushStats
 import com.synap.app.data.model.SearchResultRecord
 import com.synap.app.data.model.ShareImportStats
-import com.synap.app.data.model.StarmapPointRecord
 import com.synap.app.data.model.SyncSession
 import com.synap.app.data.model.SyncSessionRecord
 import com.synap.app.data.model.TimelineDirection
@@ -40,7 +39,6 @@ import com.synap.app.data.model.toRelayPushStats
 import com.synap.app.data.model.toSyncSession
 import com.synap.app.data.model.toSyncSessionRecords
 import com.synap.app.data.model.toShareImportStats
-import com.synap.app.data.model.toStarmapPoints
 import com.synap.app.data.model.toCursorPage
 import com.synap.app.data.model.toDto
 import com.synap.app.data.model.toNoteRecord
@@ -324,9 +322,6 @@ class CoreffiRuntime @Inject constructor(
 
     override suspend fun getDeletedNotes(cursor: String?, limit: UInt?): Result<List<NoteRecord>> =
         withService { service -> service.getDeletedNotes(cursor, limit).toNoteRecords() }
-
-    override suspend fun getStarmap(): Result<List<StarmapPointRecord>> =
-        withService { service -> service.getStarmap().toStarmapPoints() }
 
     override suspend fun backfillNoteEmbeddings(): Result<ULong> =
         withService { service -> service.backfillNoteEmbeddings() }

@@ -608,56 +608,6 @@ fn test_embedding_config_default_and_change_invalidates_vectors() {
             .any(|item| item.id == note.id)
     );
 
-    // backfill 后应整图重建 UMAP，而不是增量 upsert
-    let points = service.get_starmap().unwrap();
-    assert!(points.iter().any(|p| p.id == note.id));
-    assert!(points.iter().all(|p| p.x.is_finite() && p.y.is_finite()));
-}
-
-#[test]
-fn test_get_starmap_returns_latest_visible_notes_only() {
-    let service = SynapService::new(None).unwrap();
-
-    let original = service
-        .create_note("tokio runtime ownership".to_string(), vec!["async".into()])
-        .unwrap();
-    let edited = service
-        .edit_note(
-            &original.id,
-            "tokio runtime ownership updated".to_string(),
-            vec!["async".into()],
-        )
-        .unwrap();
-    let deleted = service
-        .create_note("deleted note".to_string(), vec!["misc".into()])
-        .unwrap();
-    let live = service
-        .create_note("live note".to_string(), vec!["misc".into()])
-        .unwrap();
-
-    service.delete_note(&deleted.id).unwrap();
-    service.backfill_note_embeddings().unwrap();
-
-    let points = service.get_starmap().unwrap();
-    let ids = points
-        .iter()
-        .map(|point| point.id.as_str())
-        .collect::<Vec<_>>();
-
-    assert!(ids.contains(&edited.id.as_str()));
-    assert!(ids.contains(&live.id.as_str()));
-    assert!(!ids.contains(&original.id.as_str()));
-    assert!(!ids.contains(&deleted.id.as_str()));
-    assert!(points.iter().all(|point| {
-        point.x.is_finite()
-            && point.y.is_finite()
-            && point.x >= -1.0
-            && point.x <= 1.0
-            && point.y >= -1.0
-            && point.y <= 1.0
-    }));
-}
-
 #[test]
 fn test_get_all_tags_returns_sorted_contents() {
     let dir = tempdir().unwrap();
@@ -2031,14 +1981,12 @@ fn test_memory_draft_does_not_enter_note_or_derived_lifecycles_before_commit() {
             .unwrap()
             .contains(&"draft-only-tag".to_string())
     );
-    assert!(service.get_starmap().unwrap().is_empty());
 
     let draft_uuid = Uuid::parse_str(&draft.id).unwrap();
     let draft_key = *draft_uuid.as_bytes();
     service
         .with_read(|tx, _reader| {
             assert!(service.semantic_index.get(tx, &draft_key)?.is_none());
-            assert_eq!(crate::db::umap::UmapCache::points_count(tx)?, 0);
             Ok(())
         })
         .unwrap();
@@ -2054,11 +2002,9 @@ fn test_memory_draft_does_not_enter_note_or_derived_lifecycles_before_commit() {
             .unwrap()
             .contains(&"draft-only-tag".to_string())
     );
-    assert!(service.get_starmap().unwrap().is_empty());
     service
         .with_read(|tx, _reader| {
             assert!(service.semantic_index.get(tx, &draft_key)?.is_none());
-            assert_eq!(crate::db::umap::UmapCache::points_count(tx)?, 0);
             Ok(())
         })
         .unwrap();

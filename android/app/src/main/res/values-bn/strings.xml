@@ -82,8 +82,6 @@
     <string name="home_filter_untagged">অশ্রেণীভুক্ত</string>
     <string name="content_desc_search">অনুসন্ধান</string>
     <string name="content_desc_settings">সেটিংস</string>
-    <string name="starmap_title">স্টারম্যাপ</string>
-    <string name="starmap_points_label">স্টার পয়েন্ট</string>
     <string name="edit_hint_reply">এর উত্তর দিন</string>
     <string name="notedetail_title">নোটের বিবরণ</string>
     <string name="notedetail_errorMessage">নোটের অস্তিত্ব নেই</string>

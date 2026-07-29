@@ -197,14 +197,6 @@ pub struct NoteSegmentDTO {
     pub steps: Vec<NoteSegmentStepDTO>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct StarmapPointDTO {
-    pub id: String,
-    pub x: f32,
-    pub y: f32,
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum PeerTrustStatusDTO {

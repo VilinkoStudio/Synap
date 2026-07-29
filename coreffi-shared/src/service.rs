@@ -10,8 +10,8 @@ use crate::types::{
     BuildInfo, FilteredNoteStatus, LocalIdentityDTO, MdnsDiscoverySignatureDTO, NoteDTO,
     NoteDraftDTO, NoteNeighborsDTO, NoteSegmentDTO, NoteSegmentDirectionDTO, NoteVersionDTO,
     PeerDTO, RelayFetchStatsDTO, RelayPushStatsDTO, SearchResultDTO, ShareStatsDTO,
-    StarmapPointDTO, SyncSessionDTO, SyncSessionRecordDTO, TimelineDensityPointDTO,
-    TimelineDirection, TimelineNotesPageDTO, TimelineSessionsPageDTO,
+    SyncSessionDTO, SyncSessionRecordDTO, TimelineDensityPointDTO, TimelineDirection,
+    TimelineNotesPageDTO, TimelineSessionsPageDTO,
 };
 use synap_core::dto::{
     NoteDTO as CoreNoteDTO, NoteNeighborsDTO as CoreNoteNeighborsDTO,
@@ -109,10 +109,6 @@ impl SynapService {
 
     fn map_share_stats(stats: synap_core::dto::ShareStatsDTO) -> ShareStatsDTO {
         stats.into()
-    }
-
-    fn map_starmap_points(points: Vec<synap_core::dto::StarmapPointDTO>) -> Vec<StarmapPointDTO> {
-        points.into_iter().map(Into::into).collect()
     }
 
     fn map_sync_session(session: synap_core::dto::SyncSessionDTO) -> SyncSessionDTO {
@@ -265,13 +261,6 @@ impl SynapService {
         self.inner
             .get_deleted_notes(cursor.as_deref(), limit.map(|value| value as usize))
             .map(Self::map_notes)
-            .map_err(Into::into)
-    }
-
-    pub fn get_starmap(&self) -> Result<Vec<StarmapPointDTO>, FfiError> {
-        self.inner
-            .get_starmap()
-            .map(Self::map_starmap_points)
             .map_err(Into::into)
     }
 

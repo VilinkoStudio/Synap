@@ -28,6 +28,7 @@ impl From<DraftStoreError> for ServiceError {
     }
 }
 
+/// Service-side union over type-state drafts (memory first when resolving by id).
 enum ActiveDraft {
     Memory(NoteDraftMemory),
     Persisted(PersistedNoteDraft),
@@ -53,6 +54,7 @@ impl ActiveDraft {
     }
 }
 
+/// Validated draft ready to append: frozen [`AppendNoteCommand`] + commit bookkeeping.
 struct ReadyDraft {
     id: DraftId,
     command: AppendNoteCommand,
@@ -298,6 +300,7 @@ impl SynapService {
         Ok(Self::draft_to_dto(&ActiveDraft::Persisted(persisted)))
     }
 
+    /// Freeze draft content into a snapshot and map origin/reply_to → command edges.
     fn ready_draft(draft: ActiveDraft) -> Result<ReadyDraft, ServiceError> {
         let persisted = draft.persisted();
         let data = match draft {
@@ -343,6 +346,7 @@ impl SynapService {
         })
     }
 
+    /// Append once under this draft id. Receipt makes retries idempotent.
     pub fn draft_commit(&self, draft_id: &str) -> Result<NoteDTO, ServiceError> {
         let _commit_guard = self.draft_commit_lock.lock().expect("draft commit lock");
         let id = Self::parse_draft_id(draft_id)?;
