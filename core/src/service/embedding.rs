@@ -33,14 +33,30 @@ impl SynapService {
         }
     }
 
-    /// 当前 embedding 配置（强类型 → DTO）。
-    pub fn get_embedding_config(&self) -> EmbeddingConfigDTO {
+    /// Returns a consistent snapshot of the complete runtime configuration.
+    pub fn get_config(&self) -> CoreConfig {
         let _lifecycle = self
             .embedding_lifecycle
             .read()
             .expect("embedding lifecycle lock");
-        let config = self.config.lock().expect("config lock").clone();
-        embedding_config_to_dto(&config.embedding)
+        self.config.lock().expect("config lock").clone()
+    }
+
+    /// Replaces the complete configuration and applies all derived-state
+    /// transitions required by the changed configuration domains.
+    pub fn set_config(&self, next: CoreConfig) -> Result<CoreConfig, ServiceError> {
+        next.validate()?;
+        let embedding_model = Self::build_embedding_model(next.embedding())?;
+        let _lifecycle = self
+            .embedding_lifecycle
+            .write()
+            .expect("embedding lifecycle lock");
+        self.apply_config_change_locked(next, embedding_model)
+    }
+
+    /// Current embedding configuration (typed config -> DTO compatibility API).
+    pub fn get_embedding_config(&self) -> EmbeddingConfigDTO {
+        embedding_config_to_dto(self.get_config().embedding())
     }
 
     /// 更新 embedding 配置：落盘 → 注入模型 → 全部向量置空。
@@ -56,41 +72,61 @@ impl SynapService {
             .embedding_lifecycle
             .write()
             .expect("embedding lifecycle lock");
-        let next = {
-            let guard = self.config.lock().expect("config lock");
-            let mut updated = guard.clone();
-            updated.embedding = embedding;
-            updated.validate()?;
-            updated
-        };
-        let embedding_stamp = EmbeddingCacheStamp::new(
-            next.embedding.space_fingerprint(),
-            next.embedding.dimension(),
-        );
-        let profile_metadata = TagProfileMetadata::new(
-            embedding_stamp.space_fingerprint.clone(),
-            embedding_stamp.dimension as usize,
-        );
+        let mut next = self.config.lock().expect("config lock").clone();
+        next.set_embedding(embedding);
+        let updated = self.apply_config_change_locked(next, model)?;
+        Ok(embedding_config_to_dto(updated.embedding()))
+    }
+
+    /// The caller holds `embedding_lifecycle`'s write lock. Keeping the state
+    /// transition here makes root configuration replacement the only path that
+    /// may persist configuration and replace embedding dependencies.
+    fn apply_config_change_locked(
+        &self,
+        next: CoreConfig,
+        embedding_model: Arc<dyn EmbeddingModel>,
+    ) -> Result<CoreConfig, ServiceError> {
+        let current = self.config.lock().expect("config lock").clone();
+        if next == current {
+            return Ok(current);
+        }
+
+        let embedding_changed = next.embedding() != current.embedding();
+        let embedding_stamp = embedding_changed.then(|| {
+            EmbeddingCacheStamp::new(
+                next.embedding().space_fingerprint(),
+                next.embedding().dimension(),
+            )
+        });
+        let profile_metadata = embedding_stamp.as_ref().map(|stamp| {
+            TagProfileMetadata::new(stamp.space_fingerprint.clone(), stamp.dimension as usize)
+        });
 
         let update_result = self.with_write(|tx| {
             ConfigWriter::new(tx).save(&next)?;
-            self.semantic_index.invalidate_all(tx)?;
-            EmbeddingCacheMetadata::save(tx, &embedding_stamp)?;
-            TagProfileStore::reset(tx, &profile_metadata)?;
+            if let (Some(stamp), Some(metadata)) = (&embedding_stamp, &profile_metadata) {
+                self.semantic_index.invalidate_all(tx)?;
+                EmbeddingCacheMetadata::save(tx, stamp)?;
+                TagProfileStore::reset(tx, metadata)?;
+            }
             Ok(())
         });
         if let Err(error) = update_result {
-            // A concurrent profile reload may have yielded to this config writer.
-            // Republish the unchanged persisted snapshot before returning failure.
-            self.reload_tag_profile_index_locked()?;
+            if embedding_changed {
+                // A concurrent profile reload may have yielded to this config writer.
+                // Republish the unchanged persisted snapshot before returning failure.
+                self.reload_tag_profile_index_locked()?;
+            }
             return Err(error);
         }
 
-        self.semantic_index.set_embedding_model(model);
-        self.tag_recommender.clear();
+        if embedding_changed {
+            self.semantic_index.set_embedding_model(embedding_model);
+            self.tag_recommender.clear();
+        }
         *self.config.lock().expect("config lock") = next.clone();
 
-        Ok(embedding_config_to_dto(&next.embedding))
+        Ok(next)
     }
 
     /// 为笔记写入空向量占位，真正的 embedding 由 backfill 补全。

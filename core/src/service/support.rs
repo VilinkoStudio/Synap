@@ -192,8 +192,8 @@ impl SynapService {
     fn expected_embedding_stamp(&self) -> EmbeddingCacheStamp {
         let config = self.config.lock().expect("config lock");
         EmbeddingCacheStamp::new(
-            config.embedding.space_fingerprint(),
-            config.embedding.dimension(),
+            config.embedding().space_fingerprint(),
+            config.embedding().dimension(),
         )
     }
 
@@ -376,10 +376,18 @@ impl SynapService {
             .map_err(|err| ServiceError::Db(err.into()))?;
         crypto::ensure_local_signing_identity(&CryptoWriter::new(&tx))
             .map_err(|err| ServiceError::Db(err.into()))?;
-        let core_config = ConfigWriter::new(&tx).load_or_default()?;
+        let config_writer = ConfigWriter::new(&tx);
+        let core_config = match config_writer.load()? {
+            Some(config) => config,
+            None => {
+                let config = CoreConfig::default();
+                config_writer.save(&config)?;
+                config
+            }
+        };
         tx.commit().map_err(ServiceError::CommitErr)?;
 
-        let embedding_model = Self::build_embedding_model(&core_config.embedding)?;
+        let embedding_model = Self::build_embedding_model(core_config.embedding())?;
         let tag_searcher = FuzzyIndex::<Tag>::new();
         let note_searcher = FuzzyIndex::<Note>::new();
         let semantic_index = SemanticIndex::new(Note::vector_index(), embedding_model);

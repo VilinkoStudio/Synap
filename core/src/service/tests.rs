@@ -1,5 +1,6 @@
 use super::*;
 use crate::dto::DatabaseTableKindDTO;
+use crate::EmbeddingConfig;
 use crate::models::{
     embedding_cache::EmbeddingCacheStamp,
     tag_profile::{TagProfileMetadata, TagProfileRecord},
@@ -658,6 +659,21 @@ fn test_embedding_config_default_and_change_invalidates_vectors() {
             .iter()
             .any(|item| item.id == note.id)
     );
+}
+
+#[test]
+fn test_root_config_api_persists_across_reopen() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("synap.redb");
+    let expected = CoreConfig::new(EmbeddingConfig::local_hash(256));
+
+    let service = SynapService::open(&db_path).unwrap();
+    assert_eq!(service.set_config(expected.clone()).unwrap(), expected);
+    assert_eq!(service.get_config(), expected);
+    drop(service);
+
+    let reopened = SynapService::open(&db_path).unwrap();
+    assert_eq!(reopened.get_config(), expected);
 }
 
 #[test]

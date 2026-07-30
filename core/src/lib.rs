@@ -42,5 +42,7 @@ pub use dto::{
 #[cfg(not(target_arch = "wasm32"))]
 pub use error::{NoteError, ServiceError};
 #[cfg(not(target_arch = "wasm32"))]
+pub use models::config::{ConfigError, CoreConfig, EmbeddingConfig};
+#[cfg(not(target_arch = "wasm32"))]
 pub use service::{SynapService, TimelineDirection};
 pub use version::{build_info, version_string, BuildInfo};
