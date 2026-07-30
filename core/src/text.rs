@@ -15,13 +15,27 @@ pub fn sanitize_search_text_with_ranges(content: &str) -> (String, Vec<TextMatch
 
     while i < bytes.len() {
         let Some(offset) = memchr2(b'd', b'!', &bytes[i..]) else {
-            append_source_slice(content, i, bytes.len(), &utf16_offsets, &mut output, &mut ranges);
+            append_source_slice(
+                content,
+                i,
+                bytes.len(),
+                &utf16_offsets,
+                &mut output,
+                &mut ranges,
+            );
             break;
         };
         let candidate = i + offset;
 
         if candidate > i {
-            append_source_slice(content, i, candidate, &utf16_offsets, &mut output, &mut ranges);
+            append_source_slice(
+                content,
+                i,
+                candidate,
+                &utf16_offsets,
+                &mut output,
+                &mut ranges,
+            );
         }
 
         if bytes[candidate..].starts_with(b"data:image/") {
@@ -68,7 +82,8 @@ pub fn sanitize_search_text_with_ranges(content: &str) -> (String, Vec<TextMatch
                 }
 
                 if depth == 0 {
-                    if !output.is_empty() && !output.chars().last().is_some_and(char::is_whitespace) {
+                    if !output.is_empty() && !output.chars().last().is_some_and(char::is_whitespace)
+                    {
                         append_synthetic_space(
                             utf16_offsets[candidate],
                             utf16_offsets[url_end],
@@ -137,10 +152,7 @@ fn append_synthetic_space(
     ranges.push(TextMatchRange { start, end });
 }
 
-fn collapse_whitespace(
-    text: &str,
-    ranges: &[TextMatchRange],
-) -> (String, Vec<TextMatchRange>) {
+fn collapse_whitespace(text: &str, ranges: &[TextMatchRange]) -> (String, Vec<TextMatchRange>) {
     let mut output = String::with_capacity(text.len());
     let mut output_ranges = Vec::with_capacity(ranges.len());
     let mut whitespace_range: Option<TextMatchRange> = None;

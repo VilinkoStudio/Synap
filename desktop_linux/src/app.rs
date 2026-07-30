@@ -555,7 +555,9 @@ impl SimpleComponent for App {
                     let sender = sender.clone();
                     gtk::glib::spawn_future_local(async move {
                         let result = core.recommend_tags(&content, 5);
-                        let _ = sender.input_sender().send(AppMsg::TagRecommendationsLoaded(result));
+                        let _ = sender
+                            .input_sender()
+                            .send(AppMsg::TagRecommendationsLoaded(result));
                     });
                 }
             }
@@ -625,9 +627,7 @@ impl SimpleComponent for App {
                 }
             }
             AppMsg::PairDiscoveredPeer { host, port } => self.start_sync_pair(host, port, &sender),
-            AppMsg::TrustPeer { public_key, note } => {
-                self.trust_peer(public_key, note, &sender)
-            }
+            AppMsg::TrustPeer { public_key, note } => self.trust_peer(public_key, note, &sender),
             AppMsg::UpdatePeerNote { peer_id, note } => {
                 self.update_peer_note(peer_id, note, &sender)
             }
@@ -713,7 +713,11 @@ impl SimpleComponent for App {
                             self.state.focus_mode,
                             FocusMode::Editing(WorkspaceMode::CreateDraft)
                         );
-                        let msg = if is_create { "已创建笔记" } else { "已更新笔记" };
+                        let msg = if is_create {
+                            "已创建笔记"
+                        } else {
+                            "已更新笔记"
+                        };
                         self.toast_overlay.add_toast(adw::Toast::new(msg));
                         self.state.focus_mode = FocusMode::Reading(note.id.clone());
                         self.state.selected_note_id = Some(note.id.clone());
@@ -803,5 +807,3 @@ impl SimpleComponent for App {
         self.sync_ui(&sender);
     }
 }
-
-

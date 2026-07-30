@@ -10,9 +10,8 @@ use corenet::{
 };
 use synap_core::{
     dto::{
-        LocalIdentityDTO, NoteDTO, NoteVersionDTO, PeerDTO, RelayFetchStatsDTO,
-        RelayPushStatsDTO, SyncSessionDTO, SyncSessionRecordDTO, TimelineNotesPageDTO,
-        TimelineSessionsPageDTO,
+        LocalIdentityDTO, NoteDTO, NoteVersionDTO, PeerDTO, RelayFetchStatsDTO, RelayPushStatsDTO,
+        SyncSessionDTO, SyncSessionRecordDTO, TimelineNotesPageDTO, TimelineSessionsPageDTO,
     },
     error::ServiceError,
     service::{SynapService, TimelineDirection},
@@ -514,7 +513,10 @@ mod tests {
     #[test]
     fn extract_json_string_finds_value() {
         let json = r#"{"baseUrl":"https://relay.example.com","apiKey":"secret123"}"#;
-        assert_eq!(extract_json_string(json, "baseUrl"), "https://relay.example.com");
+        assert_eq!(
+            extract_json_string(json, "baseUrl"),
+            "https://relay.example.com"
+        );
         assert_eq!(extract_json_string(json, "apiKey"), "secret123");
     }
 

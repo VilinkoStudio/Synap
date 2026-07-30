@@ -9,9 +9,9 @@ use crate::error::FfiError;
 use crate::types::{
     BuildInfo, FilteredNoteStatus, LocalIdentityDTO, MdnsDiscoverySignatureDTO, NoteDTO,
     NoteDraftDTO, NoteNeighborsDTO, NoteSegmentDTO, NoteSegmentDirectionDTO, NoteVersionDTO,
-    PeerDTO, RelayFetchStatsDTO, RelayPushStatsDTO, SearchResultDTO, ShareStatsDTO,
-    SyncSessionDTO, SyncSessionRecordDTO, TimelineDensityPointDTO, TimelineDirection,
-    TimelineNotesPageDTO, TimelineSessionsPageDTO,
+    PeerDTO, RelayFetchStatsDTO, RelayPushStatsDTO, SearchResultDTO, ShareStatsDTO, SyncSessionDTO,
+    SyncSessionRecordDTO, TimelineDensityPointDTO, TimelineDirection, TimelineNotesPageDTO,
+    TimelineSessionsPageDTO,
 };
 use synap_core::dto::{
     NoteDTO as CoreNoteDTO, NoteNeighborsDTO as CoreNoteNeighborsDTO,

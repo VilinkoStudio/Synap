@@ -49,7 +49,9 @@ impl DraftId {
 pub(crate) enum DraftOrigin {
     New,
     /// Commit should create a new version of `base` (`NOTE_EDIT`).
-    Edit { base: Uuid },
+    Edit {
+        base: Uuid,
+    },
 }
 
 /// Editable draft payload. Display tags and structured metadata are kept separate;

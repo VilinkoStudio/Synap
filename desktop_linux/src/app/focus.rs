@@ -45,7 +45,8 @@ impl App {
         self.state.status = None;
         self.overlay_split_view.set_collapsed(true);
         self.editing.title_label.set_text("新建笔记");
-        self.editing.hint_label
+        self.editing
+            .hint_label
             .set_text("直接记录，不需要先分类。Markdown、清单和引用都可以原样输入。");
         self.reading.editor.borrow().set_read_only(false);
         self.reading.editor.borrow().set_content("");
@@ -63,7 +64,8 @@ impl App {
         self.state.status = None;
         self.overlay_split_view.set_collapsed(true);
         self.editing.title_label.set_text("编辑笔记");
-        self.editing.hint_label
+        self.editing
+            .hint_label
             .set_text("保存后会更新这条笔记，并保留版本脉络。");
         self.reading.editor.borrow().set_read_only(false);
         self.reading.editor.borrow().set_content(&detail.content);
@@ -87,7 +89,8 @@ impl App {
             .as_ref()
             .map(|d| compact_single_line(&d.content, 60))
             .unwrap_or_else(|| "当前笔记".to_string());
-        self.editing.hint_label
+        self.editing
+            .hint_label
             .set_text(&format!("回复目标：{target}"));
         self.reading.editor.borrow().set_read_only(false);
         self.reading.editor.borrow().set_content("");
@@ -134,9 +137,7 @@ impl App {
             let result = match &mode {
                 WorkspaceMode::CreateDraft => core.create_note(content, tags),
                 WorkspaceMode::EditDraft(id) => core.edit_note(id, content, tags),
-                WorkspaceMode::ReplyDraft(parent_id) => {
-                    core.reply_note(parent_id, content, tags)
-                }
+                WorkspaceMode::ReplyDraft(parent_id) => core.reply_note(parent_id, content, tags),
             };
             let _ = sender.input_sender().send(AppMsg::NoteSaved(result));
         });

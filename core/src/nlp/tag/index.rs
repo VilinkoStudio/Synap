@@ -162,14 +162,12 @@ impl RuntimeMetric {
                         .collect(),
                 }
             }
-            TagMetricRecord::HashDiagonal { log_weights } => {
-                Self::HashDiagonal {
-                    half_weights: log_weights
-                        .into_iter()
-                        .map(|value| (0.5 * value).exp())
-                        .collect(),
-                }
-            }
+            TagMetricRecord::HashDiagonal { log_weights } => Self::HashDiagonal {
+                half_weights: log_weights
+                    .into_iter()
+                    .map(|value| (0.5 * value).exp())
+                    .collect(),
+            },
         }
     }
 

@@ -1,14 +1,14 @@
 use super::*;
 use crate::dto::DatabaseTableKindDTO;
-use crate::EmbeddingConfig;
 use crate::models::{
     embedding_cache::EmbeddingCacheStamp,
     tag_profile::{TagProfileMetadata, TagProfileRecord},
 };
 use crate::nlp::embedding::{EmbeddingError, EmbeddingModel, LocalHashEmbedding};
+use crate::EmbeddingConfig;
 use std::{
     net::TcpListener,
-    sync::{Arc, Condvar, Mutex as StdMutex, mpsc},
+    sync::{mpsc, Arc, Condvar, Mutex as StdMutex},
     thread,
     time::Duration,
 };
@@ -57,7 +57,10 @@ fn database_storage_metrics_reports_initialized_tables() {
     let metrics = service.database_storage_metrics().unwrap();
 
     assert!(metrics.page_size > 0);
-    assert!(metrics.tables.iter().any(|table| table.name == "NoteBlocks"));
+    assert!(metrics
+        .tables
+        .iter()
+        .any(|table| table.name == "NoteBlocks"));
     assert!(metrics.tables.iter().any(|table| {
         table.name == "TagToNotes" && table.kind == DatabaseTableKindDTO::MultimapTable
     }));
@@ -270,12 +273,10 @@ fn test_unsupported_embedding_cache_version_invalidates_derived_profiles() {
     drop(db);
 
     let reopened = SynapService::open(&db_path).unwrap();
-    assert!(
-        reopened
-            .recommend_tag("rust borrowing", 1)
-            .unwrap()
-            .is_empty()
-    );
+    assert!(reopened
+        .recommend_tag("rust borrowing", 1)
+        .unwrap()
+        .is_empty());
     assert_eq!(reopened.backfill_note_embeddings().unwrap(), 1);
     assert_eq!(
         reopened.recommend_tag("rust borrowing", 1).unwrap(),
@@ -439,10 +440,7 @@ fn test_fusion_search_combines_fuzzy_and_semantic_results() {
     assert!(results[0].score > 0.0);
     assert!(results[0].sources.contains(&SearchSourceDTO::Fuzzy));
     assert!(results[0].sources.contains(&SearchSourceDTO::Semantic));
-    assert_eq!(
-        results[0].text_match,
-        Some(SearchTextMatchDTO::Fuzzy)
-    );
+    assert_eq!(results[0].text_match, Some(SearchTextMatchDTO::Fuzzy));
     assert_eq!(
         results[0].text_match_ranges,
         Some(vec![
@@ -615,13 +613,11 @@ fn test_embedding_config_default_and_change_invalidates_vectors() {
         .create_note("config change ownership".to_string(), vec!["cfg".into()])
         .unwrap();
     assert_eq!(service.backfill_note_embeddings().unwrap(), 1);
-    assert!(
-        service
-            .search_semantic("ownership", 5)
-            .unwrap()
-            .iter()
-            .any(|item| item.id == note.id)
-    );
+    assert!(service
+        .search_semantic("ownership", 5)
+        .unwrap()
+        .iter()
+        .any(|item| item.id == note.id));
 
     // 改成另一个本地维度：应清空向量
     let updated = service
@@ -652,13 +648,11 @@ fn test_embedding_config_default_and_change_invalidates_vectors() {
     );
     assert_eq!(progress.last().unwrap().filled, 1);
 
-    assert!(
-        service
-            .search_semantic("ownership", 5)
-            .unwrap()
-            .iter()
-            .any(|item| item.id == note.id)
-    );
+    assert!(service
+        .search_semantic("ownership", 5)
+        .unwrap()
+        .iter()
+        .any(|item| item.id == note.id));
 }
 
 #[test]
@@ -731,12 +725,10 @@ fn test_get_notes_by_tag_returns_only_live_latest_matches() {
     assert_eq!(rust_notes.len(), 1);
     assert_eq!(rust_notes[0].id, live.id);
 
-    assert!(
-        service
-            .get_notes_by_tag("missing", None, None)
-            .unwrap()
-            .is_empty()
-    );
+    assert!(service
+        .get_notes_by_tag("missing", None, None)
+        .unwrap()
+        .is_empty());
 }
 
 #[test]
@@ -1167,12 +1159,10 @@ fn test_get_timeline_notes_page_unifies_filtering_and_cursor() {
         vec![rust_work.id.clone(), travel.id.clone()]
     );
     assert_eq!(page_one.next_cursor.as_deref(), Some(travel.id.as_str()));
-    assert!(
-        page_one
-            .notes
-            .iter()
-            .all(|note| note.timeline_group.is_none())
-    );
+    assert!(page_one
+        .notes
+        .iter()
+        .all(|note| note.timeline_group.is_none()));
 
     let page_two = service
         .get_timeline_notes_page(
@@ -1353,13 +1343,11 @@ fn test_version_queries_return_live_related_versions() {
     assert_eq!(previous[0].note.id, v1.id);
     assert_eq!(previous[0].diff.tags.added, Vec::<String>::new());
     assert_eq!(previous[0].diff.tags.removed, vec!["beta"]);
-    assert!(
-        previous[0]
-            .diff
-            .content
-            .iter()
-            .any(|change| !matches!(change.kind, crate::dto::NoteTextChangeKindDTO::Equal))
-    );
+    assert!(previous[0]
+        .diff
+        .content
+        .iter()
+        .any(|change| !matches!(change.kind, crate::dto::NoteTextChangeKindDTO::Equal)));
 
     let next = service.get_next_versions(&v1.id).unwrap();
     assert_eq!(next.len(), 2);
@@ -1368,13 +1356,11 @@ fn test_version_queries_return_live_related_versions() {
     let next_v2a = next.iter().find(|note| note.note.id == v2a.id).unwrap();
     assert_eq!(next_v2a.diff.tags.added, vec!["beta"]);
     assert_eq!(next_v2a.diff.tags.removed, Vec::<String>::new());
-    assert!(
-        next_v2a
-            .diff
-            .content
-            .iter()
-            .any(|change| !matches!(change.kind, crate::dto::NoteTextChangeKindDTO::Equal))
-    );
+    assert!(next_v2a
+        .diff
+        .content
+        .iter()
+        .any(|change| !matches!(change.kind, crate::dto::NoteTextChangeKindDTO::Equal)));
 
     let others = service.get_other_versions(&v2a.id).unwrap();
     assert_eq!(others.len(), 2);
@@ -1803,12 +1789,10 @@ fn test_get_all_tags_excludes_imported_deleted_notes_during_transaction() {
     service_a.delete_note(&note.id).unwrap();
 
     // Verify on service_a: tag should not appear
-    assert!(
-        !service_a
-            .get_all_tags()
-            .unwrap()
-            .contains(&"ephemeral".to_string())
-    );
+    assert!(!service_a
+        .get_all_tags()
+        .unwrap()
+        .contains(&"ephemeral".to_string()));
 
     // Export and import
     let exported = service_a.export_share(&vec![note.id.clone()]).unwrap();
@@ -1846,22 +1830,18 @@ fn test_set_note_color_exposes_color_and_hides_metadata_from_tags() {
         .unwrap();
     assert_eq!(colored.color.as_deref(), Some("#ff0000"));
     assert_eq!(colored.tags, vec!["rust".to_string(), "$price".to_string()]);
-    assert!(
-        !colored
-            .tags
-            .iter()
-            .any(|t| t.contains("color") || t.starts_with("$ff"))
-    );
+    assert!(!colored
+        .tags
+        .iter()
+        .any(|t| t.contains("color") || t.starts_with("$ff")));
 
     // metadata color tags must not leak into public tag lists
     let all_tags = service.get_all_tags().unwrap();
     assert!(all_tags.contains(&"rust".to_string()));
     assert!(all_tags.contains(&"$price".to_string()));
-    assert!(
-        !all_tags
-            .iter()
-            .any(|t| t.starts_with("$color") || t == "$ff0000")
-    );
+    assert!(!all_tags
+        .iter()
+        .any(|t| t.starts_with("$color") || t == "$ff0000"));
 
     // edit preserves existing color metadata while updating display tags
     let edited = service
@@ -2043,12 +2023,10 @@ fn test_memory_draft_does_not_enter_note_or_derived_lifecycles_before_commit() {
 
     assert!(service.get_recent_note(None, Some(10)).unwrap().is_empty());
     assert!(service.search("searchable", 10).unwrap().is_empty());
-    assert!(
-        !service
-            .get_all_tags()
-            .unwrap()
-            .contains(&"draft-only-tag".to_string())
-    );
+    assert!(!service
+        .get_all_tags()
+        .unwrap()
+        .contains(&"draft-only-tag".to_string()));
 
     let draft_uuid = Uuid::parse_str(&draft.id).unwrap();
     let draft_key = *draft_uuid.as_bytes();
@@ -2064,12 +2042,10 @@ fn test_memory_draft_does_not_enter_note_or_derived_lifecycles_before_commit() {
     assert!(persisted.persisted);
     assert!(service.get_recent_note(None, Some(10)).unwrap().is_empty());
     assert!(service.search("searchable", 10).unwrap().is_empty());
-    assert!(
-        !service
-            .get_all_tags()
-            .unwrap()
-            .contains(&"draft-only-tag".to_string())
-    );
+    assert!(!service
+        .get_all_tags()
+        .unwrap()
+        .contains(&"draft-only-tag".to_string()));
     service
         .with_read(|tx, _reader| {
             assert!(service.semantic_index.get(tx, &draft_key)?.is_none());
@@ -2094,18 +2070,16 @@ fn test_invalid_memory_draft_update_is_atomic() {
         )
         .unwrap();
 
-    assert!(
-        service
-            .draft_update(
-                &draft.id,
-                Some("must roll back".into()),
-                Some(vec!["must-roll-back".into()]),
-                Some(Some("not-a-color".into())),
-                None,
-                None,
-            )
-            .is_err()
-    );
+    assert!(service
+        .draft_update(
+            &draft.id,
+            Some("must roll back".into()),
+            Some(vec!["must-roll-back".into()]),
+            Some(Some("not-a-color".into())),
+            None,
+            None,
+        )
+        .is_err());
 
     let current = service.draft_get(&draft.id).unwrap();
     assert_eq!(current.content, original.content);

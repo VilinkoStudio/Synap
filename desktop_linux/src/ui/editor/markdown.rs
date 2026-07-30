@@ -76,9 +76,8 @@ impl PangoRenderer {
                     self.close_tag(PangoTag::Strikethrough, "</s>");
                 }
                 Event::Start(Tag::Link { dest_url, .. }) => {
-                    self.output.push_str(
-                        "<span foreground=\"#3584e4\" underline=\"single\">",
-                    );
+                    self.output
+                        .push_str("<span foreground=\"#3584e4\" underline=\"single\">");
                     self.tag_stack.push(PangoTag::Link);
                     let _ = dest_url; // URL available if needed for hover
                 }

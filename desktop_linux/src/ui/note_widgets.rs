@@ -2,15 +2,16 @@ use adw::prelude::*;
 use relm4::prelude::*;
 use synap_core::dto::NoteDTO;
 
-use crate::{
-    app::message::AppMsg,
-    domain::format_timestamp,
-};
+use crate::{app::message::AppMsg, domain::format_timestamp};
 
 /// Build a note card for FlowBox (waterfall layout) — returns a clickable gtk::Box.
 ///
 /// When `show_restore` is true (trash view), a restore button is appended to the card footer.
-pub fn build_note_card(note: &NoteDTO, sender: &relm4::Sender<AppMsg>, show_restore: bool) -> gtk::Box {
+pub fn build_note_card(
+    note: &NoteDTO,
+    sender: &relm4::Sender<AppMsg>,
+    show_restore: bool,
+) -> gtk::Box {
     let card = build_note_card_body(note);
 
     if show_restore {

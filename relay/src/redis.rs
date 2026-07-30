@@ -268,10 +268,13 @@ impl RedisRuntime {
     }
 
     async fn mailbox_client(&self) -> anyhow::Result<client::Client> {
-        timeout(TokioDuration::from_secs(3), client::connect(self.target.as_str()))
-            .await
-            .with_context(|| format!("timed out while connecting to redis at {}", self.target))?
-            .map_err(|error| anyhow!("failed to connect to redis at {}: {error}", self.target))
+        timeout(
+            TokioDuration::from_secs(3),
+            client::connect(self.target.as_str()),
+        )
+        .await
+        .with_context(|| format!("timed out while connecting to redis at {}", self.target))?
+        .map_err(|error| anyhow!("failed to connect to redis at {}: {error}", self.target))
     }
 }
 

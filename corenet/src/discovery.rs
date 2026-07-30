@@ -45,8 +45,7 @@ impl Default for DiscoveryState {
 }
 
 /// Callback that returns `(signing_public_key, signature)`.
-pub type MdnsSignCallback =
-    Box<dyn Fn() -> Result<([u8; 32], [u8; 64]), String> + Send + Sync>;
+pub type MdnsSignCallback = Box<dyn Fn() -> Result<([u8; 32], [u8; 64]), String> + Send + Sync>;
 
 pub struct DiscoveryConfig {
     pub display_name: String,
@@ -109,20 +108,19 @@ impl SyncDiscoveryRuntime {
         // If a signing callback is provided, generate a signature and add it
         // to the TXT record.  Signing failures are logged but do not prevent
         // the service from starting.
-        let sign_result: Option<([u8; 32], [u8; 64])> =
-            if let Some(sign_fn) = &sign {
-                match sign_fn() {
-                    Ok(signed) => Some(signed),
-                    Err(err) => {
-                        eprintln!(
-                            "[corenet] mDNS signing failed, registering without signature: {err}"
-                        );
-                        None
-                    }
+        let sign_result: Option<([u8; 32], [u8; 64])> = if let Some(sign_fn) = &sign {
+            match sign_fn() {
+                Ok(signed) => Some(signed),
+                Err(err) => {
+                    eprintln!(
+                        "[corenet] mDNS signing failed, registering without signature: {err}"
+                    );
+                    None
                 }
-            } else {
-                None
-            };
+            }
+        } else {
+            None
+        };
 
         // Hex strings must outlive the properties borrow.
         let hex_key;

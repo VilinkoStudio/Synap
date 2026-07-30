@@ -8,7 +8,9 @@ use super::message::AppMsg;
 use crate::{
     domain::ContentView,
     ui::{
-        note_widgets::{build_clickable_note_row, build_note_card, build_timeline_header, tag_chip},
+        note_widgets::{
+            build_clickable_note_row, build_note_card, build_timeline_header, tag_chip,
+        },
         util::render_reading_text,
     },
 };
@@ -52,7 +54,11 @@ impl App {
         let is_empty = self.state.visible_notes().is_empty();
         let child_name = match self.state.content_view {
             ContentView::Notes | ContentView::Trash => {
-                if is_empty { "empty" } else { "notes" }
+                if is_empty {
+                    "empty"
+                } else {
+                    "notes"
+                }
             }
         };
         self.content_stack.set_visible_child_name(child_name);
@@ -84,14 +90,18 @@ impl App {
     }
 
     fn sync_reading(&self, sender: &ComponentSender<Self>) {
-        self.reading.context_panel
+        self.reading
+            .context_panel
             .set_visible(self.state.context_panel_open);
         // Only sync editor content in reading mode.
         // In editing mode, sync_editing handles the editor content.
         // Writing rendered text here would conflict with raw markdown in sync_editing,
         // causing an infinite connect_changed → sync_ui loop.
         if !self.state.focus_mode.is_editing() {
-            self.reading.editor.borrow_mut().set_content(&self.reading_content());
+            self.reading
+                .editor
+                .borrow_mut()
+                .set_content(&self.reading_content());
         }
         self.reading.meta_label.set_text(&self.reading_meta());
 
@@ -109,8 +119,18 @@ impl App {
             }
         }
 
-        self.sync_note_section(&self.reading.origins_box, "无溯源", |full| &full.origins, sender);
-        self.sync_note_section(&self.reading.replies_box, "无回复", |full| &full.replies, sender);
+        self.sync_note_section(
+            &self.reading.origins_box,
+            "无溯源",
+            |full| &full.origins,
+            sender,
+        );
+        self.sync_note_section(
+            &self.reading.replies_box,
+            "无回复",
+            |full| &full.replies,
+            sender,
+        );
 
         while self.reading.versions_box.observe_children().n_items() > 1 {
             if let Some(child) = self.reading.versions_box.last_child() {
@@ -119,12 +139,16 @@ impl App {
         }
         if let Some(full) = &self.state.selected_note_full {
             if full.other_versions.is_empty() {
-                self.reading.versions_box.append(&empty_relation_label("无其他版本"));
+                self.reading
+                    .versions_box
+                    .append(&empty_relation_label("无其他版本"));
             } else {
                 for version in &full.other_versions {
                     let note = &version.note;
                     self.reading.versions_box.append(&build_clickable_note_row(
-                        note, sender.input_sender(), note.id.clone(),
+                        note,
+                        sender.input_sender(),
+                        note.id.clone(),
                     ));
                 }
             }
@@ -150,7 +174,11 @@ impl App {
                 container.append(&empty_relation_label(empty_title));
             } else {
                 for note in items {
-                    container.append(&build_clickable_note_row(note, sender.input_sender(), note.id.clone()));
+                    container.append(&build_clickable_note_row(
+                        note,
+                        sender.input_sender(),
+                        note.id.clone(),
+                    ));
                 }
             }
         }
@@ -164,13 +192,17 @@ impl App {
             }
         }
         if self.editing.tags_entry.text().as_str() != self.state.draft_tags_text {
-            self.editing.tags_entry.set_text(&self.state.draft_tags_text);
+            self.editing
+                .tags_entry
+                .set_text(&self.state.draft_tags_text);
         }
 
         // Sync recommended tags (only visible in editing mode)
         clear_box(&self.editing.recommend_tags_box);
         if self.state.focus_mode.is_editing() && !self.state.recommended_tags.is_empty() {
-            let existing_tags: Vec<String> = self.state.draft_tags_text
+            let existing_tags: Vec<String> = self
+                .state
+                .draft_tags_text
                 .split([',', '，'])
                 .map(|t| t.trim().to_lowercase())
                 .filter(|t| !t.is_empty())
@@ -213,7 +245,10 @@ impl App {
         self.settings.listener_row.set_subtitle(&format!(
             "{}{}",
             listener.status,
-            listener.listen_port.map(|port| format!(" · 端口 {port}")).unwrap_or_default()
+            listener
+                .listen_port
+                .map(|port| format!(" · 端口 {port}"))
+                .unwrap_or_default()
         ));
         let addresses = if listener.local_addresses.is_empty() {
             "未获取到局域网地址".to_string()
@@ -223,38 +258,60 @@ impl App {
         self.settings.addresses_row.set_subtitle(&addresses);
 
         self.settings.identity_row.set_subtitle(
-            self.state.sync.local_identity.as_ref()
+            self.state
+                .sync
+                .local_identity
+                .as_ref()
                 .map(|id| id.identity.kaomoji_fingerprint.as_str())
                 .unwrap_or("—"),
         );
         self.settings.signing_row.set_subtitle(
-            self.state.sync.local_identity.as_ref()
+            self.state
+                .sync
+                .local_identity
+                .as_ref()
                 .map(|id| id.signing.kaomoji_fingerprint.as_str())
                 .unwrap_or("—"),
         );
 
-        self.settings.error_label.set_visible(self.state.sync.error_message.is_some());
-        self.settings.error_label.set_text(self.state.sync.error_message.as_deref().unwrap_or(""));
+        self.settings
+            .error_label
+            .set_visible(self.state.sync.error_message.is_some());
+        self.settings
+            .error_label
+            .set_text(self.state.sync.error_message.as_deref().unwrap_or(""));
 
         // Relay config sync (avoid overwriting user input while typing)
         if self.settings.relay_base_url_entry.text().as_str() != self.state.sync.relay_base_url {
-            self.settings.relay_base_url_entry.set_text(&self.state.sync.relay_base_url);
+            self.settings
+                .relay_base_url_entry
+                .set_text(&self.state.sync.relay_base_url);
         }
         if self.settings.relay_api_key_entry.text().as_str() != self.state.sync.relay_api_key {
-            self.settings.relay_api_key_entry.set_text(&self.state.sync.relay_api_key);
+            self.settings
+                .relay_api_key_entry
+                .set_text(&self.state.sync.relay_api_key);
         }
         self.settings
             .relay_status_label
             .set_visible(self.state.sync.relay_status_message.is_some());
         self.settings.relay_status_label.set_text(
-            self.state.sync.relay_status_message.as_deref().unwrap_or(""),
+            self.state
+                .sync
+                .relay_status_message
+                .as_deref()
+                .unwrap_or(""),
         );
 
         if self.settings.host_entry.text().as_str() != self.state.sync.host_input {
-            self.settings.host_entry.set_text(&self.state.sync.host_input);
+            self.settings
+                .host_entry
+                .set_text(&self.state.sync.host_input);
         }
         if self.settings.port_entry.text().as_str() != self.state.sync.port_input {
-            self.settings.port_entry.set_text(&self.state.sync.port_input);
+            self.settings
+                .port_entry
+                .set_text(&self.state.sync.port_input);
         }
 
         self.sync_settings_discovered(sender);
@@ -267,7 +324,8 @@ impl App {
         clear_box(&self.settings.discovered_box);
         if self.state.sync.discovered_peers.is_empty() {
             self.settings.discovered_box.append(&simple_info_row(
-                "暂无发现设备", "确认设备在同一局域网并已启动监听",
+                "暂无发现设备",
+                "确认设备在同一局域网并已启动监听",
             ));
             return;
         }
@@ -281,7 +339,10 @@ impl App {
             let host = peer.host.clone();
             let port = peer.port;
             button.connect_clicked(move |_| {
-                let _ = s.send(AppMsg::PairDiscoveredPeer { host: host.clone(), port });
+                let _ = s.send(AppMsg::PairDiscoveredPeer {
+                    host: host.clone(),
+                    port,
+                });
             });
             row.add_suffix(&button);
             self.settings.discovered_box.append(&row);
@@ -292,7 +353,8 @@ impl App {
         clear_box(&self.settings.connections_box);
         if self.state.sync.connections.is_empty() {
             self.settings.connections_box.append(&simple_info_row(
-                "暂无已保存连接", "可手动输入主机地址与端口添加",
+                "暂无已保存连接",
+                "可手动输入主机地址与端口添加",
             ));
             return;
         }
@@ -336,14 +398,18 @@ impl App {
             let s = sender.input_sender().clone();
             let pk = peer.public_key.clone();
             button.connect_clicked(move |_| {
-                let _ = s.send(AppMsg::TrustPeer { public_key: pk.clone(), note: None });
+                let _ = s.send(AppMsg::TrustPeer {
+                    public_key: pk.clone(),
+                    note: None,
+                });
             });
             row.add_suffix(&button);
             self.settings.peers_box.append(&row);
         }
         if self.state.sync.peers.is_empty() {
             self.settings.peers_box.append(&simple_info_row(
-                "还没有设备记录", "首次配对后会在这里显示公钥与信任状态",
+                "还没有设备记录",
+                "首次配对后会在这里显示公钥与信任状态",
             ));
             return;
         }
@@ -366,7 +432,10 @@ impl App {
             row.add_row(&note_row);
 
             let del_row = adw::ActionRow::builder()
-                .title("删除设备记录").subtitle("移除本地记录").activatable(true).build();
+                .title("删除设备记录")
+                .subtitle("移除本地记录")
+                .activatable(true)
+                .build();
             let ds = sender.input_sender().clone();
             let did = peer.id.clone();
             let g = gtk::GestureClick::new();
@@ -384,7 +453,8 @@ impl App {
         clear_box(&self.settings.sessions_box);
         if self.state.sync.recent_sessions.is_empty() {
             self.settings.sessions_box.append(&simple_info_row(
-                "暂无同步记录", "发起或接收一次同步后会显示在这里",
+                "暂无同步记录",
+                "发起或接收一次同步后会显示在这里",
             ));
             return;
         }
@@ -412,8 +482,10 @@ impl App {
 
     fn sync_home_feed(&self, sender: &ComponentSender<Self>) {
         // Sync home feed for Notes and Trash views in browse mode
-        if !matches!(self.state.content_view, ContentView::Notes | ContentView::Trash)
-            || !self.state.focus_mode.is_browse()
+        if !matches!(
+            self.state.content_view,
+            ContentView::Notes | ContentView::Trash
+        ) || !self.state.focus_mode.is_browse()
         {
             return;
         }
@@ -502,13 +574,17 @@ impl App {
     }
 
     pub(super) fn reading_content(&self) -> String {
-        self.state.selected_note_detail.as_ref()
+        self.state
+            .selected_note_detail
+            .as_ref()
             .map(|d| render_reading_text(&d.content))
             .unwrap_or_else(|| "请先从列表中打开一条笔记。".to_string())
     }
 
     pub(super) fn reading_meta(&self) -> String {
-        self.state.selected_note_detail.as_ref()
+        self.state
+            .selected_note_detail
+            .as_ref()
             .map(|d| {
                 format!(
                     "创建于 {}{}",

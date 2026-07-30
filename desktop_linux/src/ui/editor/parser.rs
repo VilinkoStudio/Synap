@@ -207,8 +207,7 @@ impl<'a> BlockCollector<'a> {
                     if self.code.is_some() {
                         self.code_buf.push_str(&text);
                     } else if self.item_start.is_some() {
-                        self.item_events
-                            .push(CapturedEvent::Text(text.to_string()));
+                        self.item_events.push(CapturedEvent::Text(text.to_string()));
                     } else if self.quote_start.is_some() {
                         self.quote_events
                             .push(CapturedEvent::Text(text.to_string()));
@@ -320,10 +319,7 @@ impl<'a> BlockCollector<'a> {
                 end = line_start;
                 break;
             }
-            if trimmed.starts_with("- ")
-                || trimmed.starts_with("* ")
-                || trimmed.starts_with("+ ")
-            {
+            if trimmed.starts_with("- ") || trimmed.starts_with("* ") || trimmed.starts_with("+ ") {
                 // Could be a list item — but only if at line start (not mid-paragraph)
                 if line_start == 0 && start > 0 {
                     // Not at document start, might be mid-paragraph
@@ -332,11 +328,14 @@ impl<'a> BlockCollector<'a> {
                     break;
                 }
             }
-            if trimmed.starts_with("---") || trimmed.starts_with("***") || trimmed.starts_with("___")
+            if trimmed.starts_with("---")
+                || trimmed.starts_with("***")
+                || trimmed.starts_with("___")
             {
                 // Could be HR
                 let chars: Vec<char> = trimmed.chars().collect();
-                if chars.len() >= 3 && chars.iter().all(|c| *c == chars[0] || *c == ' ')
+                if chars.len() >= 3
+                    && chars.iter().all(|c| *c == chars[0] || *c == ' ')
                     && (chars[0] == '-' || chars[0] == '*' || chars[0] == '_')
                 {
                     end = line_start;
@@ -414,7 +413,6 @@ fn heading_level(level: pulldown_cmark::HeadingLevel) -> u8 {
         pulldown_cmark::HeadingLevel::H6 => 6,
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -556,7 +554,11 @@ mod tests {
     fn parse_mixed_document() {
         let md = "# Title\n\nSome text\n\n```python\nprint(1)\n```\n\n- item 1\n- item 2";
         let blocks = parse_markdown(md);
-        assert!(blocks.len() >= 4, "expected >= 4 blocks, got {}", blocks.len());
+        assert!(
+            blocks.len() >= 4,
+            "expected >= 4 blocks, got {}",
+            blocks.len()
+        );
     }
 
     #[test]

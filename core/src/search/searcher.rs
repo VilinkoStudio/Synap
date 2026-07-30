@@ -152,7 +152,11 @@ impl<T: Searchable> FuzzyIndex<T> {
                 let score = snapshot
                     .pattern()
                     .column_pattern(0)
-                    .indices(item.matcher_columns[0].slice(..), &mut matcher, &mut indices)
+                    .indices(
+                        item.matcher_columns[0].slice(..),
+                        &mut matcher,
+                        &mut indices,
+                    )
                     .unwrap_or(0);
 
                 MatchItem {

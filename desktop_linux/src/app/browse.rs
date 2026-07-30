@@ -132,9 +132,7 @@ impl App {
         let sender = sender.clone();
         gtk::glib::spawn_future_local(async move {
             let result = load_home(core.as_ref(), &query, &tag_filter);
-            let _ = sender
-                .input_sender()
-                .send(AppMsg::HomeRefreshed(result));
+            let _ = sender.input_sender().send(AppMsg::HomeRefreshed(result));
         });
     }
 }

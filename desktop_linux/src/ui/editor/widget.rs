@@ -90,10 +90,14 @@ impl WysiwygEditor {
             let inner_ref = Rc::downgrade(&inner);
             let buf = inner.borrow().edit_buffer.clone();
             buf.connect_changed(move |buffer| {
-                let Some(inner_rc) = inner_ref.upgrade() else { return };
+                let Some(inner_rc) = inner_ref.upgrade() else {
+                    return;
+                };
                 // Update source immediately (cheap)
                 {
-                    let Ok(mut inner) = inner_rc.try_borrow_mut() else { return };
+                    let Ok(mut inner) = inner_rc.try_borrow_mut() else {
+                        return;
+                    };
                     let text = buffer_text(buffer);
                     inner.source = text.clone();
                 }
@@ -201,7 +205,9 @@ fn rebuild_rendered(inner: &mut EditorInner) {
 }
 
 fn buffer_text(buffer: &gtk::TextBuffer) -> String {
-    buffer.text(&buffer.start_iter(), &buffer.end_iter(), false).to_string()
+    buffer
+        .text(&buffer.start_iter(), &buffer.end_iter(), false)
+        .to_string()
 }
 
 // ── Helpers ──
@@ -233,13 +239,36 @@ fn setup_syntax_tags(buffer: &gtk::TextBuffer) {
         table.add(&tag);
     };
 
-    add("h1", |t| { t.set_weight(700); t.set_scale(1.5); t.set_foreground(Some("#1a5fb4")); });
-    add("h2", |t| { t.set_weight(700); t.set_scale(1.3); t.set_foreground(Some("#1a5fb4")); });
-    add("h3", |t| { t.set_weight(600); t.set_scale(1.15); t.set_foreground(Some("#1a5fb4")); });
-    add("h4", |t| { t.set_weight(600); t.set_foreground(Some("#1a5fb4")); });
-    add("bold", |t| { t.set_weight(800); });
-    add("italic", |t| { t.set_style(gtk::pango::Style::Italic); t.set_foreground(Some("#6e6e6e")); });
-    add("strike", |t| { t.set_strikethrough(true); t.set_foreground(Some("#999999")); });
+    add("h1", |t| {
+        t.set_weight(700);
+        t.set_scale(1.5);
+        t.set_foreground(Some("#1a5fb4"));
+    });
+    add("h2", |t| {
+        t.set_weight(700);
+        t.set_scale(1.3);
+        t.set_foreground(Some("#1a5fb4"));
+    });
+    add("h3", |t| {
+        t.set_weight(600);
+        t.set_scale(1.15);
+        t.set_foreground(Some("#1a5fb4"));
+    });
+    add("h4", |t| {
+        t.set_weight(600);
+        t.set_foreground(Some("#1a5fb4"));
+    });
+    add("bold", |t| {
+        t.set_weight(800);
+    });
+    add("italic", |t| {
+        t.set_style(gtk::pango::Style::Italic);
+        t.set_foreground(Some("#6e6e6e"));
+    });
+    add("strike", |t| {
+        t.set_strikethrough(true);
+        t.set_foreground(Some("#999999"));
+    });
     add("code_inline", |t| {
         t.set_family(Some("monospace"));
         t.set_foreground(Some("#c62828"));
@@ -260,8 +289,12 @@ fn setup_syntax_tags(buffer: &gtk::TextBuffer) {
         t.set_left_margin(24);
         t.set_style(gtk::pango::Style::Italic);
     });
-    add("marker", |t| { t.set_foreground(Some("#999999")); });
-    add("hr", |t| { t.set_foreground(Some("#cccccc")); });
+    add("marker", |t| {
+        t.set_foreground(Some("#999999"));
+    });
+    add("hr", |t| {
+        t.set_foreground(Some("#cccccc"));
+    });
 }
 
 fn apply_highlighting(buffer: &gtk::TextBuffer, text: &str) {
@@ -303,7 +336,10 @@ fn apply_highlighting(buffer: &gtk::TextBuffer, text: &str) {
 
         if let Some(name) = tag_name {
             let start_char = byte_to_char.get(range.start).copied().unwrap_or(0) as i32;
-            let end_char = byte_to_char.get(range.end).copied().unwrap_or(byte_to_char.len()) as i32;
+            let end_char = byte_to_char
+                .get(range.end)
+                .copied()
+                .unwrap_or(byte_to_char.len()) as i32;
             let mut s = buffer.iter_at_offset(start_char);
             let mut e = buffer.iter_at_offset(end_char);
             if let Some(t) = buffer.tag_table().lookup(name) {
@@ -324,7 +360,10 @@ fn apply_highlighting(buffer: &gtk::TextBuffer, text: &str) {
             || trimmed.starts_with("- [X] ");
 
         if is_marker {
-            let marker_len = if trimmed.starts_with("- [ ] ") || trimmed.starts_with("- [x] ") || trimmed.starts_with("- [X] ") {
+            let marker_len = if trimmed.starts_with("- [ ] ")
+                || trimmed.starts_with("- [x] ")
+                || trimmed.starts_with("- [X] ")
+            {
                 indent + 6
             } else {
                 indent + 2

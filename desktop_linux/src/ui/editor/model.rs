@@ -32,7 +32,7 @@ pub enum BlockKind {
 /// A single list item.
 #[derive(Clone, Debug)]
 pub struct ListItem {
-    pub text: String,    // raw inline markdown
+    pub text: String,          // raw inline markdown
     pub checked: Option<bool>, // for task lists: Some(true/false), None for plain items
 }
 
@@ -48,34 +48,29 @@ impl BlockKind {
                 let lang = language.as_deref().unwrap_or("");
                 format!("```{}\n{}\n```", lang, code)
             }
-            BlockKind::Blockquote(text) => {
-                text.lines()
-                    .map(|l| format!("> {}", l))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            }
-            BlockKind::BulletList(items) => {
-                items
-                    .iter()
-                    .map(|item| {
-                        let prefix = match item.checked {
-                            Some(true) => "- [x] ",
-                            Some(false) => "- [ ] ",
-                            None => "- ",
-                        };
-                        format!("{}{}", prefix, item.text)
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            }
-            BlockKind::OrderedList(items) => {
-                items
-                    .iter()
-                    .enumerate()
-                    .map(|(i, item)| format!("{}. {}", i + 1, item.text))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            }
+            BlockKind::Blockquote(text) => text
+                .lines()
+                .map(|l| format!("> {}", l))
+                .collect::<Vec<_>>()
+                .join("\n"),
+            BlockKind::BulletList(items) => items
+                .iter()
+                .map(|item| {
+                    let prefix = match item.checked {
+                        Some(true) => "- [x] ",
+                        Some(false) => "- [ ] ",
+                        None => "- ",
+                    };
+                    format!("{}{}", prefix, item.text)
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+            BlockKind::OrderedList(items) => items
+                .iter()
+                .enumerate()
+                .map(|(i, item)| format!("{}. {}", i + 1, item.text))
+                .collect::<Vec<_>>()
+                .join("\n"),
             BlockKind::HorizontalRule => "---".to_string(),
             BlockKind::Blank => String::new(),
         }

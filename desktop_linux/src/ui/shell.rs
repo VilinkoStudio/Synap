@@ -96,7 +96,9 @@ pub fn build_content_pages(state: &AppState, sender: &relm4::Sender<AppMsg>) -> 
 
 // ── Unified home feed: tag filter chips + waterfall FlowBox ──
 
-fn build_home_feed(sender: &relm4::Sender<AppMsg>) -> (gtk::ScrolledWindow, gtk::Box, gtk::FlowBox) {
+fn build_home_feed(
+    sender: &relm4::Sender<AppMsg>,
+) -> (gtk::ScrolledWindow, gtk::Box, gtk::FlowBox) {
     let outer = gtk::Box::new(gtk::Orientation::Vertical, 0);
     outer.set_vexpand(true);
 
@@ -317,9 +319,7 @@ fn build_settings_page(state: &AppState, sender: &relm4::Sender<AppMsg>) -> Sett
 
     // ── 外观 ──
 
-    let appearance_group = adw::PreferencesGroup::builder()
-        .title("外观")
-        .build();
+    let appearance_group = adw::PreferencesGroup::builder().title("外观").build();
 
     let theme_row = adw::ActionRow::builder()
         .title("主题")

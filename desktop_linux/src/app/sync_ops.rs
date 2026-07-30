@@ -102,7 +102,12 @@ impl App {
         });
     }
 
-    pub(super) fn start_sync_pair(&mut self, host: String, port: u16, sender: &ComponentSender<Self>) {
+    pub(super) fn start_sync_pair(
+        &mut self,
+        host: String,
+        port: u16,
+        sender: &ComponentSender<Self>,
+    ) {
         self.state.sync.is_pairing = true;
         self.state.sync.error_message = None;
         let core = self.core.clone();
@@ -193,9 +198,9 @@ impl App {
                                 let note = peer.note.clone();
                                 core.trust_peer(&pk, note)
                             } else {
-                                Err(synap_core::error::ServiceError::NotFound(
-                                    format!("设备 {peer_id} 未找到"),
-                                ))
+                                Err(synap_core::error::ServiceError::NotFound(format!(
+                                    "设备 {peer_id} 未找到"
+                                )))
                             }
                         }
                         Err(e) => Err(e),
@@ -238,9 +243,7 @@ impl App {
         let sender = sender.clone();
         gtk::glib::spawn_future_local(async move {
             let result = core.save_relay_config(&base_url, &api_key);
-            let _ = sender
-                .input_sender()
-                .send(AppMsg::RelayConfigSaved(result));
+            let _ = sender.input_sender().send(AppMsg::RelayConfigSaved(result));
         });
     }
 
@@ -251,13 +254,11 @@ impl App {
         self.state.sync.is_relay_syncing = false;
         match result {
             Ok(()) => {
-                self.state.sync.relay_status_message =
-                    Some("Relay 配置已保存".to_string());
+                self.state.sync.relay_status_message = Some("Relay 配置已保存".to_string());
                 self.state.sync.error_message = None;
             }
             Err(e) => {
-                self.state.sync.error_message =
-                    Some(format!("保存 Relay 配置失败: {e}"));
+                self.state.sync.error_message = Some(format!("保存 Relay 配置失败: {e}"));
             }
         }
     }
@@ -294,8 +295,7 @@ impl App {
                 self.state.sync.error_message = None;
             }
             Err(e) => {
-                self.state.sync.error_message =
-                    Some(format!("Relay 拉取失败: {e}"));
+                self.state.sync.error_message = Some(format!("Relay 拉取失败: {e}"));
             }
         }
     }
@@ -332,10 +332,8 @@ impl App {
                 self.state.sync.error_message = None;
             }
             Err(e) => {
-                self.state.sync.error_message =
-                    Some(format!("Relay 推送失败: {e}"));
+                self.state.sync.error_message = Some(format!("Relay 推送失败: {e}"));
             }
         }
     }
-
 }
