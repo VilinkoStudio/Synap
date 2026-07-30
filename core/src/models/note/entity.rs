@@ -441,4 +441,9 @@ impl Searchable for Note {
     fn get_search_text(&self) -> String {
         Self::filter_search_text(self.content())
     }
+
+    fn get_search_text_with_ranges(&self) -> crate::search::types::SearchText {
+        let (text, source_ranges) = crate::text::sanitize_search_text_with_ranges(self.content());
+        crate::search::types::SearchText::mapped(text, source_ranges)
+    }
 }

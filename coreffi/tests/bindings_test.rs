@@ -84,6 +84,17 @@ fn test_fusion_search_exposes_sources() {
     assert!(matching
         .sources
         .contains(&uniffi_synap_coreffi::SearchSourceDTO::Semantic));
+    assert_eq!(
+        matching.text_match,
+        Some(uniffi_synap_coreffi::SearchTextMatchDTO::Contiguous)
+    );
+    assert_eq!(
+        matching.text_match_ranges,
+        Some(vec![uniffi_synap_coreffi::SearchMatchRangeDTO {
+            start: 19,
+            end: 28,
+        }])
+    );
 }
 
 #[test]

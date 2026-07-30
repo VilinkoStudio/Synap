@@ -6,7 +6,10 @@ use std::time::Duration;
 
 use uuid::Uuid;
 
-use crate::search::{searcher::FuzzyIndex, types::Searchable};
+use crate::search::{
+    searcher::{FuzzyIndex, FuzzyMatchKind},
+    types::{Searchable, TextMatchRange},
+};
 
 // ─── 测试用数据结构 ───
 
@@ -119,6 +122,65 @@ fn test_chinese_search() {
         let note = find_note(&notes, &item.id);
         println!("  [score={}] {}", item.score, note.title);
     }
+}
+
+#[test]
+fn test_contiguous_chinese_match_precedes_gapped_fuzzy_match() {
+    let index = FuzzyIndex::<Tag>::new();
+    index.insert_batch(
+        [
+            Tag {
+                id: 1,
+                name: "之后的世界一定很好吧".into(),
+            },
+            Tag {
+                id: 2,
+                name: "之后吧".into(),
+            },
+        ]
+        .into_iter(),
+    );
+
+    let output = index.search("之后吧", 10, None);
+
+    assert_eq!(output.items.len(), 2);
+    assert_eq!(output.items[0].id, 2);
+    assert_eq!(output.items[0].match_kind, FuzzyMatchKind::Contiguous);
+    assert_eq!(
+        output.items[0].match_ranges,
+        vec![TextMatchRange { start: 0, end: 3 }]
+    );
+
+    let gapped_match = output
+        .items
+        .iter()
+        .find(|item| item.id == 1)
+        .expect("gapped fuzzy match should remain as a fallback");
+    assert_eq!(gapped_match.match_kind, FuzzyMatchKind::Fuzzy);
+    assert_eq!(
+        gapped_match.match_ranges,
+        vec![
+            TextMatchRange { start: 0, end: 2 },
+            TextMatchRange { start: 9, end: 10 },
+        ]
+    );
+}
+
+#[test]
+fn test_match_ranges_use_utf16_offsets() {
+    let index = FuzzyIndex::<Tag>::new();
+    index.insert(Tag {
+        id: 1,
+        name: "A😀之后吧".into(),
+    });
+
+    let output = index.search("之后吧", 10, None);
+
+    assert_eq!(output.items.len(), 1);
+    assert_eq!(
+        output.items[0].match_ranges,
+        vec![TextMatchRange { start: 3, end: 6 }]
+    );
 }
 
 #[test]
@@ -300,13 +362,11 @@ fn test_score_ordering() {
         println!("  id={}, score={}", item.id, item.score);
     }
 
-    // 精确匹配 "rust"(id=1) 应该排最前面
-    if output.items.len() >= 2 {
-        assert!(
-            output.items[0].score >= output.items[1].score,
-            "第一名的分数应 >= 第二名"
-        );
-    }
+    // 精确连续匹配 "rust"(id=1) 应该排最前面，且暴露真实的 nucleo 分数。
+    assert_eq!(output.items[0].id, 1);
+    assert_eq!(output.items[0].match_kind, FuzzyMatchKind::Contiguous);
+    assert!(output.items[0].score > 0);
+    assert!(output.items[0].score >= output.items[1].score);
 }
 
 #[test]

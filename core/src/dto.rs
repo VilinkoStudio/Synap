@@ -143,12 +143,33 @@ pub enum SearchSourceDTO {
     Semantic,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum SearchTextMatchDTO {
+    /// 查询文本作为连续子串出现。
+    Contiguous,
+    /// 查询字符按顺序出现，但中间存在间隔。
+    Fuzzy,
+}
+
+/// 原始笔记正文中的 UTF-16 半开区间 `[start, end)`。
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchMatchRangeDTO {
+    pub start: u32,
+    pub end: u32,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchResultDTO {
     pub note: NoteDTO,
     pub score: f32,
     pub sources: Vec<SearchSourceDTO>,
+    /// 词法搜索的匹配方式。仅由语义搜索命中的结果为 `None`。
+    pub text_match: Option<SearchTextMatchDTO>,
+    /// 原始笔记正文中的 UTF-16 匹配区间。仅由语义搜索命中的结果为 `None`。
+    pub text_match_ranges: Option<Vec<SearchMatchRangeDTO>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]

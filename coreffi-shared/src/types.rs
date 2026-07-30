@@ -11,12 +11,13 @@ use synap_core::dto::{
     NoteVersionDTO as CoreNoteVersionDto, NoteVersionDiffDTO as CoreNoteVersionDiffDto,
     PeerDTO as CorePeerDto, PeerTrustStatusDTO as CorePeerTrustStatusDto,
     PublicKeyInfoDTO as CorePublicKeyInfoDto, RelayFetchStatsDTO as CoreRelayFetchStatsDto,
-    RelayPushStatsDTO as CoreRelayPushStatsDto, SearchResultDTO as CoreSearchResultDto,
-    SearchSourceDTO as CoreSearchSourceDto, ShareStatsDTO as CoreShareStatsDto,
-    SyncSessionDTO as CoreSyncSessionDto,
-    SyncSessionRecordDTO as CoreSyncSessionRecordDto, SyncSessionRoleDTO as CoreSyncSessionRoleDto,
-    SyncStatsDTO as CoreSyncStatsDto, SyncStatusDTO as CoreSyncStatusDto,
-    SyncTransportKindDTO as CoreSyncTransportKindDto,
+    RelayPushStatsDTO as CoreRelayPushStatsDto, SearchMatchRangeDTO as CoreSearchMatchRangeDto,
+    SearchResultDTO as CoreSearchResultDto, SearchSourceDTO as CoreSearchSourceDto,
+    SearchTextMatchDTO as CoreSearchTextMatchDto,
+    ShareStatsDTO as CoreShareStatsDto,
+    SyncSessionDTO as CoreSyncSessionDto, SyncSessionRecordDTO as CoreSyncSessionRecordDto,
+    SyncSessionRoleDTO as CoreSyncSessionRoleDto, SyncStatsDTO as CoreSyncStatsDto,
+    SyncStatusDTO as CoreSyncStatusDto, SyncTransportKindDTO as CoreSyncTransportKindDto,
     TimelineDensityPointDTO as CoreTimelineDensityPointDto,
     TimelineGroupDTO as CoreTimelineGroupDto, TimelineNotesPageDTO as CoreTimelineNotesPageDto,
     TimelineSessionDTO as CoreTimelineSessionDto,
@@ -378,11 +379,43 @@ impl From<CoreSearchSourceDto> for SearchSourceDTO {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SearchTextMatchDTO {
+    Contiguous,
+    Fuzzy,
+}
+
+impl From<CoreSearchTextMatchDto> for SearchTextMatchDTO {
+    fn from(match_kind: CoreSearchTextMatchDto) -> Self {
+        match match_kind {
+            CoreSearchTextMatchDto::Contiguous => Self::Contiguous,
+            CoreSearchTextMatchDto::Fuzzy => Self::Fuzzy,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SearchMatchRangeDTO {
+    pub start: u32,
+    pub end: u32,
+}
+
+impl From<CoreSearchMatchRangeDto> for SearchMatchRangeDTO {
+    fn from(range: CoreSearchMatchRangeDto) -> Self {
+        Self {
+            start: range.start,
+            end: range.end,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct SearchResultDTO {
     pub note: NoteDTO,
     pub score: f32,
     pub sources: Vec<SearchSourceDTO>,
+    pub text_match: Option<SearchTextMatchDTO>,
+    pub text_match_ranges: Option<Vec<SearchMatchRangeDTO>>,
 }
 
 impl From<CoreSearchResultDto> for SearchResultDTO {
@@ -391,6 +424,10 @@ impl From<CoreSearchResultDto> for SearchResultDTO {
             note: result.note.into(),
             score: result.score,
             sources: result.sources.into_iter().map(Into::into).collect(),
+            text_match: result.text_match.map(Into::into),
+            text_match_ranges: result
+                .text_match_ranges
+                .map(|ranges| ranges.into_iter().map(Into::into).collect()),
         }
     }
 }

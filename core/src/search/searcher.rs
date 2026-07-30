@@ -1,11 +1,21 @@
-use crate::search::types::Searchable;
+use crate::search::types::{Searchable, TextMatchRange};
 use nucleo::{
     pattern::{CaseMatching, Normalization},
-    Config, Nucleo, Utf32String,
+    Config, Matcher, Nucleo, Utf32String,
 };
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
+
+/// 词法命中的匹配方式。
+///
+/// `Contiguous` 表示查询文本在条目中以连续子串出现；`Fuzzy` 表示仅按字符顺序匹配，
+/// 中间允许存在间隔。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FuzzyMatchKind {
+    Fuzzy,
+    Contiguous,
+}
 
 /// 单条匹配结果
 #[derive(Debug, Clone)]
@@ -14,6 +24,10 @@ pub struct MatchItem<Id> {
     pub id: Id,
     /// nucleo 打分，越高越匹配
     pub score: u32,
+    /// 本次词法命中的匹配方式
+    pub match_kind: FuzzyMatchKind,
+    /// 相对原始文本的 UTF-16 匹配区间，用于前端高亮
+    pub match_ranges: Vec<TextMatchRange>,
 }
 
 /// 搜索返回值
@@ -32,6 +46,7 @@ pub struct SearchOutput<Id> {
 struct IndexEntry<Id: Clone + Send + Sync + 'static> {
     id: Id,
     text: String,
+    source_ranges: Vec<TextMatchRange>,
 }
 
 /// 泛型模糊检索器
@@ -56,9 +71,11 @@ impl<T: Searchable> FuzzyIndex<T> {
 
     /// 注入单条文档
     pub fn insert(&self, doc: T) {
+        let search_text = doc.get_search_text_with_ranges();
         let entry = IndexEntry {
             id: doc.get_id(),
-            text: doc.get_search_text(),
+            text: search_text.text,
+            source_ranges: search_text.source_ranges,
         };
 
         let nucleo = self.nucleo.lock().unwrap();
@@ -74,9 +91,11 @@ impl<T: Searchable> FuzzyIndex<T> {
         let injector = nucleo.injector();
 
         for doc in docs {
+            let search_text = doc.get_search_text_with_ranges();
             let entry = IndexEntry {
                 id: doc.get_id(),
-                text: doc.get_search_text(),
+                text: search_text.text,
+                source_ranges: search_text.source_ranges,
             };
             injector.push(entry, |item, columns| {
                 columns[0] = Utf32String::from(item.text.as_str());
@@ -125,15 +144,38 @@ impl<T: Searchable> FuzzyIndex<T> {
 
         let snapshot = nucleo.snapshot();
         let total_matched = snapshot.matched_item_count();
-        let take = limit.min(total_matched as usize) as u32;
+        let mut matcher = Matcher::new(Config::DEFAULT);
+        let mut items: Vec<MatchItem<T::Id>> = snapshot
+            .matched_items(..)
+            .map(|item| {
+                let mut indices = Vec::new();
+                let score = snapshot
+                    .pattern()
+                    .column_pattern(0)
+                    .indices(item.matcher_columns[0].slice(..), &mut matcher, &mut indices)
+                    .unwrap_or(0);
 
-        let items: Vec<MatchItem<T::Id>> = snapshot
-            .matched_items(..take)
-            .map(|item| MatchItem {
-                id: item.data.id.clone(),
-                score: 0,
+                MatchItem {
+                    id: item.data.id.clone(),
+                    score,
+                    match_kind: if !query.is_empty() && item.data.text.contains(query) {
+                        FuzzyMatchKind::Contiguous
+                    } else {
+                        FuzzyMatchKind::Fuzzy
+                    },
+                    match_ranges: match_ranges(&item.data.source_ranges, &mut indices),
+                }
             })
             .collect();
+
+        // Nucleo's snapshot is already score-sorted. A stable sort preserves that order
+        // while guaranteeing that an exact contiguous occurrence always outranks a gapped match.
+        items.sort_by(|a, b| {
+            b.match_kind
+                .cmp(&a.match_kind)
+                .then_with(|| b.score.cmp(&a.score))
+        });
+        items.truncate(limit);
 
         SearchOutput {
             items,
@@ -153,6 +195,28 @@ impl<T: Searchable> FuzzyIndex<T> {
         let nucleo = self.nucleo.lock().unwrap();
         nucleo.snapshot().item_count()
     }
+}
+
+fn match_ranges(source_ranges: &[TextMatchRange], indices: &mut Vec<u32>) -> Vec<TextMatchRange> {
+    indices.sort_unstable();
+    indices.dedup();
+
+    let mut ranges: Vec<TextMatchRange> = Vec::new();
+    for index in indices.iter().copied() {
+        let Some(range) = source_ranges.get(index as usize).copied() else {
+            continue;
+        };
+
+        if let Some(previous) = ranges.last_mut() {
+            if previous.end == range.start {
+                previous.end = range.end;
+                continue;
+            }
+        }
+        ranges.push(range);
+    }
+
+    ranges
 }
 
 impl<T: Searchable> Default for FuzzyIndex<T> {

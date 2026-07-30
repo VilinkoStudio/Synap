@@ -5,6 +5,8 @@ struct AggregatedSearchHit {
     note_id: Uuid,
     score: f32,
     sources: Vec<SearchSourceDTO>,
+    text_match: Option<SearchTextMatchDTO>,
+    text_match_ranges: Option<Vec<SearchMatchRangeDTO>>,
 }
 
 impl SynapService {
@@ -131,9 +133,23 @@ impl SynapService {
 
         for (index, item) in fuzzy_results.items.into_iter().enumerate() {
             let score = Self::rank_score(index, fuzzy_len);
+            let text_match = match item.match_kind {
+                FuzzyMatchKind::Contiguous => SearchTextMatchDTO::Contiguous,
+                FuzzyMatchKind::Fuzzy => SearchTextMatchDTO::Fuzzy,
+            };
+            let text_match_ranges: Vec<SearchMatchRangeDTO> = item
+                .match_ranges
+                .into_iter()
+                .map(|range| SearchMatchRangeDTO {
+                    start: range.start,
+                    end: range.end,
+                })
+                .collect();
             hits.entry(item.id)
                 .and_modify(|hit| {
                     hit.score += score;
+                    hit.text_match = Some(text_match);
+                    hit.text_match_ranges = Some(text_match_ranges.clone());
                     if !hit.sources.contains(&SearchSourceDTO::Fuzzy) {
                         hit.sources.push(SearchSourceDTO::Fuzzy);
                     }
@@ -142,6 +158,8 @@ impl SynapService {
                     note_id: item.id,
                     score,
                     sources: vec![SearchSourceDTO::Fuzzy],
+                    text_match: Some(text_match),
+                    text_match_ranges: Some(text_match_ranges),
                 });
         }
 
@@ -158,6 +176,8 @@ impl SynapService {
                     note_id,
                     score: item.score,
                     sources: vec![SearchSourceDTO::Semantic],
+                    text_match: None,
+                    text_match_ranges: None,
                 });
         }
 
@@ -180,6 +200,8 @@ impl SynapService {
                             note,
                             score: hit.score,
                             sources: hit.sources,
+                            text_match: hit.text_match,
+                            text_match_ranges: hit.text_match_ranges,
                         })),
                         Err(e) => Some(Err(e.into())),
                     }

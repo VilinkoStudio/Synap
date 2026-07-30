@@ -438,6 +438,43 @@ fn test_fusion_search_combines_fuzzy_and_semantic_results() {
     assert!(results[0].score > 0.0);
     assert!(results[0].sources.contains(&SearchSourceDTO::Fuzzy));
     assert!(results[0].sources.contains(&SearchSourceDTO::Semantic));
+    assert_eq!(
+        results[0].text_match,
+        Some(SearchTextMatchDTO::Fuzzy)
+    );
+    assert_eq!(
+        results[0].text_match_ranges,
+        Some(vec![
+            SearchMatchRangeDTO { start: 5, end: 10 },
+            SearchMatchRangeDTO { start: 19, end: 28 },
+        ])
+    );
+}
+
+#[test]
+fn test_fusion_search_ranges_reference_original_note_content() {
+    let service = SynapService::new(None).unwrap();
+    let content = "开头 ![](data:image/png;base64,abc) 之后吧";
+    let note = service.create_note(content.to_string(), vec![]).unwrap();
+    let start = content[..content.find("之后吧").unwrap()]
+        .encode_utf16()
+        .count() as u32;
+
+    let results = service
+        .search_fusion("之后吧", 5, Some(5), Some(0))
+        .unwrap();
+
+    let result = results
+        .iter()
+        .find(|result| result.note.id == note.id)
+        .expect("note should be returned by fuzzy search");
+    assert_eq!(
+        result.text_match_ranges,
+        Some(vec![SearchMatchRangeDTO {
+            start,
+            end: start + 3,
+        }])
+    );
 }
 
 #[test]

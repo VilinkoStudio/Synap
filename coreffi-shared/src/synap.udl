@@ -148,10 +148,22 @@ enum SearchSourceDTO {
     "Semantic",
 };
 
+enum SearchTextMatchDTO {
+    "Contiguous",
+    "Fuzzy",
+};
+
+dictionary SearchMatchRangeDTO {
+    u32 start;
+    u32 end;
+};
+
 dictionary SearchResultDTO {
     NoteDTO note;
     float score;
     sequence<SearchSourceDTO> sources;
+    SearchTextMatchDTO? text_match;
+    sequence<SearchMatchRangeDTO>? text_match_ranges;
 };
 
 dictionary TimelineNotesPageDTO {

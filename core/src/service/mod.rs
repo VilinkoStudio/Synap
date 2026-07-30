@@ -28,7 +28,8 @@ use crate::{
         EmbeddingBackfillProgressDTO, EmbeddingConfigDTO, EmbeddingProviderDTO, LocalIdentityDTO,
         NoteDTO, NoteNeighborsDTO, NoteSegmentDTO, NoteSegmentDirectionDTO, NoteVersionDTO,
         PeerDTO, PeerSyncStatsDTO, PeerTrustStatusDTO, PublicKeyInfoDTO, RelayFetchStatsDTO,
-        RelayPushStatsDTO, SearchResultDTO, SearchSourceDTO, ShareStatsDTO,
+        RelayPushStatsDTO, SearchMatchRangeDTO, SearchResultDTO, SearchSourceDTO,
+        SearchTextMatchDTO, ShareStatsDTO,
         SyncSessionDTO, SyncSessionRecordDTO, SyncSessionRoleDTO, SyncStatsDTO, SyncStatusDTO,
         SyncTransportKindDTO, TimelineDensityPointDTO, TimelineGroupDTO, TimelineNotesPageDTO,
         TimelineSessionDTO, TimelineSessionsPageDTO,
@@ -48,7 +49,11 @@ use crate::{
         tag_profile::TagProfileStore,
     },
     nlp::tag::TagProfileIndex,
-    search::{searcher::FuzzyIndex, semantic::SemanticIndex, types::Searchable},
+    search::{
+        searcher::{FuzzyIndex, FuzzyMatchKind},
+        semantic::SemanticIndex,
+        types::Searchable,
+    },
     sync::{RelayInventory, RelaySyncService, ShareService, SyncPeerIdentity, SyncService},
     views::{
         note_segment_view::{NoteSegmentDirection, NoteSegmentView},
