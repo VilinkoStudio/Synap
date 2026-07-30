@@ -24,6 +24,7 @@ mod tests;
 use crate::{
     crypto,
     dto::{
+        DatabaseStorageMetricsDTO, DatabaseTableKindDTO, DatabaseTableStorageMetricsDTO,
         EmbeddingBackfillProgressDTO, EmbeddingConfigDTO, EmbeddingProviderDTO, LocalIdentityDTO,
         NoteDTO, NoteNeighborsDTO, NoteSegmentDTO, NoteSegmentDirectionDTO, NoteVersionDTO,
         PeerDTO, PeerSyncStatsDTO, PeerTrustStatusDTO, PublicKeyInfoDTO, RelayFetchStatsDTO,

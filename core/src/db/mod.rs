@@ -127,6 +127,7 @@
 mod codec;
 pub mod dagstorage;
 pub mod kvstore;
+pub mod metrics;
 pub mod onetomany;
 pub mod setstore;
 pub mod types;

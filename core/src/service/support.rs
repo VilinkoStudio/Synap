@@ -5,6 +5,41 @@ use crate::models::{
 };
 
 impl SynapService {
+    /// Returns redb storage metrics without interpreting application records.
+    pub fn database_storage_metrics(&self) -> Result<DatabaseStorageMetricsDTO, ServiceError> {
+        let metrics = crate::db::metrics::collect_database_storage_metrics(&self.db)?;
+        Ok(DatabaseStorageMetricsDTO {
+            tree_height: metrics.tree_height,
+            allocated_pages: metrics.allocated_pages,
+            leaf_pages: metrics.leaf_pages,
+            branch_pages: metrics.branch_pages,
+            stored_bytes: metrics.stored_bytes,
+            metadata_bytes: metrics.metadata_bytes,
+            fragmented_bytes: metrics.fragmented_bytes,
+            page_size: metrics.page_size,
+            tables: metrics
+                .tables
+                .into_iter()
+                .map(|table| DatabaseTableStorageMetricsDTO {
+                    name: table.name,
+                    kind: match table.kind {
+                        crate::db::metrics::TableStorageKind::Table => DatabaseTableKindDTO::Table,
+                        crate::db::metrics::TableStorageKind::MultimapTable => {
+                            DatabaseTableKindDTO::MultimapTable
+                        }
+                    },
+                    entries: table.entries,
+                    tree_height: table.tree_height,
+                    leaf_pages: table.leaf_pages,
+                    branch_pages: table.branch_pages,
+                    stored_bytes: table.stored_bytes,
+                    metadata_bytes: table.metadata_bytes,
+                    fragmented_bytes: table.fragmented_bytes,
+                })
+                .collect(),
+        })
+    }
+
     /// 封装只读事务的生命周期
     pub(crate) fn with_read<F, T>(&self, f: F) -> Result<T, ServiceError>
     where

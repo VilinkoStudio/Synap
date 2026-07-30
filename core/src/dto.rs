@@ -1,5 +1,40 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DatabaseStorageMetricsDTO {
+    pub tree_height: u32,
+    pub allocated_pages: u64,
+    pub leaf_pages: u64,
+    pub branch_pages: u64,
+    pub stored_bytes: u64,
+    pub metadata_bytes: u64,
+    pub fragmented_bytes: u64,
+    pub page_size: u64,
+    pub tables: Vec<DatabaseTableStorageMetricsDTO>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DatabaseTableStorageMetricsDTO {
+    pub name: String,
+    pub kind: DatabaseTableKindDTO,
+    pub entries: u64,
+    pub tree_height: u32,
+    pub leaf_pages: u64,
+    pub branch_pages: u64,
+    pub stored_bytes: u64,
+    pub metadata_bytes: u64,
+    pub fragmented_bytes: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum DatabaseTableKindDTO {
+    Table,
+    MultimapTable,
+}
+
 /// 绝对纯净的、跨端通用的 DTO
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")] // 照顾 TS 和 Kotlin 的命名习惯

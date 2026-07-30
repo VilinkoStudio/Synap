@@ -1,4 +1,5 @@
 use super::*;
+use crate::dto::DatabaseTableKindDTO;
 use crate::models::{
     embedding_cache::EmbeddingCacheStamp,
     tag_profile::{TagProfileMetadata, TagProfileRecord},
@@ -46,6 +47,19 @@ fn test_search_tags_uses_initialized_tag_index() {
     assert!(results.iter().any(|tag| tag == "rust"));
     assert!(results.iter().any(|tag| tag == "async-rust"));
     assert!(!results.iter().any(|tag| tag == "python"));
+}
+
+#[test]
+fn database_storage_metrics_reports_initialized_tables() {
+    let service = SynapService::open_memory().unwrap();
+
+    let metrics = service.database_storage_metrics().unwrap();
+
+    assert!(metrics.page_size > 0);
+    assert!(metrics.tables.iter().any(|table| table.name == "NoteBlocks"));
+    assert!(metrics.tables.iter().any(|table| {
+        table.name == "TagToNotes" && table.kind == DatabaseTableKindDTO::MultimapTable
+    }));
 }
 
 #[test]
@@ -607,6 +621,7 @@ fn test_embedding_config_default_and_change_invalidates_vectors() {
             .iter()
             .any(|item| item.id == note.id)
     );
+}
 
 #[test]
 fn test_get_all_tags_returns_sorted_contents() {
