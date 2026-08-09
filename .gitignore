@@ -66,3 +66,6 @@ Desktop.ini
 # Agents
 .cursor
 .codegraph
+.reasonix
+.omp
+.cache
