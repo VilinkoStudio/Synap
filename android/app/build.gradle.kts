@@ -96,7 +96,7 @@ val hasReleaseSigning = releaseKeystoreFile?.isFile == true &&
 
 android {
     namespace = "com.synap.app"
-    compileSdk = 36
+    compileSdk = 37
     if (resolvedAndroidNdkVersion != null) {
         ndkVersion = resolvedAndroidNdkVersion
     }
@@ -115,7 +115,7 @@ android {
     defaultConfig {
         applicationId = "com.synap.app"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 37
         versionCode = 1
         versionName = resolvedVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -203,6 +203,11 @@ dependencies {
     implementation("io.noties.markwon:core:4.6.2")
     implementation("io.noties.markwon:editor:4.6.2")
     implementation("com.google.zxing:core:3.5.3")
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    implementation("androidx.camera:camera-core:1.6.1")
+    implementation("androidx.camera:camera-camera2:1.6.1")
+    implementation("androidx.camera:camera-lifecycle:1.6.1")
+    implementation("androidx.camera:camera-view:1.6.1")
     implementation("dev.rikka.shizuku:api:13.1.5")
     implementation("dev.rikka.shizuku:provider:13.1.5")
     implementation("androidx.biometric:biometric:1.2.0-alpha05")

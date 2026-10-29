@@ -3,7 +3,6 @@ package com.synap.app
 import android.content.Context
 import android.text.format.Formatter
 import android.os.Build
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,7 +35,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.os.LocaleListCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -74,19 +72,6 @@ fun SynapApp(activity: MainActivity?) {
     val displayLanguages = remember(baseLanguages) {
         listOf("跟随系统语言设置") + baseLanguages.map { it.displayName }
     }
-    val applyLanguageSelection: (Int) -> Unit = remember(baseLanguages) {
-        { index ->
-            val locales = if (index == 0) {
-                LocaleListCompat.getEmptyLocaleList()
-            } else {
-                baseLanguages
-                    .getOrNull(index - 1)
-                    ?.let { LocaleListCompat.forLanguageTags(it.tag) }
-                    ?: LocaleListCompat.getEmptyLocaleList()
-            }
-            AppCompatDelegate.setApplicationLocales(locales)
-        }
-    }
 
     var noteTextSize by remember { mutableFloatStateOf(prefs.getFloat("noteTextSize", 16f)) }
     var noteLineSpacing by remember { mutableFloatStateOf(prefs.getFloat("noteLineSpacing", 1.5f)) } // --- 新增行距状态 ---
@@ -95,6 +80,7 @@ fun SynapApp(activity: MainActivity?) {
 
     var handedness by remember { mutableStateOf(prefs.getString("handedness", "靠右") ?: "靠右") }
     var hasSeenAgreement by remember { mutableStateOf(prefs.getBoolean("hasSeenAgreement", false)) }
+    var draftCapacity by remember { mutableIntStateOf(prefs.getInt("draftCapacity", 20)) }
     var securityLockEnabled by remember { mutableStateOf(prefs.getBoolean("securityLockEnabled", false)) }
     var shouldLock by remember { mutableStateOf(securityLockEnabled) }
 
@@ -125,10 +111,6 @@ fun SynapApp(activity: MainActivity?) {
     // 计算当前的字体和字重对象
     val actualFontFamily = if (currentFontFamily == "Serif") FontFamily.Serif else FontFamily.SansSerif
     val actualFontWeight = FontWeight(currentFontWeight)
-
-    LaunchedEffect(selectedLanguageIndex, applyLanguageSelection) {
-        applyLanguageSelection(selectedLanguageIndex)
-    }
 
     CompositionLocalProvider(
         LocalNoteTextSize provides noteTextSize.sp,
@@ -189,6 +171,7 @@ fun SynapApp(activity: MainActivity?) {
                             onLanguageSelect = { index ->
                                 selectedLanguageIndex = index
                                 prefs.edit().putInt("selectedLanguage", index).apply()
+                                activity?.recreate()
                             },
                             currentFontFamily = currentFontFamily, onFontFamilyChange = { currentFontFamily = it; prefs.edit().putString("fontFamily", it).apply() },
                             currentFontWeight = currentFontWeight, onFontWeightChange = { currentFontWeight = it; prefs.edit().putInt("fontWeight", it).apply() },
@@ -197,6 +180,7 @@ fun SynapApp(activity: MainActivity?) {
                             hasSeenAgreement = hasSeenAgreement,
                             onAgreementAccepted = { hasSeenAgreement = true; prefs.edit().putBoolean("hasSeenAgreement", true).apply() },
                             databaseActivity = activity,
+                            draftCapacity = draftCapacity, onDraftCapacityChange = { draftCapacity = it; prefs.edit().putInt("draftCapacity", it).apply() },
                             securityLockEnabled = securityLockEnabled, onSecurityLockToggle = { securityLockEnabled = it; prefs.edit().putBoolean("securityLockEnabled", it).apply() },
                             shouldLock = shouldLock, onUnlock = { shouldLock = false },
                         )

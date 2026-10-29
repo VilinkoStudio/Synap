@@ -4,15 +4,29 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -31,18 +45,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.synap.app.R
+import com.synap.app.ui.components.SegmentedContentItem
+import com.synap.app.ui.components.SegmentedSettingsColumn
 import kotlinx.coroutines.CancellationException
 
-// 1. 定义数据结构（增加可选的 platformNameRes 用于多语言支持）
 data class SocialLink(val platformName: String, val platformNameRes: Int? = null, val url: String)
 data class TeamMember(val name: String, val socialLinks: List<SocialLink>)
 
-// 2. 团队成员列表
 val creativeTeamList = listOf(
     TeamMember(
         name = "Fuwaki",
         socialLinks = listOf(
-            // 为 bilibili 绑定字符串资源 ID，支持多语言适配
             SocialLink("bilibili", R.string.bilibili, "https://space.bilibili.com/488218512"),
             SocialLink("GitHub", null, "https://github.com/Fuwaki")
         )
@@ -68,14 +81,11 @@ val creativeTeamList = listOf(
 @Composable
 fun TeamScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
-
     var backProgress by remember { mutableFloatStateOf(0f) }
 
     PredictiveBackHandler { progressFlow ->
         try {
-            progressFlow.collect { backEvent ->
-                backProgress = backEvent.progress
-            }
+            progressFlow.collect { backEvent -> backProgress = backEvent.progress }
             onNavigateBack()
         } catch (e: CancellationException) {
             backProgress = 0f
@@ -102,99 +112,54 @@ fun TeamScreen(onNavigateBack: () -> Unit) {
             )
         }
     ) { innerPadding ->
-        LazyColumn(
-            contentPadding = PaddingValues(
-                top = innerPadding.calculateTopPadding() + 16.dp,
-                bottom = innerPadding.calculateBottomPadding() + 16.dp,
-                start = 16.dp,
-                end = 16.dp
-            ),
-            modifier = Modifier.fillMaxSize(),
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 16.dp),
         ) {
-            item {
-                Text(
-                    text = stringResource(R.string.creative_team),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
-                )
-            }
-
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    creativeTeamList.forEachIndexed { index, member ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = member.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                member.socialLinks.forEach { link ->
-                                    val platformText = link.platformNameRes?.let { stringResource(it) } ?: link.platformName
-                                    Button(
-                                        onClick = {
-                                            try {
-                                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url)))
-                                            } catch (e: Exception) {
-                                                e.printStackTrace()
-                                            }
-                                        },
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(28.dp),
-                                    ) {
-                                        Text(text = platformText, fontSize = 11.sp)
+            SegmentedSettingsColumn(title = stringResource(R.string.creative_team)) {
+                creativeTeamList.forEach { member ->
+                    item {
+                        SegmentedContentItem {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = member.name,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    member.socialLinks.forEach { link ->
+                                        val platformText = link.platformNameRes?.let { stringResource(it) } ?: link.platformName
+                                        Button(
+                                            onClick = {
+                                                runCatching {
+                                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url)))
+                                                }
+                                            },
+                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                            modifier = Modifier.height(28.dp),
+                                        ) {
+                                            Text(text = platformText, fontSize = 11.sp)
+                                        }
                                     }
                                 }
                             }
-                        }
-                        if (index < creativeTeamList.size - 1) {
-                            HorizontalDivider(
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                                modifier = Modifier.padding(horizontal = 16.dp)
-                            )
                         }
                     }
                 }
             }
 
-            item {
-                Spacer(modifier = Modifier.height(24.dp))
-            }
+            Spacer(modifier = Modifier.height(24.dp))
 
-            item {
-                Text(
-                    text = stringResource(R.string.publisher),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
-                )
-            }
-
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
+            SegmentedSettingsColumn(title = stringResource(R.string.publisher)) {
+                item {
+                    SegmentedContentItem {
                         Text(
                             text = "厦门市同安区云上幻可网络科技工作室",
                             style = MaterialTheme.typography.bodyLarge,
@@ -204,51 +169,45 @@ fun TeamScreen(onNavigateBack: () -> Unit) {
                 }
             }
 
-            // ========== 新增：赞助二维码区域 ==========
-            item {
-                // 【核心修复】：通过判断当前界面的实际背景亮度来判断深浅色
-                // 而不是依赖 isSystemInDarkTheme() (它会忽略 App 内强制切换的主题)
-                val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+            Spacer(modifier = Modifier.height(32.dp))
 
-                // 根据当前的 UI 主题状态动态切换图片资源
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "赞助开发者",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "如果 Synap 对您有帮助，可以请我们喝杯咖啡~",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+
+                val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
                 val qrImageRes = if (isDark) R.drawable.sponsor_qr_dark else R.drawable.sponsor_qr_light
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 32.dp, bottom = 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    tonalElevation = 2.dp,
+                    shadowElevation = 4.dp
                 ) {
-                    Text(
-                        text = "赞助开发者",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                    Image(
+                        painter = painterResource(id = qrImageRes),
+                        contentDescription = "赞助二维码",
+                        modifier = Modifier
+                            .size(240.dp)
+                            .padding(16.dp)
+                            .clip(RoundedCornerShape(12.dp))
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "如果 Synap 对您有帮助，可以请我们喝杯咖啡~",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    // 给二维码加上好看的卡片底板
-                    Surface(
-                        shape = RoundedCornerShape(24.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        tonalElevation = 2.dp,
-                        shadowElevation = 4.dp
-                    ) {
-                        Image(
-                            painter = painterResource(id = qrImageRes),
-                            contentDescription = "赞助二维码",
-                            modifier = Modifier
-                                .size(240.dp)
-                                .padding(16.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                        )
-                    }
                 }
             }
         }

@@ -1,5 +1,6 @@
 package com.synap.app.ui.navigation
 
+import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -15,6 +16,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.synap.app.ui.viewmodel.SettingsViewModel
 import androidx.navigation.NavType
@@ -68,6 +70,8 @@ fun SynapNavGraph(
     hasSeenAgreement: Boolean,
     onAgreementAccepted: () -> Unit,
     databaseActivity: MainActivity?,
+    draftCapacity: Int,
+    onDraftCapacityChange: (Int) -> Unit,
     securityLockEnabled: Boolean,
     onSecurityLockToggle: (Boolean) -> Unit,
     shouldLock: Boolean,
@@ -122,6 +126,7 @@ fun SynapNavGraph(
                         onReplyToNote = { noteId, summary -> navController.navigate(editorRoute(parentId = noteId, parentSummary = summary)) },
                         onToggleDeleted = viewModel::toggleDeleted,
                         onOpenSearch = { navController.navigate("search") },
+                        onOpenScanner = { navController.navigate("scanner") },
                         onOpenTrash = { navController.navigate("trash") },
                         onLoadMore = viewModel::loadMore,
                         onOpenTimelineBrowser = viewModel::openTimelineBrowser,
@@ -133,12 +138,6 @@ fun SynapNavGraph(
                         onExportShare = viewModel::exportShare,
                         sharedTransitionScope = this@SharedTransitionLayout,
                         animatedVisibilityScope = this@composable
-                    )
-                }
-
-                composable("lab") {
-                    LaboratoryScreen(
-                        onNavigateBack = { navController.popBackStack() },
                     )
                 }
 
@@ -242,10 +241,10 @@ fun SynapNavGraph(
                         onNavigateToSync = { navController.navigate("sync") },
                         onNavigateToTeam = { navController.navigate("team") },
                         onNavigateToVersion = { navController.navigate("version") },
-                        onNavigateToLab = { navController.navigate("lab") },
                         onNavigateToShortcut = { navController.navigate("shortcut") },
-                        onNavigateToScan = { navController.navigate("scan") },
                         onNavigateBack = { navController.popBackStack() },
+                        draftCapacity = draftCapacity,
+                        onDraftCapacityChange = onDraftCapacityChange,
                         securityLockEnabled = securityLockEnabled,
                         onSecurityLockToggle = onSecurityLockToggle,
                     )
@@ -257,9 +256,22 @@ fun SynapNavGraph(
                     )
                 }
 
-                composable("scan") {
-                    ScanScreen(
+                composable("scanner") {
+                    val context = LocalContext.current
+                    QrScannerScreen(
                         onNavigateBack = { navController.popBackStack() },
+                        onScanned = { value ->
+                            navController.popBackStack()
+                            val uri = runCatching { Uri.parse(value) }.getOrNull()
+                            val opened = uri != null && runCatching {
+                                context.startActivity(
+                                    Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                )
+                            }.isSuccess
+                            if (!opened && value.isNotBlank()) {
+                                navController.navigate(editorRoute(initialContent = value))
+                            }
+                        },
                     )
                 }
 
@@ -392,6 +404,12 @@ fun SynapNavGraph(
                     )
                 }
 
+            }
+
+            if (shouldLock) {
+                SecurityLockScreen(
+                    onUnlock = { onUnlock() },
+                )
             }
 
             if (shouldLock) {

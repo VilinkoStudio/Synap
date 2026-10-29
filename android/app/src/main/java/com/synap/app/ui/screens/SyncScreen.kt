@@ -87,6 +87,8 @@ import com.synap.app.data.model.UnifiedDeviceStatus
 import com.synap.app.data.model.SyncSessionRecord
 import com.synap.app.data.model.SyncSessionRole
 import com.synap.app.data.model.SyncStatus
+import com.synap.app.ui.components.SegmentedContentItem
+import com.synap.app.ui.components.SegmentedSettingsColumn
 import com.synap.app.ui.viewmodel.SyncUiState
 import java.time.Instant
 import java.time.ZoneId
@@ -442,38 +444,35 @@ private fun IdentitySection(identity: LocalIdentity?) {
         BitmapFactory.decodeByteArray(identity.signing.avatarPng, 0, identity.signing.avatarPng.size)
     }
 
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp)),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            PublicKeyAvatar(
-                bitmap = signingAvatar,
-                contentDescription = "签名密钥头像",
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(14.dp)),
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "签名密钥",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = identity.signing.displayPublicKeyBase64,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+    SegmentedSettingsColumn {
+        item {
+            SegmentedContentItem {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    PublicKeyAvatar(
+                        bitmap = signingAvatar,
+                        contentDescription = "签名密钥头像",
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(14.dp)),
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "签名密钥",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            text = identity.signing.displayPublicKeyBase64,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
         }
     }
@@ -515,50 +514,31 @@ private fun ConnectionSection(
         }
     }
 
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp)),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Column {
-            if (discoveredPeers.isEmpty() && connections.isEmpty()) {
-                EmptySectionCard("暂无可用连接。如果无法搜索到您的设备，请检查是否和其他设备处于同一局域网下，或者您可以尝试点击\u201C添加连接\u201D手动添加设备")
-            } else {
-                discoveredPeers.forEachIndexed { index, peer ->
-                    if (index > 0) {
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                            modifier = Modifier.padding(horizontal = 16.dp),
+    if (discoveredPeers.isEmpty() && connections.isEmpty()) {
+        EmptySectionCard("暂无可用连接。如果无法搜索到您的设备，请检查是否和其他设备处于同一局域网下，或者您可以尝试点击\u201C添加连接\u201D手动添加设备")
+    } else {
+        SegmentedSettingsColumn {
+            discoveredPeers.forEach { peer ->
+                item {
+                    SegmentedContentItem {
+                        DiscoveredConnectionRow(
+                            peer = peer,
+                            isPairing = isPairing,
+                            onPairDiscoveredPeer = onPairDiscoveredPeer,
                         )
                     }
-                    DiscoveredConnectionRow(
-                        peer = peer,
-                        isPairing = isPairing,
-                        onPairDiscoveredPeer = onPairDiscoveredPeer,
-                    )
                 }
-
-                if (discoveredPeers.isNotEmpty() && connections.isNotEmpty()) {
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                }
-
-                connections.forEachIndexed { index, connection ->
-                    if (index > 0 || discoveredPeers.isNotEmpty()) {
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                            modifier = Modifier.padding(horizontal = 16.dp),
+            }
+            connections.forEach { connection ->
+                item {
+                    SegmentedContentItem {
+                        ConnectionRow(
+                            connection = connection,
+                            isPairing = isPairing,
+                            onDeleteConnection = onDeleteConnection,
+                            onPairConnection = onPairConnection,
                         )
                     }
-                    ConnectionRow(
-                        connection = connection,
-                        isPairing = isPairing,
-                        onDeleteConnection = onDeleteConnection,
-                        onPairConnection = onPairConnection,
-                    )
                 }
             }
         }
@@ -609,31 +589,22 @@ private fun DeviceSection(
         return
     }
 
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp)),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Column {
-            devices.forEachIndexed { index, device ->
-                if (index > 0) {
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                        modifier = Modifier.padding(horizontal = 16.dp),
+    SegmentedSettingsColumn {
+        devices.forEach { device ->
+            item {
+                SegmentedContentItem {
+                    DeviceRow(
+                        device = device,
+                        isPairing = isPairing,
+                        isManagingPeer = isManagingPeer,
+                        onPair = { onPair(device.discovered!!.host, device.discovered.port) },
+                        onTrustPeer = { onTrustPeer(device.peer!!.publicKey, it) },
+                        onUpdatePeerNote = { note -> onUpdatePeerNote(device.peer!!.id, note) },
+                        onDeletePeer = { onDeletePeer(device.peer!!.id) },
+                        onSetPeerStatus = { status -> onSetPeerStatus(device.peer!!.id, status) },
+                        onDismissPendingTrustPrompt = onDismissPendingTrustPrompt,
                     )
                 }
-                DeviceRow(
-                    device = device,
-                    isPairing = isPairing,
-                    isManagingPeer = isManagingPeer,
-                    onPair = { onPair(device.discovered!!.host, device.discovered.port) },
-                    onTrustPeer = { onTrustPeer(device.peer!!.publicKey, it) },
-                    onUpdatePeerNote = { note -> onUpdatePeerNote(device.peer!!.id, note) },
-                    onDeletePeer = { onDeletePeer(device.peer!!.id) },
-                    onSetPeerStatus = { status -> onSetPeerStatus(device.peer!!.id, status) },
-                    onDismissPendingTrustPrompt = onDismissPendingTrustPrompt,
-                )
             }
         }
     }
@@ -1184,23 +1155,22 @@ private fun SyncStatsSection(
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(start = 4.dp),
     )
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp)),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            SyncInfoLine("时间", formatTimestamp(latest.finishedAtMs.toLong()))
-            SyncInfoLine("结果", latest.status.displayLabel())
-            SyncInfoLine("方向", latest.role.displayLabel())
-            SyncInfoLine("设备", latest.peerLabel ?: "未命名设备")
-            SyncInfoLine("应用记录", latest.recordsApplied.toString())
-            SyncInfoLine("发送/接收", "${latest.recordsSent}/${latest.recordsReceived}")
-            SyncInfoLine("耗时", "${latest.durationMs} ms")
+    SegmentedSettingsColumn {
+        item {
+            SegmentedContentItem {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    SyncInfoLine("时间", formatTimestamp(latest.finishedAtMs.toLong()))
+                    SyncInfoLine("结果", latest.status.displayLabel())
+                    SyncInfoLine("方向", latest.role.displayLabel())
+                    SyncInfoLine("设备", latest.peerLabel ?: "未命名设备")
+                    SyncInfoLine("应用记录", latest.recordsApplied.toString())
+                    SyncInfoLine("发送/接收", "${latest.recordsSent}/${latest.recordsReceived}")
+                    SyncInfoLine("耗时", "${latest.durationMs} ms")
+                }
+            }
         }
     }
 
@@ -1211,36 +1181,27 @@ private fun SyncStatsSection(
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(start = 4.dp),
         )
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp)),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-        ) {
-            Column {
-                sessions.drop(1).take(5).forEachIndexed { index, session ->
-                    if (index > 0) {
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                        )
-                    }
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onOpenSession(session) }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text(
-                            text = "${session.role.displayLabel()} · ${session.status.displayLabel()}",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            text = "${formatTimestamp(session.finishedAtMs.toLong())} · ${session.peerLabel ?: "未命名设备"}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+        SegmentedSettingsColumn {
+            sessions.drop(1).take(5).forEach { session ->
+                item {
+                    SegmentedContentItem {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onOpenSession(session) },
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = "${session.role.displayLabel()} · ${session.status.displayLabel()}",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Text(
+                                text = "${formatTimestamp(session.finishedAtMs.toLong())} · ${session.peerLabel ?: "未命名设备"}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }
@@ -1369,17 +1330,16 @@ private fun ConnectionRow(
 
 @Composable
 private fun EmptySectionCard(message: String) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-        ),
-    ) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(16.dp),
-        )
+    SegmentedSettingsColumn {
+        item {
+            SegmentedContentItem {
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 

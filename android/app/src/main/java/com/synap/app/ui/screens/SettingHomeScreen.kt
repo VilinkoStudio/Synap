@@ -2,60 +2,49 @@ package com.synap.app.ui.screens
 
 import android.content.Context
 import androidx.activity.compose.PredictiveBackHandler
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Tag
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ViewAgenda
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.synap.app.R
+import com.synap.app.ui.components.SegmentedNavItem
+import com.synap.app.ui.components.SegmentedSettingsColumn
+import com.synap.app.ui.components.SegmentedSwitchItem
 import kotlinx.coroutines.CancellationException
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,18 +67,12 @@ fun SettingHomeScreen(
     var tagBarEnabled by remember(showTagBar) { mutableStateOf(showTagBar) }
     var timeGroupsEnabled by remember(showTimeGroups) { mutableStateOf(showTimeGroups) }
     var timelineJumpToolEnabled by remember(showTimelineJumpTool) { mutableStateOf(showTimelineJumpTool) }
-    var scanMethod by remember { mutableStateOf(prefs.getString("scan_method", "default") ?: "default") }
-    var customScanPackage by remember { mutableStateOf(prefs.getString("scan_custom_package", "") ?: "") }
-    var showCustomScanDialog by remember { mutableStateOf(false) }
-    var customScanInput by remember { mutableStateOf("") }
 
     var backProgress by remember { mutableFloatStateOf(0f) }
 
     PredictiveBackHandler { progressFlow ->
         try {
-            progressFlow.collect { backEvent ->
-                backProgress = backEvent.progress
-            }
+            progressFlow.collect { backEvent -> backProgress = backEvent.progress }
             onNavigateBack()
         } catch (e: CancellationException) {
             backProgress = 0f
@@ -108,12 +91,18 @@ fun SettingHomeScreen(
         onRefresh()
     }
 
+    val alignmentLabel = when (widgetAlignment) {
+        "left" -> stringResource(R.string.setting_widget_alignment_left)
+        "right" -> stringResource(R.string.setting_widget_alignment_right)
+        else -> stringResource(R.string.setting_widget_alignment_default)
+    }
+
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
-                translationX = backProgress * 64.dp.toPx() // 向右边缘移动
-                transformOrigin = TransformOrigin(1f, 0.5f) // 缩放原点在右侧中心
+                translationX = backProgress * 64.dp.toPx()
+                transformOrigin = TransformOrigin(1f, 0.5f)
                 shape = RoundedCornerShape(32.dp * backProgress)
                 clip = true
             },
@@ -136,104 +125,27 @@ fun SettingHomeScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
         ) {
-            Text(
-                text = stringResource(R.string.setting_home_display_options),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { updateHomeDisplayOptions(nextTagBarEnabled = !tagBarEnabled) }
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Tag,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(end = 16.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.setting_show_tag_bar),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                    Switch(
+            SegmentedSettingsColumn(title = stringResource(R.string.setting_home_display_options)) {
+                item {
+                    SegmentedSwitchItem(
+                        icon = Icons.Filled.Tag,
+                        title = stringResource(R.string.setting_show_tag_bar),
                         checked = tagBarEnabled,
                         onCheckedChange = { updateHomeDisplayOptions(nextTagBarEnabled = it) },
                     )
                 }
-
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { updateHomeDisplayOptions(nextTimeGroupsEnabled = !timeGroupsEnabled) }
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.ViewAgenda,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(end = 16.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.setting_show_time_groups),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                    Switch(
+                item {
+                    SegmentedSwitchItem(
+                        icon = Icons.Filled.ViewAgenda,
+                        title = stringResource(R.string.setting_show_time_groups),
                         checked = timeGroupsEnabled,
                         onCheckedChange = { updateHomeDisplayOptions(nextTimeGroupsEnabled = it) },
                     )
                 }
-
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            updateHomeDisplayOptions(nextTimelineJumpToolEnabled = !timelineJumpToolEnabled)
-                        }
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.CalendarMonth,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(end = 16.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.setting_show_timeline_jump_tool),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                    Switch(
+                item {
+                    SegmentedSwitchItem(
+                        icon = Icons.Filled.CalendarMonth,
+                        title = stringResource(R.string.setting_show_timeline_jump_tool),
                         checked = timelineJumpToolEnabled,
                         onCheckedChange = { updateHomeDisplayOptions(nextTimelineJumpToolEnabled = it) },
                     )
@@ -242,128 +154,42 @@ fun SettingHomeScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            Text(
-                text = stringResource(R.string.setting_phone_layout),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.MoreVert,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(end = 16.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.setting_collapse_nav_buttons),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                    Switch(
+            SegmentedSettingsColumn(title = stringResource(R.string.setting_phone_layout)) {
+                item {
+                    SegmentedSwitchItem(
+                        icon = Icons.Filled.MoreVert,
+                        title = stringResource(R.string.setting_collapse_nav_buttons),
                         checked = isNavCollapsed,
                         onCheckedChange = {
                             isNavCollapsed = it
                             prefs.edit().putBoolean("is_nav_collapsed", it).apply()
-                        }
+                        },
                     )
                 }
-
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.ViewAgenda,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(end = 16.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.setting_dual_column_cards),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                    Switch(
+                item {
+                    SegmentedSwitchItem(
+                        icon = Icons.Filled.ViewAgenda,
+                        title = stringResource(R.string.setting_dual_column_cards),
                         checked = dualColumnCards,
                         onCheckedChange = {
                             dualColumnCards = it
                             prefs.edit().putBoolean("dual_column_cards", it).apply()
-                        }
+                        },
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // ==================== 其它 ====================
-            Text(
-                text = stringResource(R.string.setting_other),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showAlignmentMenu = true }
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.setting_widget_alignment),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = stringResource(R.string.setting_widget_alignment_desc),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = when (widgetAlignment) {
-                            "left" -> stringResource(R.string.setting_widget_alignment_left)
-                            "right" -> stringResource(R.string.setting_widget_alignment_right)
-                            else -> stringResource(R.string.setting_widget_alignment_default)
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
+            SegmentedSettingsColumn(title = stringResource(R.string.setting_other)) {
+                item {
                     Box {
+                        SegmentedNavItem(
+                            icon = Icons.Filled.Tune,
+                            title = stringResource(R.string.setting_widget_alignment),
+                            summary = alignmentLabel,
+                            onClick = { showAlignmentMenu = true },
+                        )
                         DropdownMenu(
                             expanded = showAlignmentMenu,
                             onDismissRequest = { showAlignmentMenu = false },
@@ -399,49 +225,5 @@ fun SettingHomeScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
         }
-    }
-
-    // 自定义扫码APP配置弹窗
-    if (showCustomScanDialog) {
-        AlertDialog(
-            onDismissRequest = { showCustomScanDialog = false },
-            title = { Text(stringResource(R.string.setting_scan_custom_dialog_title)) },
-            text = {
-                Column {
-                    Text(stringResource(R.string.setting_scan_custom_dialog_text))
-                    Spacer(modifier = Modifier.height(16.dp))
-                    OutlinedTextField(
-                        value = customScanInput,
-                        onValueChange = { customScanInput = it },
-                        label = { Text(stringResource(R.string.setting_scan_custom_package_name)) },
-                        placeholder = { Text(stringResource(R.string.setting_scan_custom_dialog_hint)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (customScanInput.isNotBlank()) {
-                            scanMethod = "custom"
-                            customScanPackage = customScanInput.trim()
-                            prefs.edit()
-                                .putString("scan_method", "custom")
-                                .putString("scan_custom_package", customScanPackage)
-                                .apply()
-                        }
-                        showCustomScanDialog = false
-                    }
-                ) {
-                    Text(stringResource(android.R.string.ok))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCustomScanDialog = false }) {
-                    Text(stringResource(android.R.string.cancel))
-                }
-            }
-        )
     }
 }

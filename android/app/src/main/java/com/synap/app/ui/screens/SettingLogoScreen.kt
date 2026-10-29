@@ -5,44 +5,39 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.PredictiveBackHandler
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.ui.res.stringResource
-import com.synap.app.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.synap.app.R
+import com.synap.app.ui.components.SegmentedSelectableItem
+import com.synap.app.ui.components.SegmentedSettingsColumn
 import kotlinx.coroutines.CancellationException
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,7 +47,6 @@ fun SettingLogoScreen(onNavigateBack: () -> Unit) {
     val packageManager = context.packageManager
     val packageName = context.packageName
 
-    // 动态检查当前系统的哪个 Component 处于启用状态
     val oldComponent = ComponentName(context, "$packageName.MainActivityOld")
     val defaultComponent = ComponentName(context, "$packageName.MainActivity")
 
@@ -64,32 +58,25 @@ fun SettingLogoScreen(onNavigateBack: () -> Unit) {
     val isOldIconCurrentlyEnabled = resolvedActivity == "$packageName.MainActivityOld"
 
     var selectedIndex by remember { mutableIntStateOf(if (isOldIconCurrentlyEnabled) 1 else 0) }
-
-    // ========== 预返回手势核心状态 ==========
     var backProgress by remember { mutableFloatStateOf(0f) }
 
     PredictiveBackHandler { progressFlow ->
         try {
-            progressFlow.collect { backEvent ->
-                backProgress = backEvent.progress // 收集滑动进度 (0.0 ~ 1.0)
-            }
-            onNavigateBack() // 手指松开且决定返回时触发导航
+            progressFlow.collect { backEvent -> backProgress = backEvent.progress }
+            onNavigateBack()
         } catch (e: CancellationException) {
-            backProgress = 0f // 用户取消返回，重置进度
+            backProgress = 0f
         }
     }
 
-    // 切换图标逻辑
     fun switchIcon(index: Int) {
         if (selectedIndex == index) return
         selectedIndex = index
 
         if (index == 1) {
-            // 启用旧图标，禁用默认
             packageManager.setComponentEnabledSetting(oldComponent, PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
             packageManager.setComponentEnabledSetting(defaultComponent, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
         } else {
-            // 启用默认，禁用旧图标
             packageManager.setComponentEnabledSetting(defaultComponent, PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
             packageManager.setComponentEnabledSetting(oldComponent, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
         }
@@ -99,11 +86,10 @@ fun SettingLogoScreen(onNavigateBack: () -> Unit) {
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
-            // ========== 应用预返回手势的视觉形变 ==========
             .graphicsLayer {
-                translationX = backProgress * 64.dp.toPx() // 向右边缘移动
-                transformOrigin = TransformOrigin(1f, 0.5f) // 缩放原点在右侧中心
-                shape = RoundedCornerShape(32.dp * backProgress) // 随进度增加圆角
+                translationX = backProgress * 64.dp.toPx()
+                transformOrigin = TransformOrigin(1f, 0.5f)
+                shape = RoundedCornerShape(32.dp * backProgress)
                 clip = true
             },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -122,50 +108,18 @@ fun SettingLogoScreen(onNavigateBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            Text(
-                text = stringResource(R.string.desktop_icon_style),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
-            )
+            val options = listOf(stringResource(R.string.icon_synap_colored), stringResource(R.string.icon_monet))
 
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                val options = listOf(stringResource(R.string.icon_synap_colored), stringResource(R.string.icon_monet))
-
+            SegmentedSettingsColumn(title = stringResource(R.string.desktop_icon_style)) {
                 options.forEachIndexed { index, title ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { switchIcon(index) }
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (selectedIndex == index) {
-                            Icon(
-                                Icons.Filled.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-                    if (index < options.size - 1) {
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                            modifier = Modifier.padding(horizontal = 16.dp)
+                    item {
+                        SegmentedSelectableItem(
+                            title = title,
+                            selected = selectedIndex == index,
+                            onClick = { switchIcon(index) },
                         )
                     }
                 }

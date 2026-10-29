@@ -4,40 +4,25 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.PredictiveBackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -49,18 +34,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.synap.app.R
+import com.synap.app.ui.components.SegmentedInfoItem
+import com.synap.app.ui.components.SegmentedNavItem
+import com.synap.app.ui.components.SegmentedSelectableItem
+import com.synap.app.ui.components.SegmentedSettingsColumn
+import com.synap.app.ui.components.SegmentedSwitchItem
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -258,228 +244,108 @@ fun VersionScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             // 版本信息
-            Text(
-                text = "版本信息",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 4.dp),
-            )
-            Surface(
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-            ) {
-                Column {
-                    // 当前版本
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "当前版本",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Text(
-                            text = buildVersion + (buildVersionDetails?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f),
-                            textAlign = TextAlign.End,
-                        )
-                    }
-
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                        modifier = Modifier.padding(horizontal = 16.dp),
+            SegmentedSettingsColumn(title = "版本信息") {
+                item {
+                    SegmentedInfoItem(
+                        icon = null,
+                        title = "当前版本",
+                        summary = buildVersion + (buildVersionDetails?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
                     )
-
-                    // 类型
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "类型",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.weight(1f),
-                        )
-                        val typeLabel = when (versionType) {
-                            VersionType.Release -> "正式版"
-                            VersionType.Beta -> "Beta 测试版"
-                            VersionType.Alpha -> "Alpha 测试版"
-                            VersionType.Dev -> "Developer 开发版本"
-                        }
-                        Text(
-                            text = typeLabel,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                }
+                item {
+                    val typeLabel = when (versionType) {
+                        VersionType.Release -> "正式版"
+                        VersionType.Beta -> "Beta 测试版"
+                        VersionType.Alpha -> "Alpha 测试版"
+                        VersionType.Dev -> "Developer 开发版本"
                     }
+                    SegmentedInfoItem(icon = null, title = "类型", summary = typeLabel)
                 }
             }
 
             // 更新选项
-            Text(
-                text = "更新选项",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 4.dp),
-            )
-            Surface(
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-            ) {
-                Column {
-                    // 自动检测更新
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                if (versionType != VersionType.Dev) {
-                                    autoCheck = !autoCheck
-                                    prefs.edit().putBoolean("auto_check_update", autoCheck).apply()
-                                }
-                            }
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "自动检测新版本",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                            if (versionType == VersionType.Dev) {
-                                Text(
-                                    text = "Debug版本无法进行自动检测，请切换到已构建版本后重试",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                        Switch(
-                            checked = autoCheck,
-                            onCheckedChange = {
-                                if (versionType != VersionType.Dev) {
-                                    autoCheck = it
-                                    prefs.edit().putBoolean("auto_check_update", it).apply()
+            SegmentedSettingsColumn(title = "更新选项") {
+                item {
+                    SegmentedSwitchItem(
+                        icon = null,
+                        title = "自动检测新版本",
+                        summary = if (versionType == VersionType.Dev) {
+                            "Debug版本无法进行自动检测，请切换到已构建版本后重试"
+                        } else {
+                            null
+                        },
+                        checked = autoCheck,
+                        enabled = versionType != VersionType.Dev,
+                        onCheckedChange = {
+                            autoCheck = it
+                            prefs.edit().putBoolean("auto_check_update", it).apply()
+                        },
+                    )
+                }
+                item {
+                    val selectedChannels = buildList {
+                        if (acceptRelease) add("Release")
+                        if (acceptBeta) add("Beta")
+                        if (acceptAlpha) add("Alpha")
+                    }.joinToString("，")
+                    SegmentedNavItem(
+                        icon = null,
+                        title = "接收哪些版本的更新",
+                        summary = selectedChannels.ifEmpty { "未选择" },
+                        onClick = { isChannelExpanded = !isChannelExpanded },
+                    )
+                }
+                if (isChannelExpanded) {
+                    item {
+                        SegmentedSelectableItem(
+                            title = "Release",
+                            selected = acceptRelease,
+                            indent = true,
+                            onClick = {
+                                if (!acceptRelease || acceptBeta || acceptAlpha) {
+                                    acceptRelease = !acceptRelease
+                                    prefs.edit().putBoolean("accept_release", acceptRelease).apply()
                                 }
                             },
-                            enabled = versionType != VersionType.Dev,
                         )
                     }
-
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-
-                    // 接收哪些版本的更新
-                    Column {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { isChannelExpanded = !isChannelExpanded }
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "接收哪些版本的更新",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                )
-                                val selected = buildList {
-                                    if (acceptRelease) add("Release")
-                                    if (acceptBeta) add("Beta")
-                                    if (acceptAlpha) add("Alpha")
-                                }.joinToString("，")
-                                Text(
-                                    text = selected.ifEmpty { "未选择" },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            Icon(
-                                imageVector = if (isChannelExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-
-                        AnimatedVisibility(
-                            visible = isChannelExpanded,
-                            enter = expandVertically(),
-                            exit = shrinkVertically(),
-                        ) {
-                            Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
-                                ChannelCheckbox("Release", acceptRelease) {
-                                    if (!it && !acceptBeta && !acceptAlpha) return@ChannelCheckbox
-                                    acceptRelease = it
-                                    prefs.edit().putBoolean("accept_release", it).apply()
+                    item {
+                        SegmentedSelectableItem(
+                            title = "Beta",
+                            selected = acceptBeta,
+                            indent = true,
+                            onClick = {
+                                if (!acceptBeta || acceptRelease || acceptAlpha) {
+                                    acceptBeta = !acceptBeta
+                                    prefs.edit().putBoolean("accept_beta", acceptBeta).apply()
                                 }
-                                ChannelCheckbox("Beta", acceptBeta) {
-                                    if (!it && !acceptRelease && !acceptAlpha) return@ChannelCheckbox
-                                    acceptBeta = it
-                                    prefs.edit().putBoolean("accept_beta", it).apply()
+                            },
+                        )
+                    }
+                    item {
+                        SegmentedSelectableItem(
+                            title = "Alpha",
+                            selected = acceptAlpha,
+                            indent = true,
+                            onClick = {
+                                if (!acceptAlpha || acceptRelease || acceptBeta) {
+                                    acceptAlpha = !acceptAlpha
+                                    prefs.edit().putBoolean("accept_alpha", acceptAlpha).apply()
                                 }
-                                ChannelCheckbox("Alpha", acceptAlpha) {
-                                    if (!it && !acceptRelease && !acceptBeta) return@ChannelCheckbox
-                                    acceptAlpha = it
-                                    prefs.edit().putBoolean("accept_alpha", it).apply()
-                                }
-                            }
-                        }
+                            },
+                        )
                     }
                 }
             }
 
             // 更新渠道
-            Text(
-                text = "更新渠道",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 4.dp),
-            )
-            Surface(
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    RadioButton(selected = true, onClick = null)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = "GitHub",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
+            SegmentedSettingsColumn(title = "更新渠道") {
+                item {
+                    SegmentedSelectableItem(title = "GitHub", selected = true, onClick = {})
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
         }
-    }
-}
-
-@Composable
-private fun ChannelCheckbox(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Checkbox(checked = checked, onCheckedChange = onCheckedChange)
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(text = label, style = MaterialTheme.typography.bodyMedium)
     }
 }
