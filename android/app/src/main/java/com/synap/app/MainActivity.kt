@@ -3,6 +3,7 @@ package com.synap.app
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -22,6 +23,10 @@ class MainActivity : ComponentActivity() {
     lateinit var synapService: SynapServiceApi
 
     private val shareImportViewModel: ShareImportViewModel by viewModels()
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleHelper.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

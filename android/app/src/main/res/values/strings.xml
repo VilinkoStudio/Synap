@@ -1,5 +1,5 @@
-﻿<resources>
-    <string name="app_name">Synap</string>
+<resources>
+    <string name="app_name">Synap Note</string>
     <string name="home">主页</string>
     <string name="delete">删除</string>
     <string name="cancel">取消</string>
@@ -90,8 +90,6 @@
     <string name="home_filter_untagged">未分类</string>
     <string name="content_desc_search">搜索</string>
     <string name="content_desc_settings">设置</string>
-    <string name="starmap_title">星图</string>
-    <string name="starmap_points_label">星图点位</string>
     <string name="edit_hint_reply">回复自</string>
     <string name="notedetail_title">笔记详情</string>
     <string name="notedetail_errorMessage">笔记不存在</string>
@@ -116,7 +114,6 @@
     <string name="setting_app_icon">图标</string>
     <string name="setting_color">颜色</string>
     <string name="setting_feature">功能</string>
-    <string name="setting_lab">实验室</string>
     <string name="setting_sync">同步</string>
     <string name="setting_official_website">软件官网</string>
     <string name="theme_color">主题色</string>
@@ -163,19 +160,12 @@
     <string name="setting_widget_alignment_default">默认</string>
     <string name="setting_widget_alignment_left">靠左</string>
     <string name="setting_widget_alignment_right">靠右</string>
-    <string name="setting_scan_method">扫码方式</string>
     <string name="setting_scan">扫一扫</string>
-    <string name="setting_scan_default">默认</string>
-    <string name="setting_scan_default_desc">单独为中国部分定制安卓系统进行单独扫码应用适配，此项可能因厂商系统更新导致失效</string>
-    <string name="setting_scan_system_camera">相机</string>
-    <string name="setting_scan_system_camera_desc">适用于大部分原生安卓系统</string>
-    <string name="setting_scan_custom">自定义扫码APP</string>
-    <string name="setting_scan_custom_desc">手动填写外部扫码应用的包名</string>
-    <string name="setting_scan_custom_dialog_title">扫码APP配置</string>
-    <string name="setting_scan_custom_dialog_text">请在下方填写您手机上的系统扫码APP包名（请不要填写微信、QQ等APP包名）。</string>
-    <string name="setting_scan_custom_dialog_hint">例如：com.example.scanner</string>
-    <string name="setting_scan_custom_package_name">包名</string>
-    <string name="scan_launch_failed">启动扫码APP失败，请在设置中配置扫码功能</string>
+    <string name="scan_torch">手电筒</string>
+    <string name="scan_album">相册</string>
+    <string name="scan_album_no_qr">未在图片中识别到二维码</string>
+    <string name="scan_camera_permission_required">需要相机权限才能扫码</string>
+    <string name="scan_retry">重试</string>
     <string name="ai">AI</string>
     <string name="ai_service_provider">AI服务商</string>
     <string name="ai_scenarios">AI功能场景</string>

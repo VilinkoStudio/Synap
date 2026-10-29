@@ -1,8 +1,6 @@
 package com.synap.app.ui.screens
 
 import androidx.activity.compose.PredictiveBackHandler
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -20,10 +18,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,7 +37,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
@@ -50,6 +45,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.synap.app.R
+import com.synap.app.ui.components.SegmentedContentItem
+import com.synap.app.ui.components.SegmentedSelectableItem
+import com.synap.app.ui.components.SegmentedSettingsColumn
 import kotlinx.coroutines.CancellationException
 import kotlin.math.roundToInt
 
@@ -74,154 +72,114 @@ private fun TypographySettingsPanel(
     noteLineSpacing: Float,
     onNoteLineSpacingChange: (Float) -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        // --- 1. 字体选择 ---
-        Column(modifier = Modifier.padding(vertical = 8.dp)) {
-            listOf(
-                "SansSerif" to stringResource(R.string.font_sans_serif),
-                "Serif" to stringResource(R.string.font_serif)
-            ).forEachIndexed { index, option ->
-                val isSelected = currentFontFamily == option.first
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onFontFamilyChange(option.first) }
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
+    val fontOptions = listOf(
+        "SansSerif" to stringResource(R.string.font_sans_serif),
+        "Serif" to stringResource(R.string.font_serif),
+    )
+
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        SegmentedSettingsColumn(title = stringResource(R.string.font_family)) {
+            fontOptions.forEach { (value, label) ->
+                item {
+                    SegmentedSelectableItem(
+                        title = label,
+                        selected = currentFontFamily == value,
+                        titleStyle = MaterialTheme.typography.bodyLarge.copy(
+                            fontFamily = if (value == "Serif") FontFamily.Serif else FontFamily.SansSerif
+                        ),
+                        onClick = { onFontFamilyChange(value) },
+                    )
+                }
+            }
+        }
+
+        SegmentedSettingsColumn {
+            item {
+                SegmentedContentItem {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = stringResource(R.string.current_font_weight, currentFontWeight),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f).padding(end = 8.dp)
+                            )
+                            TextButton(
+                                onClick = { onFontWeightChange(400) },
+                                enabled = currentFontWeight != 400
+                            ) {
+                                Text(text = stringResource(R.string.restore_default), maxLines = 1, softWrap = false)
+                            }
+                        }
+                        Slider(
+                            value = currentFontWeight.toFloat(),
+                            onValueChange = { onFontWeightChange(it.toInt()) },
+                            valueRange = 100f..900f,
+                            steps = 7
+                        )
                         Text(
-                            text = option.second,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontFamily = if (option.first == "Serif") FontFamily.Serif else FontFamily.SansSerif,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    if (isSelected) {
-                        Icon(
-                            Icons.Filled.Check,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp),
+                            text = stringResource(R.string.font_weight_hint),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
             }
-        }
-
-        HorizontalDivider(
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-
-        // --- 2. 字重调节 ---
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(R.string.current_font_weight, currentFontWeight),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f).padding(end = 8.dp)
-                )
-                TextButton(
-                    onClick = { onFontWeightChange(400) },
-                    enabled = currentFontWeight != 400
-                ) {
-                    Text(text = stringResource(R.string.restore_default), maxLines = 1, softWrap = false)
+            item {
+                SegmentedContentItem {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = stringResource(R.string.current_font_size, noteTextSize.toInt()),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f).padding(end = 8.dp)
+                            )
+                            TextButton(
+                                onClick = { onNoteTextSizeChange(16f) },
+                                enabled = noteTextSize != 16f
+                            ) {
+                                Text(text = stringResource(R.string.restore_default), maxLines = 1, softWrap = false)
+                            }
+                        }
+                        Slider(
+                            value = noteTextSize,
+                            onValueChange = onNoteTextSizeChange,
+                            valueRange = 10f..30f,
+                            steps = 19
+                        )
+                    }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Slider(
-                value = currentFontWeight.toFloat(),
-                onValueChange = { onFontWeightChange(it.toInt()) },
-                valueRange = 100f..900f,
-                steps = 7
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = stringResource(R.string.font_weight_hint),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        HorizontalDivider(
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-
-        // --- 3. 字号调节 ---
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(R.string.current_font_size, noteTextSize.toInt()),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f).padding(end = 8.dp)
-                )
-                TextButton(
-                    onClick = { onNoteTextSizeChange(16f) },
-                    enabled = noteTextSize != 16f
-                ) {
-                    Text(text = stringResource(R.string.restore_default), maxLines = 1, softWrap = false)
+            item {
+                SegmentedContentItem {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            val displaySpacing = ((noteLineSpacing * 10f).roundToInt() / 10f).toString()
+                            Text(
+                                text = stringResource(R.string.current_line_spacing, displaySpacing),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f).padding(end = 8.dp)
+                            )
+                            TextButton(
+                                onClick = { onNoteLineSpacingChange(1.5f) },
+                                enabled = noteLineSpacing != 1.5f
+                            ) {
+                                Text(text = stringResource(R.string.restore_default), maxLines = 1, softWrap = false)
+                            }
+                        }
+                        Slider(
+                            value = noteLineSpacing,
+                            onValueChange = { newVal ->
+                                onNoteLineSpacingChange((newVal * 10f).roundToInt() / 10f)
+                            },
+                            valueRange = 1.0f..3.0f,
+                            steps = 19
+                        )
+                    }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Slider(
-                value = noteTextSize,
-                onValueChange = onNoteTextSizeChange,
-                valueRange = 10f..30f,
-                steps = 19
-            )
-        }
-
-        HorizontalDivider(
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-
-        // --- 4. 行距调节 ---
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val displaySpacing = ((noteLineSpacing * 10f).roundToInt() / 10f).toString()
-                Text(
-                    text = stringResource(R.string.current_line_spacing, displaySpacing),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f).padding(end = 8.dp)
-                )
-                TextButton(
-                    onClick = { onNoteLineSpacingChange(1.5f) },
-                    enabled = noteLineSpacing != 1.5f
-                ) {
-                    Text(text = stringResource(R.string.restore_default), maxLines = 1, softWrap = false)
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Slider(
-                value = noteLineSpacing,
-                onValueChange = { newVal ->
-                    val roundedSpacing = (newVal * 10f).roundToInt() / 10f
-                    onNoteLineSpacingChange(roundedSpacing)
-                },
-                valueRange = 1.0f..3.0f,
-                steps = 19
-            )
         }
     }
 }
@@ -235,50 +193,45 @@ private fun TypographyPreviewSection(
     noteTextSize: Float,
     noteLineSpacing: Float,
 ) {
-    Column {
-        Text(
-            text = stringResource(R.string.typography_preview),
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
-        )
-
-        Surface(
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            shape = RoundedCornerShape(8.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = previewItem.first,
-                fontSize = noteTextSize.sp,
-                lineHeight = noteTextSize.sp * noteLineSpacing,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontFamily = if (currentFontFamily == "Serif") FontFamily.Serif else FontFamily.SansSerif,
-                fontWeight = FontWeight(currentFontWeight),
-                modifier = Modifier.padding(12.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = previewItem.second,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.align(Alignment.End)
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End
-        ) {
-            IconButton(
-                onClick = onRefresh,
-                modifier = Modifier.size(28.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Refresh,
-                    contentDescription = stringResource(R.string.switch_preview),
-                    tint = MaterialTheme.colorScheme.primary
-                )
+    SegmentedSettingsColumn(title = stringResource(R.string.typography_preview)) {
+        item {
+            SegmentedContentItem {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = previewItem.first,
+                            fontSize = noteTextSize.sp,
+                            lineHeight = noteTextSize.sp * noteLineSpacing,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontFamily = if (currentFontFamily == "Serif") FontFamily.Serif else FontFamily.SansSerif,
+                            fontWeight = FontWeight(currentFontWeight),
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = previewItem.second,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
+                        IconButton(onClick = onRefresh, modifier = Modifier.size(28.dp)) {
+                            Icon(
+                                imageVector = Icons.Filled.Refresh,
+                                contentDescription = stringResource(R.string.switch_preview),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -298,14 +251,11 @@ fun TypographySettingsScreen(
     onNavigateBack: () -> Unit
 ) {
     var previewItem by remember { mutableStateOf(poetryList.random()) }
-
     var backProgress by remember { mutableFloatStateOf(0f) }
 
     PredictiveBackHandler { progressFlow ->
         try {
-            progressFlow.collect { backEvent ->
-                backProgress = backEvent.progress
-            }
+            progressFlow.collect { backEvent -> backProgress = backEvent.progress }
             onNavigateBack()
         } catch (e: CancellationException) {
             backProgress = 0f
@@ -341,7 +291,6 @@ fun TypographySettingsScreen(
             val isLargeScreen = maxWidth >= 700.dp
 
             if (isLargeScreen) {
-                // 大屏幕：左侧设置项，右侧预览，各自独立滚动
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
@@ -354,7 +303,6 @@ fun TypographySettingsScreen(
                             .padding(end = 16.dp)
                     ) {
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text(stringResource(R.string.note_body_text_style), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
                         TypographySettingsPanel(
                             currentFontFamily = currentFontFamily,
                             onFontFamilyChange = onFontFamilyChange,
@@ -386,7 +334,6 @@ fun TypographySettingsScreen(
                     }
                 }
             } else {
-                // 小屏幕：单列布局
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -394,8 +341,6 @@ fun TypographySettingsScreen(
                         .padding(horizontal = 16.dp),
                 ) {
                     Spacer(modifier = Modifier.height(16.dp))
-
-                    Text(stringResource(R.string.note_body_text_style), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
 
                     TypographySettingsPanel(
                         currentFontFamily = currentFontFamily,
@@ -408,7 +353,7 @@ fun TypographySettingsScreen(
                         onNoteLineSpacingChange = onNoteLineSpacingChange,
                     )
 
-                    Spacer(modifier = Modifier.height(32.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
 
                     TypographyPreviewSection(
                         previewItem = previewItem,
