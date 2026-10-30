@@ -110,6 +110,7 @@ fun SegmentedNavItem(
     title: String,
     summary: String? = null,
     badge: String? = null,
+    trailingContent: (@Composable () -> Unit)? = null,
     onClick: () -> Unit,
 ) {
     SegmentedListItem(
@@ -121,7 +122,7 @@ fun SegmentedNavItem(
             { Icon(it, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
         },
         supportingContent = summary?.let { { Text(it) } },
-        trailingContent = {
+        trailingContent = trailingContent ?: {
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,

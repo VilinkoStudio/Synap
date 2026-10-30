@@ -139,8 +139,6 @@
     <string name="setting_home_display_options">Home Composition</string>
     <string name="setting_home_layout">Disposition</string>
     <string name="setting_show_time_groups">Time Groups</string>
-    <string name="setting_collapse_nav_buttons">Masquer les boutons à l\'accueil</string>
-    <string name="setting_collapse_nav_buttons_desc">Valide uniquement pour les téléphones</string>
     <string name="setting_show_tag_bar">Barre de tags</string>
     <string name="setting_show_timeline_jump_tool">Timeline Jump Tool</string>
     <string name="ai">IA</string>

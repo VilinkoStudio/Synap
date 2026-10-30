@@ -138,8 +138,6 @@
     <string name="export_backup_title">Export Backup File</string>
     <string name="setting_show_tag_bar">Tag Bar</string>
     <string name="setting_show_timeline_jump_tool">Timeline Jump Tool</string>
-    <string name="setting_collapse_nav_buttons">Collapse Navigation Buttons</string>
-    <string name="setting_collapse_nav_buttons_desc">This option only applies to phone layout, not large screen layout</string>
     <string name="setting_home_layout">Layout</string>
     <string name="setting_home_display_options">Home Composition</string>
     <string name="setting_show_time_groups">Time Groups</string>

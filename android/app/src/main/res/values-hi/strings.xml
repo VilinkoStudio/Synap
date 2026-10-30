@@ -139,8 +139,6 @@
     <string name="setting_home_display_options">Home Composition</string>
     <string name="setting_home_layout">लेआउट</string>
     <string name="setting_show_time_groups">Time Groups</string>
-    <string name="setting_collapse_nav_buttons">होम पर नेविगेशन बटन छुपाएं</string>
-    <string name="setting_collapse_nav_buttons_desc">केवल फ़ोन के लिए मान्य</string>
     <string name="setting_show_tag_bar">टैग बार</string>
     <string name="setting_show_timeline_jump_tool">Timeline Jump Tool</string>
     <string name="ai">AI</string>

@@ -139,8 +139,6 @@
     <string name="setting_home_display_options">Home Composition</string>
     <string name="setting_home_layout">Layout</string>
     <string name="setting_show_time_groups">Time Groups</string>
-    <string name="setting_collapse_nav_buttons">Schaltflächen verbergen</string>
-    <string name="setting_collapse_nav_buttons_desc">Gilt nur für Telefone</string>
     <string name="setting_show_tag_bar">Tag-Leiste</string>
     <string name="setting_show_timeline_jump_tool">Timeline Jump Tool</string>
     <string name="ai">KI</string>

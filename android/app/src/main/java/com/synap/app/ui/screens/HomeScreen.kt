@@ -27,8 +27,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -39,7 +37,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
@@ -54,14 +51,16 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.automirrored.filled.MenuOpen
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -69,6 +68,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingToolbarDefaults
 import androidx.compose.material3.HorizontalFloatingToolbar
@@ -82,6 +82,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.WideNavigationRail
+import androidx.compose.material3.WideNavigationRailDefaults
+import androidx.compose.material3.WideNavigationRailItem
+import androidx.compose.material3.WideNavigationRailValue
+import androidx.compose.material3.rememberWideNavigationRailState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -113,8 +118,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.synap.app.R
 import com.synap.app.ui.components.ShareExportSheet
-import com.synap.app.ui.components.ExpressiveMenu
-import com.synap.app.ui.components.ExpressiveMenuItem
 import com.synap.app.ui.components.HomeTimelineFeed
 import com.synap.app.ui.model.Note
 import com.synap.app.ui.model.committedSelectedNoteIds
@@ -133,7 +136,7 @@ import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(
     uiState: HomeUiState,
@@ -161,8 +164,6 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
-    val prefs = remember { context.getSharedPreferences("synap_prefs", Context.MODE_PRIVATE) }
-    val isNavCollapsed = remember { prefs.getBoolean("is_nav_collapsed", false) }
 
     val navVisibilityScope = animatedVisibilityScope
 
@@ -185,7 +186,6 @@ fun HomeScreen(
     var showMultiDeleteDialog by remember { mutableStateOf(false) }
     var draftToDiscard by remember { mutableStateOf<Note?>(null) }
     var noteToCopy by remember { mutableStateOf<Note?>(null) }
-    var showNavMenu by remember { mutableStateOf(false) }
 
     var showShareBottomSheet by remember { mutableStateOf(false) }
     var showTimelineBrowser by remember { mutableStateOf(false) }
@@ -416,53 +416,22 @@ fun HomeScreen(
     }
 
     @Composable
-    fun SharedTags(isTablet: Boolean) {
+    fun SharedTags() {
         val isAllSelected = uiState.unselectedTags.isEmpty() && !uiState.isUntaggedUnselected
-        val tagContent = @Composable {
-            FilterChip(
-                selected = isAllSelected,
-                onClick = onToggleAllTags,
-                // ========== 新增：文字过多显示省略号 ==========
-                label = { Text(stringResource(R.string.home_filter_all), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            )
-            FilterChip(
-                selected = !isAllSelected && !uiState.isUntaggedUnselected,
-                onClick = onToggleUntaggedFilter,
-                label = { Text(stringResource(R.string.home_filter_untagged), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            )
-            uiState.availableTags.forEach { tag ->
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            item { FilterChip(selected = isAllSelected, onClick = onToggleAllTags, label = { Text(stringResource(R.string.home_filter_all), maxLines = 1, overflow = TextOverflow.Ellipsis) }) }
+            item { FilterChip(selected = !isAllSelected && !uiState.isUntaggedUnselected, onClick = onToggleUntaggedFilter, label = { Text(stringResource(R.string.home_filter_untagged), maxLines = 1, overflow = TextOverflow.Ellipsis) }) }
+            items(uiState.availableTags) { tag ->
                 FilterChip(
                     selected = !isAllSelected && tag !in uiState.unselectedTags,
                     onClick = { onToggleTagFilter(tag) },
                     label = { Text(tag, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 )
-            }
-        }
-
-        if (isTablet) {
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                tagContent()
-            }
-        } else {
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                item { FilterChip(selected = isAllSelected, onClick = onToggleAllTags, label = { Text(stringResource(R.string.home_filter_all), maxLines = 1, overflow = TextOverflow.Ellipsis) }) }
-                item { FilterChip(selected = !isAllSelected && !uiState.isUntaggedUnselected, onClick = onToggleUntaggedFilter, label = { Text(stringResource(R.string.home_filter_untagged), maxLines = 1, overflow = TextOverflow.Ellipsis) }) }
-                items(uiState.availableTags) { tag ->
-                    FilterChip(
-                        selected = !isAllSelected && tag !in uiState.unselectedTags,
-                        onClick = { onToggleTagFilter(tag) },
-                        label = { Text(tag, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                    )
-                }
             }
         }
     }
@@ -676,7 +645,7 @@ fun HomeScreen(
     }
     
     @Composable
-    fun SharedFabContent() {
+    fun SharedFabContent(showComposeFab: Boolean = true, showTimelineFab: Boolean = true) {
         AnimatedVisibility(
             visible = !isSelectionMode,
             enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
@@ -705,7 +674,7 @@ fun HomeScreen(
                     }
                 }
 
-                if (uiState.showTimelineJumpTool) {
+                if (showTimelineFab && uiState.showTimelineJumpTool) {
                     FloatingActionButton(
                         onClick = {
                             showTimelineBrowser = true
@@ -718,29 +687,31 @@ fun HomeScreen(
                     }
                 }
 
-                FloatingActionButton(
-                    onClick = onComposeNote,
-                    shape = CircleShape,
-                    modifier = Modifier
-                        .size(72.dp)
-                        .let {
-                            if (sharedTransitionScope != null && navVisibilityScope != null) {
-                                with(sharedTransitionScope) {
-                                    it.sharedBounds(
-                                        sharedContentState = rememberSharedContentState(key = "fab_to_new_note"),
-                                        animatedVisibilityScope = navVisibilityScope
-                                    )
+                if (showComposeFab) {
+                    FloatingActionButton(
+                        onClick = onComposeNote,
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .size(72.dp)
+                            .let {
+                                if (sharedTransitionScope != null && navVisibilityScope != null) {
+                                    with(sharedTransitionScope) {
+                                        it.sharedBounds(
+                                            sharedContentState = rememberSharedContentState(key = "fab_to_new_note"),
+                                            animatedVisibilityScope = navVisibilityScope
+                                        )
+                                    }
+                                } else {
+                                    it
                                 }
-                            } else {
-                                it
                             }
-                        }
-                ) {
-                    Icon(
-                        Icons.Filled.Add,
-                        contentDescription = stringResource(R.string.home_creatnote),
-                        modifier = Modifier.size(36.dp)
-                    )
+                    ) {
+                        Icon(
+                            Icons.Filled.Add,
+                            contentDescription = stringResource(R.string.home_creatnote),
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
                 }
             }
         }
@@ -751,118 +722,131 @@ fun HomeScreen(
         val isTablet = maxWidth >= 600.dp
 
         if (isTablet) {
-            // ==================== 平板：左右双栏布局 ====================
-            val animatedSidebarWidth by animateDpAsState(
-                targetValue = if (isSelectionMode) 0.dp else 300.dp,
-                animationSpec = tween(300),
-                label = "sidebarWidth"
-            )
+            Row(modifier = Modifier.fillMaxSize()) {
+                val railState = rememberWideNavigationRailState(WideNavigationRailValue.Expanded)
+                val isRailExpanded = railState.targetValue == WideNavigationRailValue.Expanded
 
-            Box(modifier = Modifier.fillMaxSize()) {
-                Row(modifier = Modifier.fillMaxSize()) {
-
-                    // --- 左侧边栏 ---
-                    if (animatedSidebarWidth > 0.dp) {
+                WideNavigationRail(
+                    state = railState,
+                    modifier = Modifier.fillMaxHeight(),
+                    colors = WideNavigationRailDefaults.colors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    ),
+                    header = {
                         Column(
-                            modifier = Modifier
-                                .width(animatedSidebarWidth)
-                                .fillMaxHeight()
-                                .statusBarsPadding()
-                                .verticalScroll(rememberScrollState())
-                                .padding(horizontal = 16.dp)
-                                .padding(top = 16.dp)
+                            modifier = Modifier.padding(top = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                    // 1. 顶部栏 (Synap 标题)
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Synap",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        if (buildVersion.isNotBlank()) {
-                            val tag = detectVersionType(buildVersion)
-                            if (tag != VersionType.Release) {
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = tag.name,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier
-                                        .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(4.dp))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                            IconButton(
+                                modifier = Modifier.padding(start = 24.dp),
+                                onClick = {
+                                    scope.launch {
+                                        if (railState.targetValue == WideNavigationRailValue.Expanded) {
+                                            railState.collapse()
+                                        } else {
+                                            railState.expand()
+                                        }
+                                    }
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = if (isRailExpanded) {
+                                        Icons.AutoMirrored.Filled.MenuOpen
+                                    } else {
+                                        Icons.Filled.Menu
+                                    },
+                                    contentDescription = null,
                                 )
                             }
+                            AnimatedVisibility(visible = !isSelectionMode) {
+                                Column(
+                                    modifier = Modifier.padding(start = 20.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    if (isRailExpanded) {
+                                        ExtendedFloatingActionButton(
+                                            text = { Text(stringResource(R.string.edit_title_creat)) },
+                                            icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                                            onClick = onComposeNote,
+                                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        )
+                                    } else {
+                                        FloatingActionButton(
+                                            onClick = onComposeNote,
+                                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.Add,
+                                                contentDescription = stringResource(R.string.edit_title_creat),
+                                            )
+                                        }
+                                    }
+                                    if (uiState.showTimelineJumpTool) {
+                                        if (isRailExpanded) {
+                                            ExtendedFloatingActionButton(
+                                                text = { Text("时间浏览") },
+                                                icon = { Icon(Icons.Filled.CalendarMonth, contentDescription = null) },
+                                                onClick = {
+                                                    showTimelineBrowser = true
+                                                    onOpenTimelineBrowser()
+                                                },
+                                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                            )
+                                        } else {
+                                            FloatingActionButton(
+                                                onClick = {
+                                                    showTimelineBrowser = true
+                                                    onOpenTimelineBrowser()
+                                                },
+                                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                            ) {
+                                                Icon(
+                                                    Icons.Filled.CalendarMonth,
+                                                    contentDescription = "时间浏览",
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
-                    }
-
-                    // 2. 搜索框
-                    SharedSearchBox()
-                    Spacer(Modifier.height(16.dp))
-
-                    // 3. 扫一扫按钮
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickable { onOpenScanner() },
-                        color = Color.Transparent
+                    },
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState()),
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Filled.QrCodeScanner, null)
-                            Spacer(Modifier.width(16.dp))
-                            Text("扫一扫", style = MaterialTheme.typography.titleMedium)
-                        }
-                    }
-
-                    // 4. 回收站按钮
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickable { onOpenTrash() },
-                        color = Color.Transparent
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Filled.DeleteSweep, null)
-                            Spacer(Modifier.width(16.dp))
-                            Text(stringResource(R.string.trash_title), style = MaterialTheme.typography.titleMedium)
-                        }
-                    }
-
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickable { onOpenSettings() },
-                        color = Color.Transparent
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Filled.Settings, null)
-                            Spacer(Modifier.width(16.dp))
-                            Text("设置", style = MaterialTheme.typography.titleMedium)
-                        }
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    AnimatedVisibility(
-                        visible = uiState.showTagBar && !uiState.isSearchMode && !isSelectionMode
-                    ) {
-                        Column {
-                            Text("标签", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
-                            SharedTags(isTablet = true)
-                            Spacer(Modifier.height(24.dp))
-                        }
+                        WideNavigationRailItem(
+                            selected = false,
+                            onClick = onOpenSearch,
+                            icon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                            label = { Text(stringResource(R.string.content_desc_search)) },
+                            railExpanded = isRailExpanded,
+                        )
+                        WideNavigationRailItem(
+                            selected = false,
+                            onClick = onOpenTrash,
+                            icon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null) },
+                            label = { Text(stringResource(R.string.trash_title)) },
+                            railExpanded = isRailExpanded,
+                        )
+                        WideNavigationRailItem(
+                            selected = false,
+                            onClick = onOpenSettings,
+                            icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
+                            label = { Text(stringResource(R.string.settings)) },
+                            railExpanded = isRailExpanded,
+                        )
                     }
                 }
-            }
 
-                // --- 右侧笔记内容区 ---
                 Scaffold(
+                    modifier = Modifier.weight(1f),
                     topBar = {
                         if (isSelectionMode) {
                             TopAppBar(
@@ -881,34 +865,35 @@ fun HomeScreen(
                             )
                         }
                     },
-                    floatingActionButton = { SharedFabContent() }
+                    floatingActionButton = { SharedFabContent(showComposeFab = false, showTimelineFab = false) }
                 ) { padding ->
-                    val sidePadding = if (isSelectionMode) {
-                        PaddingValues(start = 80.dp)
-                    } else PaddingValues(0.dp)
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(top = padding.calculateTopPadding())
-                            .padding(sidePadding)
                     ) {
-                        SharedFeedArea(bottomInset = padding.calculateBottomPadding())
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            AnimatedVisibility(
+                                visible = uiState.showTagBar && !uiState.isSearchMode && !isSelectionMode,
+                                enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically() + fadeOut()
+                            ) {
+                                SharedTags()
+                            }
+
+                            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                                SharedFeedArea(bottomInset = padding.calculateBottomPadding())
+                            }
+                        }
 
                         Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                             SharedUndoSnackbar(bottomInset = padding.calculateBottomPadding())
                         }
-
-                        Box(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .padding(end = 80.dp),
-                            contentAlignment = Alignment.CenterStart
-                        ) {
-                            SharedMultiSelectToolbar(bottomInset = 0.dp)
+                        Box(modifier = Modifier.align(Alignment.BottomCenter)) {
+                            SharedMultiSelectToolbar(bottomInset = padding.calculateBottomPadding())
                         }
                     }
                 }
-            }
             }
         } else {
             // ==================== 手机：原生 Scaffold 垂直布局 ====================
@@ -979,50 +964,16 @@ fun HomeScreen(
                                             }
                                         }
 
-                                        if (isNavCollapsed && !isTablet) {
-                                            Box {
-                                                IconButton(onClick = { showNavMenu = !showNavMenu }) {
-                                                    Icon(Icons.Filled.MoreVert, contentDescription = "更多")
-                                                }
-                                                ExpressiveMenu(
-                                                    expanded = showNavMenu,
-                                                    onDismissRequest = { showNavMenu = false }
-                                                ) {
-                                                    ExpressiveMenuItem(
-                                                        text = "扫一扫",
-                                                        onClick = { showNavMenu = false; onOpenScanner() },
-                                                        index = 0,
-                                                        count = 3,
-                                                        leadingIcon = Icons.Filled.QrCodeScanner,
-                                                    )
-                                                    ExpressiveMenuItem(
-                                                        text = stringResource(R.string.trash_title),
-                                                        onClick = { showNavMenu = false; onOpenTrash() },
-                                                        index = 1,
-                                                        count = 3,
-                                                        leadingIcon = Icons.Filled.DeleteSweep,
-                                                    )
-                                                    ExpressiveMenuItem(
-                                                        text = stringResource(R.string.settings),
-                                                        onClick = { showNavMenu = false; onOpenSettings() },
-                                                        index = 2,
-                                                        count = 3,
-                                                        leadingIcon = Icons.Filled.Settings,
-                                                    )
-                                                }
-                                            }
-                                        } else {
-                                            IconButton(onClick = onOpenScanner) {
-                                                Icon(Icons.Filled.QrCodeScanner, contentDescription = "扫一扫")
-                                            }
+                                        IconButton(onClick = onOpenScanner) {
+                                            Icon(Icons.Filled.QrCodeScanner, contentDescription = "扫一扫")
+                                        }
 
-                                            IconButton(onClick = onOpenTrash) {
-                                                Icon(Icons.Filled.DeleteSweep, contentDescription = stringResource(R.string.trash_title))
-                                            }
+                                        IconButton(onClick = onOpenTrash) {
+                                            Icon(Icons.Filled.DeleteSweep, contentDescription = stringResource(R.string.trash_title))
+                                        }
 
-                                            IconButton(onClick = onOpenSettings) {
-                                                Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.content_desc_settings))
-                                            }
+                                        IconButton(onClick = onOpenSettings) {
+                                            Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.content_desc_settings))
                                         }
                                     }
                                 },
@@ -1053,7 +1004,7 @@ fun HomeScreen(
                             enter = expandVertically() + fadeIn(),
                             exit = shrinkVertically() + fadeOut()
                         ) {
-                            SharedTags(isTablet = false)
+                            SharedTags()
                         }
 
                         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {

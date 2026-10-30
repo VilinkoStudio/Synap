@@ -14,7 +14,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,7 +53,6 @@ fun SettingHomeScreen(
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("synap_prefs", Context.MODE_PRIVATE) }
 
-    var isNavCollapsed by remember { mutableStateOf(prefs.getBoolean("is_nav_collapsed", false)) }
     var dualColumnCards by remember { mutableStateOf(prefs.getBoolean("dual_column_cards", true)) }
     var tagBarEnabled by remember(showTagBar) { mutableStateOf(showTagBar) }
     var timeGroupsEnabled by remember(showTimeGroups) { mutableStateOf(showTimeGroups) }
@@ -142,17 +140,6 @@ fun SettingHomeScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             SegmentedSettingsColumn(title = stringResource(R.string.setting_phone_layout)) {
-                item {
-                    SegmentedSwitchItem(
-                        icon = Icons.Filled.MoreVert,
-                        title = stringResource(R.string.setting_collapse_nav_buttons),
-                        checked = isNavCollapsed,
-                        onCheckedChange = {
-                            isNavCollapsed = it
-                            prefs.edit().putBoolean("is_nav_collapsed", it).apply()
-                        },
-                    )
-                }
                 item {
                     SegmentedSwitchItem(
                         icon = Icons.Filled.ViewAgenda,

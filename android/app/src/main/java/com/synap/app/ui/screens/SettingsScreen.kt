@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
@@ -105,32 +106,41 @@ private fun FeatureSection(
 
     SegmentedSettingsColumn(title = stringResource(R.string.setting_feature)) {
         item {
-            Box {
-                SegmentedNavItem(
-                    icon = Icons.Filled.Inventory2,
-                    title = stringResource(R.string.draft_capacity),
-                    summary = if (draftCapacity == 0) {
-                        stringResource(R.string.draft_capacity_summary_off)
-                    } else {
-                        stringResource(R.string.draft_capacity_summary_on, draftCapacity)
-                    },
-                    onClick = { expanded = true },
-                )
-                ExpressiveMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                    capacities.forEachIndexed { index, capacity ->
-                        ExpressiveSelectableMenuItem(
-                            text = capacityLabels[index],
-                            selected = draftCapacity == capacity,
-                            onClick = {
-                                onDraftCapacityChange(capacity)
-                                expanded = false
-                            },
-                            index = index,
-                            count = capacities.size,
-                        )
+            SegmentedNavItem(
+                icon = Icons.Filled.Inventory2,
+                title = stringResource(R.string.draft_capacity),
+                summary = if (draftCapacity == 0) {
+                    stringResource(R.string.draft_capacity_summary_off)
+                } else {
+                    stringResource(R.string.draft_capacity_summary_on, draftCapacity)
+                },
+                trailingContent = {
+                    Box {
+                        IconButton(onClick = { expanded = true }) {
+                            Icon(
+                                Icons.Filled.MoreVert,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        ExpressiveMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                            capacities.forEachIndexed { index, capacity ->
+                                ExpressiveSelectableMenuItem(
+                                    text = capacityLabels[index],
+                                    selected = draftCapacity == capacity,
+                                    onClick = {
+                                        onDraftCapacityChange(capacity)
+                                        expanded = false
+                                    },
+                                    index = index,
+                                    count = capacities.size,
+                                )
+                            }
+                        }
                     }
-                }
-            }
+                },
+                onClick = { expanded = true },
+            )
         }
         item { SegmentedNavItem(Icons.Filled.Bolt, stringResource(R.string.setting_volume_key_shortcut)) { onNavigateToShortcut() } }
         item {

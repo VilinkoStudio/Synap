@@ -139,8 +139,6 @@
     <string name="setting_home_display_options">Home Composition</string>
     <string name="setting_home_layout">التخطيط</string>
     <string name="setting_show_time_groups">Time Groups</string>
-    <string name="setting_collapse_nav_buttons">إخفاء الأزرار في الرئيسية</string>
-    <string name="setting_collapse_nav_buttons_desc">صالح للهواتف فقط</string>
     <string name="setting_show_tag_bar">شريط العلامات</string>
     <string name="setting_show_timeline_jump_tool">Timeline Jump Tool</string>
     <string name="ai">الذكاء الاصطناعي</string>

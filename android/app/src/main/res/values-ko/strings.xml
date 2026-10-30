@@ -81,8 +81,6 @@
     <string name="home_filter_untagged">미분류</string>
     <string name="setting_show_tag_bar">태그 바</string>
     <string name="setting_show_timeline_jump_tool">Timeline Jump Tool</string>
-    <string name="setting_collapse_nav_buttons">내비게이션 버튼 접기</string>
-    <string name="setting_collapse_nav_buttons_desc">이 옵션은 휴대폰 레이아웃에만 적용되며 대화면 레이아웃에는 적용되지 않습니다</string>
     <string name="setting_home_display_options">Home Composition</string>
     <string name="setting_home_layout">레이아웃</string>
     <string name="setting_show_time_groups">Time Groups</string>
