@@ -66,8 +66,6 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilterChip
@@ -115,6 +113,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.synap.app.R
 import com.synap.app.ui.components.ShareExportSheet
+import com.synap.app.ui.components.ExpressiveMenu
+import com.synap.app.ui.components.ExpressiveMenuItem
 import com.synap.app.ui.components.HomeTimelineFeed
 import com.synap.app.ui.model.Note
 import com.synap.app.ui.model.committedSelectedNoteIds
@@ -984,24 +984,30 @@ fun HomeScreen(
                                                 IconButton(onClick = { showNavMenu = !showNavMenu }) {
                                                     Icon(Icons.Filled.MoreVert, contentDescription = "更多")
                                                 }
-                                                DropdownMenu(
+                                                ExpressiveMenu(
                                                     expanded = showNavMenu,
                                                     onDismissRequest = { showNavMenu = false }
                                                 ) {
-                                                    DropdownMenuItem(
-                                                        text = { Text("扫一扫") },
+                                                    ExpressiveMenuItem(
+                                                        text = "扫一扫",
                                                         onClick = { showNavMenu = false; onOpenScanner() },
-                                                        leadingIcon = { Icon(Icons.Filled.QrCodeScanner, contentDescription = null) }
+                                                        index = 0,
+                                                        count = 3,
+                                                        leadingIcon = Icons.Filled.QrCodeScanner,
                                                     )
-                                                    DropdownMenuItem(
-                                                        text = { Text(stringResource(R.string.trash_title)) },
+                                                    ExpressiveMenuItem(
+                                                        text = stringResource(R.string.trash_title),
                                                         onClick = { showNavMenu = false; onOpenTrash() },
-                                                        leadingIcon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null) }
+                                                        index = 1,
+                                                        count = 3,
+                                                        leadingIcon = Icons.Filled.DeleteSweep,
                                                     )
-                                                    DropdownMenuItem(
-                                                        text = { Text(stringResource(R.string.settings)) },
+                                                    ExpressiveMenuItem(
+                                                        text = stringResource(R.string.settings),
                                                         onClick = { showNavMenu = false; onOpenSettings() },
-                                                        leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) }
+                                                        index = 2,
+                                                        count = 3,
+                                                        leadingIcon = Icons.Filled.Settings,
                                                     )
                                                 }
                                             }

@@ -35,8 +35,6 @@ import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -59,6 +57,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.synap.app.R
+import com.synap.app.ui.components.ExpressiveMenu
+import com.synap.app.ui.components.ExpressiveSelectableMenuItem
 import com.synap.app.ui.components.SegmentedNavItem
 import com.synap.app.ui.components.SegmentedSettingsColumn
 import com.synap.app.ui.components.SegmentedSwitchItem
@@ -115,23 +115,17 @@ private fun FeatureSection(
                     },
                     onClick = { expanded = true },
                 )
-                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                ExpressiveMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                     capacities.forEachIndexed { index, capacity ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = capacityLabels[index],
-                                    color = if (draftCapacity == capacity) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurface
-                                    },
-                                )
-                            },
+                        ExpressiveSelectableMenuItem(
+                            text = capacityLabels[index],
+                            selected = draftCapacity == capacity,
                             onClick = {
                                 onDraftCapacityChange(capacity)
                                 expanded = false
                             },
+                            index = index,
+                            count = capacities.size,
                         )
                     }
                 }
