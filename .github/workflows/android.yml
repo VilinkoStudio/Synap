@@ -124,7 +124,12 @@ jobs:
         run: |
           chmod +x gradlew
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            ./gradlew --no-daemon assembleRelease
+            VERSION_CODE="$(grep -E "^${GITHUB_REF_NAME}=" version-code.properties | tail -n1 | cut -d= -f2 || true)"
+            EXTRA_ARGS=("-PversionName=${GITHUB_REF_NAME}")
+            if [[ -n "${VERSION_CODE}" ]]; then
+              EXTRA_ARGS+=("-PversionCode=${VERSION_CODE}")
+            fi
+            ./gradlew --no-daemon assembleRelease "${EXTRA_ARGS[@]}"
           else
             ./gradlew --no-daemon assembleDebug
           fi
