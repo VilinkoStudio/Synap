@@ -72,3 +72,8 @@ Desktop.ini
 
 # Local build artifacts
 dist/
+
+# Signing (never commit)
+android/keystore.properties
+android/*.jks
+android/*.keystore
