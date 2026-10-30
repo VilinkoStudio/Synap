@@ -253,7 +253,7 @@ fun VersionScreen(
                     SegmentedInfoItem(
                         icon = null,
                         title = "当前版本",
-                        summary = buildVersion + (buildVersionDetails?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
+                        summary = buildVersion.substringBefore("·").trim(),
                     )
                 }
                 item {

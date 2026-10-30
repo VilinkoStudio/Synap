@@ -1,19 +1,25 @@
 package com.synap.app.ui.screens
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -46,9 +52,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.synap.app.R
-import com.synap.app.ui.util.navigationBarsScrollPadding
 import com.synap.app.ui.components.SegmentedContentItem
 import com.synap.app.ui.components.SegmentedSettingsColumn
+import com.synap.app.ui.util.navigationBarsScrollPadding
 import kotlinx.coroutines.CancellationException
 
 data class SocialLink(val platformName: String, val platformNameRes: Int? = null, val url: String)
@@ -115,105 +121,157 @@ fun TeamScreen(onNavigateBack: () -> Unit) {
             )
         }
     ) { innerPadding ->
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp)
-                .navigationBarsScrollPadding(),
+                .padding(innerPadding),
         ) {
-            SegmentedSettingsColumn(title = stringResource(R.string.creative_team)) {
-                creativeTeamList.forEach { member ->
-                    item {
-                        SegmentedContentItem {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
+            if (maxWidth >= 700.dp) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState())
+                            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+                            .navigationBarsScrollPadding(),
+                    ) {
+                        TeamInfoContent(context)
+                    }
+
+                    BoxWithConstraints(
+                        modifier = Modifier
+                            .width(360.dp)
+                            .fillMaxHeight(),
+                    ) {
+                        val viewportHeight = maxHeight
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState())
+                                .navigationBarsScrollPadding(),
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = viewportHeight)
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
-                                Text(
-                                    text = member.name,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    member.socialLinks.forEach { link ->
-                                        val platformText = link.platformNameRes?.let { stringResource(it) } ?: link.platformName
-                                        Button(
-                                            onClick = {
-                                                runCatching {
-                                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url)))
-                                                }
-                                            },
-                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                                            modifier = Modifier.height(28.dp),
-                                        ) {
-                                            Text(text = platformText, fontSize = 11.sp)
+                                SponsorContent()
+                            }
+                        }
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 16.dp)
+                        .navigationBarsScrollPadding(),
+                ) {
+                    TeamInfoContent(context)
+                    Spacer(modifier = Modifier.height(32.dp))
+                    SponsorContent()
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TeamInfoContent(context: Context) {
+    SegmentedSettingsColumn(title = stringResource(R.string.creative_team)) {
+        creativeTeamList.forEach { member ->
+            item {
+                SegmentedContentItem {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = member.name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            member.socialLinks.forEach { link ->
+                                val platformText = link.platformNameRes?.let { stringResource(it) } ?: link.platformName
+                                Button(
+                                    onClick = {
+                                        runCatching {
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url)))
                                         }
-                                    }
+                                    },
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(28.dp),
+                                ) {
+                                    Text(text = platformText, fontSize = 11.sp)
                                 }
                             }
                         }
                     }
                 }
             }
+        }
+    }
 
-            Spacer(modifier = Modifier.height(24.dp))
+    Spacer(modifier = Modifier.height(24.dp))
 
-            SegmentedSettingsColumn(title = stringResource(R.string.publisher)) {
-                item {
-                    SegmentedContentItem {
-                        Text(
-                            text = "厦门市同安区云上幻可网络科技工作室",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                }
+    SegmentedSettingsColumn(title = stringResource(R.string.publisher)) {
+        item {
+            SegmentedContentItem {
+                Text(
+                    text = "厦门市同安区云上幻可网络科技工作室",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
             }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(32.dp))
+@Composable
+private fun SponsorContent() {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "赞助开发者",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "如果 Synap 对您有帮助，可以请我们喝杯咖啡~",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(24.dp))
 
-            Column(
+        val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+        val qrImageRes = if (isDark) R.drawable.sponsor_qr_dark else R.drawable.sponsor_qr_light
+
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            tonalElevation = 2.dp,
+            shadowElevation = 4.dp
+        ) {
+            Image(
+                painter = painterResource(id = qrImageRes),
+                contentDescription = "赞助二维码",
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "赞助开发者",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "如果 Synap 对您有帮助，可以请我们喝杯咖啡~",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-
-                val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-                val qrImageRes = if (isDark) R.drawable.sponsor_qr_dark else R.drawable.sponsor_qr_light
-
-                Surface(
-                    shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    tonalElevation = 2.dp,
-                    shadowElevation = 4.dp
-                ) {
-                    Image(
-                        painter = painterResource(id = qrImageRes),
-                        contentDescription = "赞助二维码",
-                        modifier = Modifier
-                            .size(240.dp)
-                            .padding(16.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                    )
-                }
-            }
+                    .size(240.dp)
+                    .padding(16.dp)
+                    .clip(RoundedCornerShape(12.dp))
+            )
         }
     }
 }

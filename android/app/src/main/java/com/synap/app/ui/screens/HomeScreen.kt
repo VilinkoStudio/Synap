@@ -820,6 +820,7 @@ fun HomeScreen(
                         modifier = Modifier
                             .fillMaxHeight()
                             .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(if (isRailExpanded) 0.dp else 4.dp),
                     ) {
                         WideNavigationRailItem(
                             selected = false,

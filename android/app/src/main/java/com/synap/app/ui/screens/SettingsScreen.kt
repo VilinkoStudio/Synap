@@ -217,7 +217,7 @@ private fun AboutSection(
             SegmentedNavItem(
                 icon = null,
                 title = stringResource(R.string.version_info),
-                summary = buildVersion + (buildVersionDetails?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
+                summary = buildVersion.substringBefore("·").trim(),
                 badge = versionType.takeIf { it != VersionType.Release }?.name,
                 onClick = onNavigateToVersion,
             )

@@ -60,7 +60,13 @@ val gitBranch = runGitCommand(repoRootDir, "rev-parse", "--abbrev-ref", "HEAD")
     ?.let { branch -> if (branch == "HEAD") "detached" else branch }
     ?: "unknown"
 val gitTag = runGitCommand(repoRootDir, "describe", "--tags", "--exact-match", "HEAD")
-val resolvedVersionName = gitTag?.let { "$it ($gitShortCommit)" } ?: "$gitBranch ($gitShortCommit)"
+val versionNameOverride = (project.findProperty("versionName") as String?)?.takeIf { it.isNotBlank() }
+    ?: System.getenv("VERSION_NAME")?.takeIf { it.isNotBlank() }
+val versionCodeOverride = ((project.findProperty("versionCode") as String?)
+    ?: System.getenv("VERSION_CODE"))?.toIntOrNull()
+val resolvedVersionName = versionNameOverride
+    ?: gitTag?.let { "$it ($gitShortCommit)" }
+    ?: "$gitBranch ($gitShortCommit)"
 val isReleaseTask = gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
 
 fun resolveAndroidSdkDir(): File? {
@@ -116,7 +122,7 @@ android {
         applicationId = "com.synap.app"
         minSdk = 24
         targetSdk = 37
-        versionCode = 1
+        versionCode = versionCodeOverride ?: 1
         versionName = resolvedVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

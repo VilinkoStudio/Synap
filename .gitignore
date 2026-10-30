@@ -69,3 +69,6 @@ Desktop.ini
 .reasonix
 .omp
 .cache
+
+# Local build artifacts
+dist/
