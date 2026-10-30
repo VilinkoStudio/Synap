@@ -57,7 +57,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install stable Rust
         uses: dtolnay/rust-toolchain@stable
@@ -97,7 +97,7 @@ jobs:
 
       - name: Upload release artifact
         if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: synap-cli-${{ matrix.platform }}-release
           path: dist/synap-cli-${{ github.ref_name }}-${{ matrix.platform }}.${{ matrix.archive_ext }}
@@ -108,20 +108,20 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     needs:
       - build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
 
     steps:
       - name: Download release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: synap-cli-*-release
           merge-multiple: true
           path: release-assets
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: release-assets/*
           generate_release_notes: true

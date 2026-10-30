@@ -36,12 +36,12 @@ env:
 jobs:
   build:
     name: Build Desktop Linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Linux desktop dependencies
         run: |
@@ -84,7 +84,7 @@ jobs:
 
       - name: Upload release artifact
         if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: synap-desktop-linux-release
           path: dist/*.tar.gz
@@ -95,19 +95,19 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     needs:
       - build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
 
     steps:
       - name: Download release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: synap-desktop-linux-release
           path: release-assets
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: release-assets/*
           generate_release_notes: true
