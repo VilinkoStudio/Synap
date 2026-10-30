@@ -63,6 +63,8 @@ jobs:
 
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-disabled: true
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
