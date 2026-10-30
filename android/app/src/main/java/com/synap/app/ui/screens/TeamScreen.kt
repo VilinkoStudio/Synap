@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -45,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.synap.app.R
+import com.synap.app.ui.util.navigationBarsScrollPadding
 import com.synap.app.ui.components.SegmentedContentItem
 import com.synap.app.ui.components.SegmentedSettingsColumn
 import kotlinx.coroutines.CancellationException
@@ -101,6 +103,7 @@ fun TeamScreen(onNavigateBack: () -> Unit) {
                 shape = RoundedCornerShape(32.dp * backProgress)
                 clip = true
             },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.creative_team)) },
@@ -117,7 +120,8 @@ fun TeamScreen(onNavigateBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp),
+                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .navigationBarsScrollPadding(),
         ) {
             SegmentedSettingsColumn(title = stringResource(R.string.creative_team)) {
                 creativeTeamList.forEach { member ->

@@ -2,6 +2,7 @@ package com.synap.app.ui.screens
 
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import com.synap.app.R
 import com.synap.app.ui.components.SegmentedSelectableItem
 import com.synap.app.ui.components.SegmentedSettingsColumn
+import com.synap.app.ui.util.navigationBarsScrollPadding
 import kotlinx.coroutines.CancellationException
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,6 +60,7 @@ fun LanguageSelectionScreen(
                 shape = RoundedCornerShape(32.dp * backProgress)
                 clip = true
             },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.select_language)) },
@@ -75,7 +78,7 @@ fun LanguageSelectionScreen(
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
-                .padding(bottom = 16.dp),
+                .navigationBarsScrollPadding(),
         ) {
             SegmentedSettingsColumn {
                 languages.forEachIndexed { index, language ->

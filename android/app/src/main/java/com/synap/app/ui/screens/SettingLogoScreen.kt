@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import com.synap.app.R
 import com.synap.app.ui.components.SegmentedSelectableItem
 import com.synap.app.ui.components.SegmentedSettingsColumn
+import com.synap.app.ui.util.navigationBarsScrollPadding
 import kotlinx.coroutines.CancellationException
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -110,6 +111,7 @@ fun SettingLogoScreen(onNavigateBack: () -> Unit) {
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
+                .navigationBarsScrollPadding()
         ) {
             val options = listOf(stringResource(R.string.icon_synap_colored), stringResource(R.string.icon_monet))
 

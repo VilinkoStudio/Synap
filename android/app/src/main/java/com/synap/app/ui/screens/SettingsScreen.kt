@@ -62,6 +62,7 @@ import com.synap.app.ui.components.ExpressiveSelectableMenuItem
 import com.synap.app.ui.components.SegmentedNavItem
 import com.synap.app.ui.components.SegmentedSettingsColumn
 import com.synap.app.ui.components.SegmentedSwitchItem
+import com.synap.app.ui.util.navigationBarsScrollPadding
 import java.util.concurrent.CancellationException
 
 @Composable
@@ -351,6 +352,7 @@ fun SettingsScreen(
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
                             .padding(horizontal = 16.dp)
+                            .navigationBarsScrollPadding(24.dp)
                     ) {
                         Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                             appearanceContent()
@@ -371,6 +373,7 @@ fun SettingsScreen(
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
                             .padding(horizontal = 16.dp)
+                            .navigationBarsScrollPadding(24.dp)
                     ) {
                         Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                             appearanceContent()
@@ -389,7 +392,8 @@ fun SettingsScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 16.dp),
+                            .padding(horizontal = 16.dp)
+                            .navigationBarsScrollPadding(24.dp),
                     ) {
                         appearanceContent()
                         Spacer(modifier = Modifier.height(24.dp))

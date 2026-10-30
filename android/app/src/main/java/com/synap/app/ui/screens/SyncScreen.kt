@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -89,6 +90,7 @@ import com.synap.app.data.model.SyncSessionRole
 import com.synap.app.data.model.SyncStatus
 import com.synap.app.ui.components.SegmentedContentItem
 import com.synap.app.ui.components.SegmentedSettingsColumn
+import com.synap.app.ui.util.navigationBarsScrollPadding
 import com.synap.app.ui.viewmodel.SyncUiState
 import java.time.Instant
 import java.time.ZoneId
@@ -175,6 +177,7 @@ fun SyncScreen(
                 shape = RoundedCornerShape(32.dp * backProgress)
                 clip = true
             },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text("同步") },
@@ -242,7 +245,8 @@ fun SyncScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 16.dp)
+                        .navigationBarsScrollPadding(),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Spacer(modifier = Modifier.height(4.dp))

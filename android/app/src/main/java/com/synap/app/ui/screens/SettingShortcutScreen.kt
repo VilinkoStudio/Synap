@@ -44,6 +44,7 @@ import com.synap.app.ShizukuHelper
 import com.synap.app.ui.components.SegmentedContentItem
 import com.synap.app.ui.components.SegmentedNavItem
 import com.synap.app.ui.components.SegmentedSettingsColumn
+import com.synap.app.ui.util.navigationBarsScrollPadding
 import com.synap.app.widget.QuickNoteTileService
 import kotlinx.coroutines.CancellationException
 
@@ -97,7 +98,8 @@ fun SettingShortcutScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp)
+                .navigationBarsScrollPadding(),
         ) {
             SegmentedSettingsColumn(title = stringResource(R.string.shortcut_method1_title)) {
                 item {

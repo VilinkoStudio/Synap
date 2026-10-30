@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import com.synap.app.R
 import com.synap.app.ui.components.SegmentedSettingsColumn
 import com.synap.app.ui.components.SegmentedSwitchItem
+import com.synap.app.ui.util.navigationBarsScrollPadding
 import kotlinx.coroutines.CancellationException
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -109,6 +110,7 @@ fun SettingHomeScreen(
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
+                .navigationBarsScrollPadding()
         ) {
             SegmentedSettingsColumn(title = stringResource(R.string.setting_home_display_options)) {
                 item {

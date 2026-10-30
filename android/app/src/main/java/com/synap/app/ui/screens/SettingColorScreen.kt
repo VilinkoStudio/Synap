@@ -45,6 +45,7 @@ import com.synap.app.ui.components.SegmentedContentItem
 import com.synap.app.ui.components.SegmentedSelectableItem
 import com.synap.app.ui.components.SegmentedSettingsColumn
 import com.synap.app.ui.components.SegmentedSwitchItem
+import com.synap.app.ui.util.navigationBarsScrollPadding
 import kotlinx.coroutines.CancellationException
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -96,7 +97,8 @@ fun SettingColorScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp)
+                .navigationBarsScrollPadding(),
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 

@@ -48,6 +48,7 @@ import com.synap.app.R
 import com.synap.app.ui.components.SegmentedContentItem
 import com.synap.app.ui.components.SegmentedSelectableItem
 import com.synap.app.ui.components.SegmentedSettingsColumn
+import com.synap.app.ui.util.navigationBarsScrollPadding
 import kotlinx.coroutines.CancellationException
 import kotlin.math.roundToInt
 
@@ -301,6 +302,7 @@ fun TypographySettingsScreen(
                             .weight(1f)
                             .verticalScroll(rememberScrollState())
                             .padding(end = 16.dp)
+                            .navigationBarsScrollPadding(24.dp)
                     ) {
                         Spacer(modifier = Modifier.height(16.dp))
                         TypographySettingsPanel(
@@ -320,6 +322,7 @@ fun TypographySettingsScreen(
                         modifier = Modifier
                             .width(340.dp)
                             .verticalScroll(rememberScrollState())
+                            .navigationBarsScrollPadding(24.dp)
                     ) {
                         Spacer(modifier = Modifier.height(16.dp))
                         TypographyPreviewSection(
@@ -338,7 +341,8 @@ fun TypographySettingsScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 16.dp)
+                        .navigationBarsScrollPadding(24.dp),
                 ) {
                     Spacer(modifier = Modifier.height(16.dp))
 
