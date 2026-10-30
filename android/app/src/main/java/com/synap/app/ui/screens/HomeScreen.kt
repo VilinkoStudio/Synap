@@ -163,7 +163,6 @@ fun HomeScreen(
     val clipboardManager = LocalClipboardManager.current
     val prefs = remember { context.getSharedPreferences("synap_prefs", Context.MODE_PRIVATE) }
     val isNavCollapsed = remember { prefs.getBoolean("is_nav_collapsed", false) }
-    val widgetAlignment = remember { prefs.getString("widget_alignment", "default") ?: "default" }
 
     val navVisibilityScope = animatedVisibilityScope
 
@@ -660,8 +659,8 @@ fun HomeScreen(
         val isTabletLayout = context.resources.configuration.screenWidthDp >= 600
         AnimatedVisibility(
             visible = isSelectionMode,
-            enter = fadeIn() + (if (isTabletLayout) slideInHorizontally(initialOffsetX = { if (widgetAlignment == "right") it else -it }) else slideInVertically(initialOffsetY = { it })),
-            exit = fadeOut() + (if (isTabletLayout) slideOutHorizontally(targetOffsetX = { if (widgetAlignment == "right") it else -it }) else slideOutVertically(targetOffsetY = { it })),
+            enter = fadeIn() + (if (isTabletLayout) slideInHorizontally(initialOffsetX = { -it }) else slideInVertically(initialOffsetY = { it })),
+            exit = fadeOut() + (if (isTabletLayout) slideOutHorizontally(targetOffsetX = { -it }) else slideOutVertically(targetOffsetY = { it })),
             modifier = if (isTabletLayout) Modifier else Modifier.padding(bottom = 16.dp + bottomInset).offset(y = fabDodgeOffset)
         ) {
             HorizontalFloatingToolbar(
@@ -678,7 +677,6 @@ fun HomeScreen(
     
     @Composable
     fun SharedFabContent() {
-        val fabAlignment = if (widgetAlignment == "left") Alignment.Start else Alignment.End
         AnimatedVisibility(
             visible = !isSelectionMode,
             enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
@@ -686,7 +684,7 @@ fun HomeScreen(
             modifier = Modifier.offset(y = fabDodgeOffset)
         ) {
             Column(
-                horizontalAlignment = if (widgetAlignment == "left") Alignment.Start else Alignment.End,
+                horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 AnimatedVisibility(
@@ -886,7 +884,7 @@ fun HomeScreen(
                     floatingActionButton = { SharedFabContent() }
                 ) { padding ->
                     val sidePadding = if (isSelectionMode) {
-                        if (widgetAlignment == "right") PaddingValues(end = 80.dp) else PaddingValues(start = 80.dp)
+                        PaddingValues(start = 80.dp)
                     } else PaddingValues(0.dp)
                     Box(
                         modifier = Modifier
@@ -903,9 +901,8 @@ fun HomeScreen(
                         Box(
                             modifier = Modifier
                                 .matchParentSize()
-                                .padding(end = if (widgetAlignment == "right") 0.dp else 80.dp)
-                                .padding(start = if (widgetAlignment == "right") 80.dp else 0.dp),
-                            contentAlignment = if (widgetAlignment == "right") Alignment.CenterEnd else Alignment.CenterStart
+                                .padding(end = 80.dp),
+                            contentAlignment = Alignment.CenterStart
                         ) {
                             SharedMultiSelectToolbar(bottomInset = 0.dp)
                         }

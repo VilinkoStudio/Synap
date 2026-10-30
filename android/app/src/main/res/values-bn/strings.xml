@@ -143,12 +143,6 @@
     <string name="setting_collapse_nav_buttons_desc">কেবলমাত্র ফোনের জন্য বৈধ</string>
     <string name="setting_show_tag_bar">ট্যাগ বার</string>
     <string name="setting_show_timeline_jump_tool">Timeline Jump Tool</string>
-    <string name="setting_other">অন্যান্য</string>
-    <string name="setting_widget_alignment">উইজেট সারিবদ্ধকরণ</string>
-    <string name="setting_widget_alignment_desc">টুলবার এবং বোতামগুলি সারিবদ্ধ করুন</string>
-    <string name="setting_widget_alignment_default">ডিফল্ট</string>
-    <string name="setting_widget_alignment_left">বাম</string>
-    <string name="setting_widget_alignment_right">ডান</string>
     <string name="ai">AI</string>
     <string name="ai_service_provider">AI প্রদানকারী</string>
     <string name="ai_scenarios">AI বৈশিষ্ট্যের পরিস্থিতি</string>

@@ -143,12 +143,6 @@
     <string name="setting_collapse_nav_buttons_desc">Только для телефонов</string>
     <string name="setting_show_tag_bar">Панель тегов</string>
     <string name="setting_show_timeline_jump_tool">Timeline Jump Tool</string>
-    <string name="setting_other">Другое</string>
-    <string name="setting_widget_alignment">Выравнивание виджетов</string>
-    <string name="setting_widget_alignment_desc">Выровнять панель инструментов и кнопки</string>
-    <string name="setting_widget_alignment_default">По умолчанию</string>
-    <string name="setting_widget_alignment_left">Слева</string>
-    <string name="setting_widget_alignment_right">Справа</string>
     <string name="ai">ИИ</string>
     <string name="ai_service_provider">Провайдер ИИ</string>
     <string name="ai_scenarios">Сценарии ИИ</string>

@@ -143,12 +143,6 @@
     <string name="setting_collapse_nav_buttons_desc">केवल फ़ोन के लिए मान्य</string>
     <string name="setting_show_tag_bar">टैग बार</string>
     <string name="setting_show_timeline_jump_tool">Timeline Jump Tool</string>
-    <string name="setting_other">अन्य</string>
-    <string name="setting_widget_alignment">विजेट संरेखण</string>
-    <string name="setting_widget_alignment_desc">टूलबार की स्थिति संरेखित करें</string>
-    <string name="setting_widget_alignment_default">डिफ़ॉल्ट</string>
-    <string name="setting_widget_alignment_left">बाएं</string>
-    <string name="setting_widget_alignment_right">दाएं</string>
     <string name="ai">AI</string>
     <string name="ai_service_provider">AI प्रदाता</string>
     <string name="ai_scenarios">AI सुविधा परिदृश्य</string>

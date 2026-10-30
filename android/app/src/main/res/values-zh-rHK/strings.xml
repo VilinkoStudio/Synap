@@ -84,12 +84,6 @@
     <string name="setting_show_timeline_jump_tool">Timeline Jump Tool</string>
     <string name="setting_collapse_nav_buttons">摺疊首頁導航欄的按鈕</string>
     <string name="setting_collapse_nav_buttons_desc">此選項僅適用於手機佈局，不適用於大螢幕佈局</string>
-    <string name="setting_other">其它</string>
-    <string name="setting_widget_alignment">控件對齊方向</string>
-    <string name="setting_widget_alignment_desc">選擇部分控件（如工具欄、浮動按鈕）的對齊方向</string>
-    <string name="setting_widget_alignment_default">預設</string>
-    <string name="setting_widget_alignment_left">靠左</string>
-    <string name="setting_widget_alignment_right">靠右</string>
     <string name="setting_home_display_options">Home Composition</string>
     <string name="setting_home_layout">佈局</string>
     <string name="setting_show_time_groups">Time Groups</string>

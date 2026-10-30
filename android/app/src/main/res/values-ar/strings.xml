@@ -143,12 +143,6 @@
     <string name="setting_collapse_nav_buttons_desc">صالح للهواتف فقط</string>
     <string name="setting_show_tag_bar">شريط العلامات</string>
     <string name="setting_show_timeline_jump_tool">Timeline Jump Tool</string>
-    <string name="setting_other">أخرى</string>
-    <string name="setting_widget_alignment">محاذاة الأدوات</string>
-    <string name="setting_widget_alignment_desc">محاذاة الأزرار وشريط الأدوات</string>
-    <string name="setting_widget_alignment_default">الافتراضي</string>
-    <string name="setting_widget_alignment_left">يسار</string>
-    <string name="setting_widget_alignment_right">يمين</string>
     <string name="ai">الذكاء الاصطناعي</string>
     <string name="ai_service_provider">مزود الذكاء الاصطناعي</string>
     <string name="ai_scenarios">ميزات الذكاء الاصطناعي</string>

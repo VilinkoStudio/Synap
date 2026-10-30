@@ -537,8 +537,6 @@ fun NoteDetailScreen(
     val noteColor = uiState.note?.let { NoteColorUtil.parseCssHex(it.color) }
     val primaryColorForTheme = noteColor ?: MaterialTheme.colorScheme.primary
 
-    val prefs = remember { context.getSharedPreferences("synap_prefs", android.content.Context.MODE_PRIVATE) }
-    val widgetAlignment = remember { prefs.getString("widget_alignment", "default") ?: "default" }
     val isLargeScreen = remember { context.resources.configuration.screenWidthDp >= 700 }
 
     Scaffold(
@@ -735,8 +733,8 @@ fun NoteDetailScreen(
             } else {
                 val note = uiState.note
 
-                val contentStartPadding = if (isLargeScreen && widgetAlignment != "right") 100.dp else 16.dp
-                val contentEndPadding = if (isLargeScreen && widgetAlignment == "right") 100.dp else 16.dp
+                val contentStartPadding = if (isLargeScreen) 100.dp else 16.dp
+                val contentEndPadding = 16.dp
                 val bgColor = noteColor?.copy(alpha = 0.06f) ?: MaterialTheme.colorScheme.background
 
                 Column(
@@ -920,15 +918,11 @@ fun NoteDetailScreen(
 
                 // 大屏浮动工具栏（垂直）
                 if (isLargeScreen) {
-                    val alignment = when (widgetAlignment) {
-                        "right" -> Alignment.CenterEnd
-                        else -> Alignment.CenterStart
-                    }
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(16.dp),
-                        contentAlignment = alignment
+                        contentAlignment = Alignment.CenterStart
                     ) {
                         Surface(
                             shape = RoundedCornerShape(28.dp),

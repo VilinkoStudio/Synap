@@ -2,7 +2,6 @@ package com.synap.app.ui.screens
 
 import android.content.Context
 import androidx.activity.compose.PredictiveBackHandler
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -15,17 +14,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Tag
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ViewAgenda
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -42,7 +36,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.synap.app.R
-import com.synap.app.ui.components.SegmentedNavItem
 import com.synap.app.ui.components.SegmentedSettingsColumn
 import com.synap.app.ui.components.SegmentedSwitchItem
 import kotlinx.coroutines.CancellationException
@@ -60,8 +53,6 @@ fun SettingHomeScreen(
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("synap_prefs", Context.MODE_PRIVATE) }
 
-    var widgetAlignment by remember { mutableStateOf(prefs.getString("widget_alignment", "default") ?: "default") }
-    var showAlignmentMenu by remember { mutableStateOf(false) }
     var isNavCollapsed by remember { mutableStateOf(prefs.getBoolean("is_nav_collapsed", false)) }
     var dualColumnCards by remember { mutableStateOf(prefs.getBoolean("dual_column_cards", true)) }
     var tagBarEnabled by remember(showTagBar) { mutableStateOf(showTagBar) }
@@ -89,12 +80,6 @@ fun SettingHomeScreen(
         timelineJumpToolEnabled = nextTimelineJumpToolEnabled
         onSetHomeDisplayOptions(nextTagBarEnabled, nextTimeGroupsEnabled, nextTimelineJumpToolEnabled)
         onRefresh()
-    }
-
-    val alignmentLabel = when (widgetAlignment) {
-        "left" -> stringResource(R.string.setting_widget_alignment_left)
-        "right" -> stringResource(R.string.setting_widget_alignment_right)
-        else -> stringResource(R.string.setting_widget_alignment_default)
     }
 
     Scaffold(
@@ -176,50 +161,6 @@ fun SettingHomeScreen(
                             prefs.edit().putBoolean("dual_column_cards", it).apply()
                         },
                     )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            SegmentedSettingsColumn(title = stringResource(R.string.setting_other)) {
-                item {
-                    Box {
-                        SegmentedNavItem(
-                            icon = Icons.Filled.Tune,
-                            title = stringResource(R.string.setting_widget_alignment),
-                            summary = alignmentLabel,
-                            onClick = { showAlignmentMenu = true },
-                        )
-                        DropdownMenu(
-                            expanded = showAlignmentMenu,
-                            onDismissRequest = { showAlignmentMenu = false },
-                        ) {
-                            listOf("default", "left", "right").forEach { value ->
-                                val label = when (value) {
-                                    "left" -> stringResource(R.string.setting_widget_alignment_left)
-                                    "right" -> stringResource(R.string.setting_widget_alignment_right)
-                                    else -> stringResource(R.string.setting_widget_alignment_default)
-                                }
-                                DropdownMenuItem(
-                                    text = { Text(label) },
-                                    onClick = {
-                                        widgetAlignment = value
-                                        prefs.edit().putString("widget_alignment", value).apply()
-                                        showAlignmentMenu = false
-                                    },
-                                    trailingIcon = if (widgetAlignment == value) {
-                                        {
-                                            Icon(
-                                                imageVector = Icons.Filled.Check,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                            )
-                                        }
-                                    } else null,
-                                )
-                            }
-                        }
-                    }
                 }
             }
 

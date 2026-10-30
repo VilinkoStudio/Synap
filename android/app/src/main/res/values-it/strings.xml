@@ -143,12 +143,6 @@
     <string name="setting_collapse_nav_buttons_desc">Valido solo per telefoni</string>
     <string name="setting_show_tag_bar">Barra dei tag</string>
     <string name="setting_show_timeline_jump_tool">Timeline Jump Tool</string>
-    <string name="setting_other">Altro</string>
-    <string name="setting_widget_alignment">Allineamento Widget</string>
-    <string name="setting_widget_alignment_desc">Allinea barra degli strumenti e pulsanti</string>
-    <string name="setting_widget_alignment_default">Predefinito</string>
-    <string name="setting_widget_alignment_left">Sinistra</string>
-    <string name="setting_widget_alignment_right">Destra</string>
     <string name="ai">IA</string>
     <string name="ai_service_provider">Fornitore IA</string>
     <string name="ai_scenarios">Scenari funzionalità IA</string>

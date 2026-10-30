@@ -154,12 +154,6 @@
     <string name="setting_collapse_nav_buttons_desc">此项仅适用于手机布局</string>
     <string name="setting_show_tag_bar">标签栏</string>
     <string name="setting_show_timeline_jump_tool">快速时间跳转工具</string>
-    <string name="setting_other">其它</string>
-    <string name="setting_widget_alignment">控件对齐方向</string>
-    <string name="setting_widget_alignment_desc">选择部分控件（如工具栏、浮动按钮）的对齐方向</string>
-    <string name="setting_widget_alignment_default">默认</string>
-    <string name="setting_widget_alignment_left">靠左</string>
-    <string name="setting_widget_alignment_right">靠右</string>
     <string name="setting_scan">扫一扫</string>
     <string name="scan_torch">手电筒</string>
     <string name="scan_album">相册</string>

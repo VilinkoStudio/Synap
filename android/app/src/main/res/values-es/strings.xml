@@ -143,12 +143,6 @@
     <string name="setting_collapse_nav_buttons_desc">Solo para teléfonos, no para pantallas grandes</string>
     <string name="setting_show_tag_bar">Barra de etiquetas</string>
     <string name="setting_show_timeline_jump_tool">Timeline Jump Tool</string>
-    <string name="setting_other">Otros</string>
-    <string name="setting_widget_alignment">Alineación de widgets</string>
-    <string name="setting_widget_alignment_desc">Alinear barra de herramientas y botones</string>
-    <string name="setting_widget_alignment_default">Predeterminado</string>
-    <string name="setting_widget_alignment_left">Izquierda</string>
-    <string name="setting_widget_alignment_right">Derecha</string>
     <string name="ai">IA</string>
     <string name="ai_service_provider">Proveedor de IA</string>
     <string name="ai_scenarios">Escenarios de IA</string>

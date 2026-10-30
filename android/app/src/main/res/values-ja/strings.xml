@@ -83,12 +83,6 @@
     <string name="setting_show_timeline_jump_tool">Timeline Jump Tool</string>
     <string name="setting_collapse_nav_buttons">ナビゲーションボタンを折りたたむ</string>
     <string name="setting_collapse_nav_buttons_desc">このオプションはスマホレイアウトのみ適用され、大画面レイアウトには適用されません</string>
-    <string name="setting_other">その他</string>
-    <string name="setting_widget_alignment">ウィジェットの配置</string>
-    <string name="setting_widget_alignment_desc">一部のウィジェット（ツールバー、FABなど）の配置を選択</string>
-    <string name="setting_widget_alignment_default">デフォルト</string>
-    <string name="setting_widget_alignment_left">左寄せ</string>
-    <string name="setting_widget_alignment_right">右寄せ</string>
     <string name="setting_home_display_options">Home Composition</string>
     <string name="setting_home_layout">レイアウト</string>
     <string name="setting_show_time_groups">Time Groups</string>

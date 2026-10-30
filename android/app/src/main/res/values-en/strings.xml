@@ -140,12 +140,6 @@
     <string name="setting_show_timeline_jump_tool">Timeline Jump Tool</string>
     <string name="setting_collapse_nav_buttons">Collapse Navigation Buttons</string>
     <string name="setting_collapse_nav_buttons_desc">This option only applies to phone layout, not large screen layout</string>
-    <string name="setting_other">Other</string>
-    <string name="setting_widget_alignment">Widget Alignment</string>
-    <string name="setting_widget_alignment_desc">Choose alignment for certain widgets (toolbar, FAB, etc.)</string>
-    <string name="setting_widget_alignment_default">Default</string>
-    <string name="setting_widget_alignment_left">Left</string>
-    <string name="setting_widget_alignment_right">Right</string>
     <string name="setting_home_layout">Layout</string>
     <string name="setting_home_display_options">Home Composition</string>
     <string name="setting_show_time_groups">Time Groups</string>

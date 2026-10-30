@@ -71,9 +71,16 @@ fun SegmentedSettingsColumn(
             Spacer(modifier = Modifier.height(12.dp))
         }
         Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+            val singleShapes = if (entries.size == 1) {
+                ListItemDefaults.shapes().copy(shape = MaterialTheme.shapes.large)
+            } else {
+                null
+            }
             entries.forEachIndexed { index, entry ->
                 CompositionLocalProvider(
-                    LocalSegmentedShapes provides ListItemDefaults.segmentedShapes(index, entries.size)
+                    LocalSegmentedShapes provides (
+                        singleShapes ?: ListItemDefaults.segmentedShapes(index, entries.size)
+                    )
                 ) {
                     entry.content()
                 }

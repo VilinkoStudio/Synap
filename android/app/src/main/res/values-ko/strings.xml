@@ -83,12 +83,6 @@
     <string name="setting_show_timeline_jump_tool">Timeline Jump Tool</string>
     <string name="setting_collapse_nav_buttons">내비게이션 버튼 접기</string>
     <string name="setting_collapse_nav_buttons_desc">이 옵션은 휴대폰 레이아웃에만 적용되며 대화면 레이아웃에는 적용되지 않습니다</string>
-    <string name="setting_other">기타</string>
-    <string name="setting_widget_alignment">위젯 정렬</string>
-    <string name="setting_widget_alignment_desc">일부 위젯(도구 모음, FAB 등)의 정렬 방향 선택</string>
-    <string name="setting_widget_alignment_default">기본</string>
-    <string name="setting_widget_alignment_left">왼쪽</string>
-    <string name="setting_widget_alignment_right">오른쪽</string>
     <string name="setting_home_display_options">Home Composition</string>
     <string name="setting_home_layout">레이아웃</string>
     <string name="setting_show_time_groups">Time Groups</string>
